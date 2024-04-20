@@ -65,7 +65,7 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file' || item.type === 'text/uri-list' // Web page images
+      (item) => item.kind === 'file' || item.type.startsWith('text/html') // Web page images
     );
 
     if (allItemsAreFiles) {
@@ -107,7 +107,7 @@ const DragUpload = memo(() => {
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file' || item.type === 'text/uri-list'
+        (item) => item.kind === 'file' || item.type.startsWith('text/html')
       );
   
       if (allItemsAreFiles) {
@@ -118,13 +118,21 @@ const DragUpload = memo(() => {
   };
 
   const handleDragLeave = (e: DragEvent) => {
-    e.preventDefault();
-
-    // reset counter
-    dragCounter.current -= 1;
-
-    if (dragCounter.current === 0) {
-      setIsDragging(false);
+    if (e.dataTransfer) {
+      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
+        (item) => item.kind === 'file' || item.type.startsWith('text/html') // Web page images
+      );
+  
+      if (allItemsAreFiles) {
+        e.preventDefault();
+  
+        // reset counter
+        dragCounter.current -= 1;
+  
+        if (dragCounter.current === 0) {
+          setIsDragging(false);
+        }
+      }
     }
   };
 
