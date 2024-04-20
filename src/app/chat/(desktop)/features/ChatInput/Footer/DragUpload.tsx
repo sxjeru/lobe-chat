@@ -68,7 +68,7 @@ const handleDragOver = (e: DragEvent) => {
       (item) => item.kind === 'string'
     );
     const htmlData = e.dataTransfer.getData("text/html"); // web image support
-    var isImg = htmlData && htmlData.startsWith("<img");
+    const isImg = htmlData && htmlData.startsWith("<img");
     if (allItemsAreFiles || isImg) {
       e.preventDefault();
     }
@@ -110,7 +110,7 @@ const DragUpload = memo(() => {
         (item) => item.kind === 'string'
       );
       const htmlData = e.dataTransfer.getData("text/html");
-      var isImg = htmlData && htmlData.startsWith("<img");
+      const isImg = htmlData && htmlData.startsWith("<img");
       if (allItemsAreFiles || isImg) {
         e.preventDefault();
         setIsDragging(true);
@@ -124,7 +124,7 @@ const DragUpload = memo(() => {
         (item) => item.kind === 'string'
       );
       const htmlData = e.dataTransfer.getData("text/html");
-      var isImg = htmlData && htmlData.startsWith("<img");
+      const isImg = htmlData && htmlData.startsWith("<img");
       if (allItemsAreFiles || isImg) {
         e.preventDefault();
   
@@ -144,7 +144,7 @@ const DragUpload = memo(() => {
         (item) => item.kind === 'file'
       );
       const htmlData = e.dataTransfer.getData("text/html");
-      var isImg = htmlData && htmlData.startsWith("<img");
+      const isImg = htmlData && htmlData.startsWith("<img");
       if (allItemsAreFiles || isImg) {
         e.preventDefault();
         // reset counter
