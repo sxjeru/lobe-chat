@@ -65,10 +65,11 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'string' || item.type === 'text/uri-list'
+      (item) => item.kind === 'string'
     );
-
-    if (!allItemsAreFiles) {
+    const htmlData = e.dataTransfer.getData("text/html"); // web image support
+    var isImg = htmlData && htmlData.startsWith("<img");
+    if (allItemsAreFiles || isImg) {
       e.preventDefault();
     }
   }
@@ -102,15 +103,15 @@ const DragUpload = memo(() => {
   };
 
   const handleDragEnter = (e: DragEvent) => {
-    // e.preventDefault();
-
     dragCounter.current += 1;
+
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string' || item.type === 'text/uri-list'
+        (item) => item.kind === 'string'
       );
-  
-      if (!allItemsAreFiles) {
+      const htmlData = e.dataTransfer.getData("text/html");
+      var isImg = htmlData && htmlData.startsWith("<img");
+      if (allItemsAreFiles || isImg) {
         e.preventDefault();
         setIsDragging(true);
       }
@@ -118,12 +119,13 @@ const DragUpload = memo(() => {
   };
 
   const handleDragLeave = (e: DragEvent) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.items) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string' || item.type === 'text/uri-list'
+        (item) => item.kind === 'string'
       );
-  
-      if (!allItemsAreFiles) {
+      const htmlData = e.dataTransfer.getData("text/html");
+      var isImg = htmlData && htmlData.startsWith("<img");
+      if (allItemsAreFiles || isImg) {
         e.preventDefault();
   
         // reset counter
@@ -137,12 +139,13 @@ const DragUpload = memo(() => {
   };
 
   const handleDrop = async (e: DragEvent) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.items) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string' || item.type === 'text/uri-list'
+        (item) => item.kind === 'file'
       );
-  
-      if (!allItemsAreFiles) {
+      const htmlData = e.dataTransfer.getData("text/html");
+      var isImg = htmlData && htmlData.startsWith("<img");
+      if (allItemsAreFiles || isImg) {
         e.preventDefault();
         // reset counter
         dragCounter.current = 0;
