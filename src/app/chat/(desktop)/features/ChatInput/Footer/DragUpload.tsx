@@ -60,12 +60,10 @@ const useStyles = createStyles(({ css, token, stylish }) => {
   };
 });
 
-
-
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'string'
+      (item) => item.kind === 'string',
     );
     const htmlData = e.dataTransfer.getData("text/html"); // web image support
     const isImg = htmlData && htmlData.startsWith("<img");
@@ -107,7 +105,7 @@ const DragUpload = memo(() => {
 
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string'
+        (item) => item.kind === 'string',
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
@@ -121,16 +119,16 @@ const DragUpload = memo(() => {
   const handleDragLeave = (e: DragEvent) => {
     if (e.dataTransfer && e.dataTransfer.items) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string'
+        (item) => item.kind === 'string',
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
       if (allItemsAreFiles || isImg) {
         e.preventDefault();
-  
+
         // reset counter
         dragCounter.current -= 1;
-  
+
         if (dragCounter.current === 0) {
           setIsDragging(false);
         }
@@ -141,7 +139,7 @@ const DragUpload = memo(() => {
   const handleDrop = async (e: DragEvent) => {
     if (e.dataTransfer && e.dataTransfer.items) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file'
+        (item) => item.kind === 'file',
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
@@ -170,7 +168,6 @@ const DragUpload = memo(() => {
     uploadImages(files);
   };
 
-
   useEffect(() => {
     window.addEventListener('dragenter', handleDragEnter);
     window.addEventListener('dragover', handleDragOver);
@@ -198,8 +195,12 @@ const DragUpload = memo(() => {
               <Icon icon={FileText} size={{ fontSize: 64, strokeWidth: 1 }} />
             </Flexbox>
             <Flexbox align={'center'} gap={8} style={{ textAlign: 'center' }}>
-              <Flexbox className={styles.title}>{t(enabledFiles ? 'upload.dragFileTitle' : 'upload.dragTitle')}</Flexbox>
-              <Flexbox className={styles.desc}>{t(enabledFiles ? 'upload.dragFileDesc' : 'upload.dragDesc')}</Flexbox>
+              <Flexbox className={styles.title}>
+                {t(enabledFiles ? 'upload.dragFileTitle' : 'upload.dragTitle')}
+              </Flexbox>
+              <Flexbox className={styles.desc}>
+                {t(enabledFiles ? 'upload.dragFileDesc' : 'upload.dragDesc')}
+              </Flexbox>
             </Flexbox>
           </Center>
         </div>
@@ -209,4 +210,3 @@ const DragUpload = memo(() => {
 });
 
 export default DragUpload;
-
