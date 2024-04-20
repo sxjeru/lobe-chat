@@ -98,7 +98,13 @@ const DragUpload = memo(() => {
 
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      setIsDragging(true);
+      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
+        (item) => item.kind === 'file'
+      );
+  
+      if (allItemsAreFiles) {
+        setIsDragging(true);
+      }
     }
   };
 
