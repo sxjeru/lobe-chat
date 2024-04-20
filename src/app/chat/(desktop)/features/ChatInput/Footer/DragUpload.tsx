@@ -63,7 +63,15 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 
 
 const handleDragOver = (e: DragEvent) => {
-  e.preventDefault();
+  if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+    const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
+      (item) => item.kind === 'file' || item.type === 'text/uri-list' // Web page images
+    );
+
+    if (allItemsAreFiles) {
+      e.preventDefault();
+    }
+  }
 };
 
 const DragUpload = memo(() => {
@@ -99,7 +107,7 @@ const DragUpload = memo(() => {
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file'
+        (item) => item.kind === 'file' || item.type === 'text/uri-list'
       );
   
       if (allItemsAreFiles) {
