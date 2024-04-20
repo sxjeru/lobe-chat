@@ -63,7 +63,7 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'string',
+      (item) => item.kind === 'file',
     );
     const htmlData = e.dataTransfer.getData("text/html"); // web image support
     const isImg = htmlData && htmlData.startsWith("<img");
@@ -105,7 +105,7 @@ const DragUpload = memo(() => {
 
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string',
+        (item) => item.kind === 'file',
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
@@ -119,7 +119,7 @@ const DragUpload = memo(() => {
   const handleDragLeave = (e: DragEvent) => {
     if (e.dataTransfer && e.dataTransfer.items) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'string',
+        (item) => item.kind === 'file',
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
