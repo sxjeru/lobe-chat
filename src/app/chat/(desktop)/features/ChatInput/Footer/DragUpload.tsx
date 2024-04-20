@@ -94,7 +94,7 @@ const DragUpload = memo(() => {
   };
 
   const handleDragEnter = (e: DragEvent) => {
-    e.preventDefault();
+    // e.preventDefault();
 
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
@@ -103,6 +103,7 @@ const DragUpload = memo(() => {
       );
   
       if (allItemsAreFiles) {
+        e.preventDefault();
         setIsDragging(true);
       }
     }
