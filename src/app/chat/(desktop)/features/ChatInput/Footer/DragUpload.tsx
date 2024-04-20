@@ -65,10 +65,10 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file'
+      (item) => item.kind === 'string' || item.type === 'text/uri-list'
     );
 
-    if (allItemsAreFiles) {
+    if (!allItemsAreFiles) {
       e.preventDefault();
     }
   }
@@ -107,10 +107,10 @@ const DragUpload = memo(() => {
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file'
+        (item) => item.kind === 'string' || item.type === 'text/uri-list'
       );
   
-      if (allItemsAreFiles) {
+      if (!allItemsAreFiles) {
         e.preventDefault();
         setIsDragging(true);
       }
@@ -120,10 +120,10 @@ const DragUpload = memo(() => {
   const handleDragLeave = (e: DragEvent) => {
     if (e.dataTransfer) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file'
+        (item) => item.kind === 'string' || item.type === 'text/uri-list'
       );
   
-      if (allItemsAreFiles) {
+      if (!allItemsAreFiles) {
         e.preventDefault();
   
         // reset counter
@@ -139,10 +139,10 @@ const DragUpload = memo(() => {
   const handleDrop = async (e: DragEvent) => {
     if (e.dataTransfer) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file'
+        (item) => item.kind === 'string' || item.type === 'text/uri-list'
       );
   
-      if (allItemsAreFiles) {
+      if (!allItemsAreFiles) {
         e.preventDefault();
         // reset counter
         dragCounter.current = 0;
