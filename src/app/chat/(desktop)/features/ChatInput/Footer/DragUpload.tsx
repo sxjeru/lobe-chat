@@ -65,7 +65,7 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file' || item.type.startsWith('text/html') // Web page images
+      (item) => item.kind === 'file'
     );
 
     if (allItemsAreFiles) {
@@ -107,7 +107,7 @@ const DragUpload = memo(() => {
     dragCounter.current += 1;
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file' || item.type.startsWith('text/html')
+        (item) => item.kind === 'file'
       );
   
       if (allItemsAreFiles) {
@@ -120,7 +120,7 @@ const DragUpload = memo(() => {
   const handleDragLeave = (e: DragEvent) => {
     if (e.dataTransfer) {
       const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file' || item.type.startsWith('text/html') // Web page images
+        (item) => item.kind === 'file'
       );
   
       if (allItemsAreFiles) {
@@ -137,18 +137,26 @@ const DragUpload = memo(() => {
   };
 
   const handleDrop = async (e: DragEvent) => {
-    e.preventDefault();
-    // reset counter
-    dragCounter.current = 0;
+    if (e.dataTransfer) {
+      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
+        (item) => item.kind === 'file'
+      );
+  
+      if (allItemsAreFiles) {
+        e.preventDefault();
+        // reset counter
+        dragCounter.current = 0;
 
-    setIsDragging(false);
+        setIsDragging(false);
 
-    // get filesList
-    // TODO: support folder files upload
-    const files = e.dataTransfer?.files;
+        // get filesList
+        // TODO: support folder files upload
+        const files = e.dataTransfer?.files;
 
-    // upload files
-    uploadImages(files);
+        // upload files
+        uploadImages(files);
+      }
+    }
   };
 
   const handlePaste = (event: ClipboardEvent) => {
