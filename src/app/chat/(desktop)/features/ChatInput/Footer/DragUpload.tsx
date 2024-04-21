@@ -109,6 +109,7 @@ const DragUpload = memo(() => {
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
+      console.log(htmlData)
       console.log(allItemsAreFiles, isImg)
       if (allItemsAreFiles || isImg) {
         dragCounter.current += 1;
