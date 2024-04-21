@@ -63,16 +63,7 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 
 
 const handleDragOver = (e: DragEvent) => {
-  if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-    const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file',
-    );
-    const htmlData = e.dataTransfer.getData("text/html"); // web image support
-    const isImg = htmlData && htmlData.startsWith("<img");
-    if (allItemsAreFiles || isImg) {
-      e.preventDefault();
-    }
-  }
+  e.preventDefault();
 };
 
 const DragUpload = memo(() => {
