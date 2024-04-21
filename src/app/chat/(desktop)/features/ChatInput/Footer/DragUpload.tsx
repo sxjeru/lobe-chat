@@ -70,6 +70,7 @@ const handleDragOver = (e: DragEvent) => {
     if (allItemsAreFiles) {
       e.preventDefault();
     }
+  }
 };
 
 const DragUpload = memo(() => {
