@@ -63,7 +63,13 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 
 
 const handleDragOver = (e: DragEvent) => {
-  e.preventDefault();
+  if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+    const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
+      (item) => item.kind === 'file',
+    );
+    if (allItemsAreFiles) {
+      e.preventDefault();
+    }
 };
 
 const DragUpload = memo(() => {
