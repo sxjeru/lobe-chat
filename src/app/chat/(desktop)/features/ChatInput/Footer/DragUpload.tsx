@@ -60,8 +60,6 @@ const useStyles = createStyles(({ css, token, stylish }) => {
   };
 });
 
-
-
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
     const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
@@ -164,7 +162,6 @@ const DragUpload = memo(() => {
 
     uploadImages(files);
   };
-
 
   useEffect(() => {
     window.addEventListener('dragenter', handleDragEnter);
