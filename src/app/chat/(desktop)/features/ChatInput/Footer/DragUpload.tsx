@@ -109,11 +109,12 @@ const DragUpload = memo(() => {
       );
       const htmlData = e.dataTransfer.getData("text/html");
       const isImg = htmlData && htmlData.startsWith("<img");
+      console.log(allItemsAreFiles, isImg)
       if (allItemsAreFiles || isImg) {
         dragCounter.current += 1;
         e.preventDefault();
         setIsDragging(true);
-        console.log('isDragging1:', isDragging);
+        console.log('DragEnter:', isDragging);
       }
     }
   };
@@ -133,7 +134,7 @@ const DragUpload = memo(() => {
 
         if (dragCounter.current === 0) {
           setIsDragging(false);
-          console.log('isDragging0:', isDragging);
+          console.log('DragLeave:', isDragging);
         }
       }
     }
@@ -152,7 +153,7 @@ const DragUpload = memo(() => {
         dragCounter.current = 0;
 
         setIsDragging(false);
-        console.log('isDragging0:', isDragging);
+        console.log('Drop:', isDragging);
 
         // get filesList
         // TODO: support folder files upload
