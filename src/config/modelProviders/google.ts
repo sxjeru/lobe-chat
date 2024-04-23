@@ -64,7 +64,8 @@ const Google: ModelProviderCard = {
       id: 'gemini-1.5-pro-latest',
       maxOutput: 8192,
       tokens: 1_056_768,
-      vision: true,
+      // vision: true,
+      files: true,
     },
     {
       description: 'The most capable model for highly complex tasks',
