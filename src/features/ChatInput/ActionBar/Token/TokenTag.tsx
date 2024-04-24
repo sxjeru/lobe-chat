@@ -55,9 +55,11 @@ const Token = memo(() => {
 
   // Total token
   const totalToken = systemRoleToken + toolsToken + chatsToken;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   return (
     <Tooltip
       placement={'bottom'}
+      trigger={isMobile ? 'click' : 'hover'}
       title={
         <Flexbox width={150}>
           <Flexbox horizontal justify={'space-between'}>
