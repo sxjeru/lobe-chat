@@ -87,7 +87,7 @@ const Token = memo(() => {
           </Flexbox>
         </Flexbox>
       }
-      trigger={isMobile ? 'click' : 'hover'}
+      // trigger={isMobile ? 'click' : 'hover'}
     >
       <TokenTag
         displayMode={'used'}
