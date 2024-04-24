@@ -26,6 +26,7 @@
   "author": "LobeHub <i@lobehub.com>",
   "sideEffects": false,
   "scripts": {
+    "postinstall": "npm install git+https://github.com/sxjeru/lobe-ui.git#test",
     "build": "next build",
     "postbuild": "npm run build-sitemap",
     "build-sitemap": "next-sitemap --config next-sitemap.config.mjs",
@@ -92,7 +93,6 @@
     "@lobehub/chat-plugins-gateway": "latest",
     "@lobehub/icons": "latest",
     "@lobehub/tts": "latest",
-    "@lobehub/ui": "git+https://github.com/sxjeru/lobe-ui.git#test",
     "@next/third-parties": "^14.2.2",
     "@sentry/nextjs": "^7.111.0",
     "@vercel/analytics": "^1.2.2",
