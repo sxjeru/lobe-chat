@@ -93,7 +93,6 @@
     "@lobehub/icons": "latest",
     "@lobehub/tts": "latest",
     "@lobehub/ui": "latest",
-    "@sxjeru/lobe-ui": "git://github.com/sxjeru/lobe-ui.git#test",
     "@next/third-parties": "^14.2.2",
     "@sentry/nextjs": "^7.111.0",
     "@vercel/analytics": "^1.2.2",

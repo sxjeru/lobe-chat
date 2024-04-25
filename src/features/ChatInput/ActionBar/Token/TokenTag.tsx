@@ -1,4 +1,4 @@
-import { TokenTag, Tooltip } from '@sxjeru/lobe-ui';
+import { TokenTag, Tooltip } from '@lobehub/ui';
 import numeral from 'numeral';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -88,6 +88,7 @@ const Token = memo(() => {
         </Flexbox>
       }
       // trigger={isMobile ? 'click' : 'hover'}
+      trigger={'click'}
     >
       <TokenTag
         displayMode={'used'}
