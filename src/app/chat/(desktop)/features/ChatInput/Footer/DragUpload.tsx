@@ -61,7 +61,7 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 });
 
 // 文字拖拽仅支持 Windows/Linux - Chromium 系浏览器 (#2111)
-const os = !(/Linux|Windows/.test(navigator.userAgentData?.platform))
+const os = !(/Linux|Windows/.test(navigator.userAgentData?.platform || ''))
 
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
