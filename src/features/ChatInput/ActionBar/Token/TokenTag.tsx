@@ -55,7 +55,6 @@ const Token = memo(() => {
 
   // Total token
   const totalToken = systemRoleToken + toolsToken + chatsToken;
-  const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
   return (
     <Tooltip
       placement={'bottom'}
@@ -87,8 +86,6 @@ const Token = memo(() => {
           </Flexbox>
         </Flexbox>
       }
-      // trigger={isMobile ? 'click' : 'hover'}
-      trigger={isMobile ? 'click' : 'click'}
     >
       <TokenTag
         displayMode={'used'}

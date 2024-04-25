@@ -60,12 +60,13 @@ const useStyles = createStyles(({ css, token, stylish }) => {
   };
 });
 
+// 文字拖拽仅支持 Windows/Linux - Chromium 系浏览器 (#2111)
+const os = !(/Linux|Windows/.test(navigator.userAgentData?.platform))
+
 const handleDragOver = (e: DragEvent) => {
   if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-    const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file',
-    );
-    if (allItemsAreFiles) {
+    const isFile = e.dataTransfer.types.includes("Files"); // Webpage image drag
+    if (os || isFile) {
       e.preventDefault();
     }
   }
@@ -100,10 +101,8 @@ const DragUpload = memo(() => {
 
   const handleDragEnter = (e: DragEvent) => {
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      if (allItemsAreFiles) {
+      const isFile = e.dataTransfer.types.includes("Files");
+      if (os || isFile) {
         dragCounter.current += 1;
         e.preventDefault();
         setIsDragging(true);
@@ -113,10 +112,8 @@ const DragUpload = memo(() => {
 
   const handleDragLeave = (e: DragEvent) => {
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      if (allItemsAreFiles) {
+      const isFile = e.dataTransfer.types.includes("Files");
+      if (os || isFile) {
         e.preventDefault();
 
         // reset counter
@@ -124,7 +121,6 @@ const DragUpload = memo(() => {
 
         if (dragCounter.current === 0) {
           setIsDragging(false);
-          console.log('DragLeave:', isDragging);
         }
       }
     }
@@ -132,12 +128,8 @@ const DragUpload = memo(() => {
 
   const handleDrop = async (e: DragEvent) => {
     if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      const htmlData = e.dataTransfer.getData("text/html");
-      const isImg = htmlData && htmlData.startsWith("<img");
-      if (allItemsAreFiles || isImg) {
+      const isFile = e.dataTransfer.types.includes("Files");
+      if (os || isFile) {
         e.preventDefault();
 
         // reset counter
@@ -156,8 +148,8 @@ const DragUpload = memo(() => {
   };
 
   const handlePaste = (event: ClipboardEvent) => {
-    // get files from clipboard
 
+    // get files from clipboard
     const files = event.clipboardData?.files;
 
     uploadImages(files);
@@ -201,4 +193,3 @@ const DragUpload = memo(() => {
 });
 
 export default DragUpload;
-
