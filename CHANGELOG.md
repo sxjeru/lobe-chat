@@ -2,22 +2,72 @@
 
 # Changelog
 
-### [Version 0.152.2](https://github.com/lobehub/lobe-chat/compare/v0.152.1...v0.152.2)
+### [Version 0.152.7](https://github.com/lobehub/lobe-chat/compare/v0.152.6...v0.152.7)
 
-<sup>Released on **2024-05-01**</sup>
+<sup>Released on **2024-05-02**</sup>
 
-#### ♻ Code Refactoring
+#### 💄 Styles
 
-- **misc**: Refactor Setting Layout.
+- **misc**: Refactor setting layout and improve setting design.
 
 <br/>
 
 <details>
 <summary><kbd>Improvements and Fixes</kbd></summary>
 
-#### Code refactoring
+#### Styles
 
-- **misc**: Refactor Setting Layout, closes [#2336](https://github.com/lobehub/lobe-chat/issues/2336) ([282082e](https://github.com/lobehub/lobe-chat/commit/282082e))
+- **misc**: Refactor setting layout and improve setting design, closes [#2344](https://github.com/lobehub/lobe-chat/issues/2344) ([fa16721](https://github.com/lobehub/lobe-chat/commit/fa16721))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.152.6](https://github.com/lobehub/lobe-chat/compare/v0.152.5...v0.152.6)
+
+<sup>Released on **2024-05-02**</sup>
+
+#### 💄 Styles
+
+- **misc**: AutoScroll to the fully end.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: AutoScroll to the fully end, closes [#2345](https://github.com/lobehub/lobe-chat/issues/2345) ([5458e98](https://github.com/lobehub/lobe-chat/commit/5458e98))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.152.5](https://github.com/lobehub/lobe-chat/compare/v0.152.4...v0.152.5)
+
+<sup>Released on **2024-05-02**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix Setings Layout.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix Setings Layout, closes [#2340](https://github.com/lobehub/lobe-chat/issues/2340) ([6a2e9a9](https://github.com/lobehub/lobe-chat/commit/6a2e9a9))
 
 </details>
 
