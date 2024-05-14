@@ -61,15 +61,11 @@ const useStyles = createStyles(({ css, token, stylish }) => {
 });
 
 const handleDragOver = (e: DragEvent) => {
-  if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-    const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-      (item) => item.kind === 'file',
-    );
-    const htmlData = e.dataTransfer.getData("text/html"); // web image support
-    const isImg = htmlData && htmlData.startsWith("<img");
-    if (allItemsAreFiles || isImg) {
-      e.preventDefault();
-    }
+  if (!e.dataTransfer?.items || e.dataTransfer.items.length === 0) return;
+
+  const isFile = e.dataTransfer.types.includes('Files');
+  if (isFile) {
+    e.preventDefault();
   }
 };
 
@@ -101,68 +97,55 @@ const DragUpload = memo(() => {
   };
 
   const handleDragEnter = (e: DragEvent) => {
-    dragCounter.current += 1;
+    if (!e.dataTransfer?.items || e.dataTransfer.items.length === 0) return;
 
-    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      const htmlData = e.dataTransfer.getData("text/html");
-      const isImg = htmlData && htmlData.startsWith("<img");
-      if (allItemsAreFiles || isImg) {
-        e.preventDefault();
-        setIsDragging(true);
-      }
+    const isFile = e.dataTransfer.types.includes('Files');
+    if (isFile) {
+      dragCounter.current += 1;
+      e.preventDefault();
+      setIsDragging(true);
     }
   };
 
   const handleDragLeave = (e: DragEvent) => {
-    if (e.dataTransfer && e.dataTransfer.items) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      const htmlData = e.dataTransfer.getData("text/html");
-      const isImg = htmlData && htmlData.startsWith("<img");
-      if (allItemsAreFiles || isImg) {
-        e.preventDefault();
+    if (!e.dataTransfer?.items || e.dataTransfer.items.length === 0) return;
 
-        // reset counter
-        dragCounter.current -= 1;
+    const isFile = e.dataTransfer.types.includes('Files');
+    if (isFile) {
+      e.preventDefault();
 
-        if (dragCounter.current === 0) {
-          setIsDragging(false);
-        }
+      // reset counter
+      dragCounter.current -= 1;
+
+      if (dragCounter.current === 0) {
+        setIsDragging(false);
       }
     }
   };
 
   const handleDrop = async (e: DragEvent) => {
-    if (e.dataTransfer && e.dataTransfer.items) {
-      const allItemsAreFiles = Array.from(e.dataTransfer.items).every(
-        (item) => item.kind === 'file',
-      );
-      const htmlData = e.dataTransfer.getData("text/html");
-      const isImg = htmlData && htmlData.startsWith("<img");
-      if (allItemsAreFiles || isImg) {
-        e.preventDefault();
-        // reset counter
-        dragCounter.current = 0;
+    if (!e.dataTransfer?.items || e.dataTransfer.items.length === 0) return;
 
-        setIsDragging(false);
+    const isFile = e.dataTransfer.types.includes('Files');
+    if (isFile) {
+      e.preventDefault();
 
-        // get filesList
-        // TODO: support folder files upload
-        const files = e.dataTransfer?.files;
+      // reset counter
+      dragCounter.current = 0;
 
-        // upload files
-        uploadImages(files);
-      }
+      setIsDragging(false);
+
+      // get filesList
+      // TODO: support folder files upload
+      const files = e.dataTransfer?.files;
+
+      // upload files
+      uploadImages(files);
     }
   };
 
   const handlePaste = (event: ClipboardEvent) => {
     // get files from clipboard
-
     const files = event.clipboardData?.files;
 
     uploadImages(files);
