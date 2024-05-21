@@ -103,7 +103,7 @@ const VirtualizedList = memo<VirtualizedListProps>(({ mobile }) => {
     <Flexbox height={'100%'}>
       <Virtuoso
         atBottomStateChange={setAtBottom}
-        atBottomThreshold={55 * (mobile ? 2 : 1)}
+        atBottomThreshold={60 * (mobile ? 2 : 1)}
         computeItemKey={(_, item) => item}
         data={data}
         followOutput={getFollowOutput}
