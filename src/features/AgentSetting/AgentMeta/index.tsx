@@ -5,7 +5,7 @@ import { Button } from 'antd';
 import isEqual from 'fast-deep-equal';
 import { isString } from 'lodash-es';
 import { Wand2 } from 'lucide-react';
-import dynamic from 'next/dynamic';
+// import dynamic from 'next/dynamic';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
