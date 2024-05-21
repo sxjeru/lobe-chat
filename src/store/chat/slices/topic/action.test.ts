@@ -6,6 +6,7 @@ import { LOADING_FLAT } from '@/const/message';
 import { chatService } from '@/services/chat';
 import { messageService } from '@/services/message';
 import { topicService } from '@/services/topic';
+import { messageMapKey } from '@/store/chat/slices/message/utils';
 import { ChatMessage } from '@/types/message';
 import { ChatTopic } from '@/types/topic';
 
@@ -87,7 +88,12 @@ describe('topic action', () => {
     it('should not create a topic if there are no messages', async () => {
       const { result } = renderHook(() => useChatStore());
       act(() => {
-        useChatStore.setState({ messages: [] });
+        useChatStore.setState({
+          messagesMap: {
+            [messageMapKey('session')]: [],
+          },
+          activeId: 'session',
+        });
       });
 
       const createTopicSpy = vi.spyOn(topicService, 'createTopic');
@@ -102,7 +108,12 @@ describe('topic action', () => {
       const { result } = renderHook(() => useChatStore());
       const messages = [{ id: 'message1' }, { id: 'message2' }] as ChatMessage[];
       act(() => {
-        useChatStore.setState({ messages, activeId: 'session-id' });
+        useChatStore.setState({
+          messagesMap: {
+            [messageMapKey('session-id')]: messages,
+          },
+          activeId: 'session-id',
+        });
       });
 
       const createTopicSpy = vi
@@ -149,9 +160,7 @@ describe('topic action', () => {
       });
 
       // Check if mutate has been called with the active session ID
-      expect(mutate).toHaveBeenCalledWith(['SWR_USE_FETCH_TOPIC', activeId], undefined, {
-        populateCache: false,
-      });
+      expect(mutate).toHaveBeenCalledWith(['SWR_USE_FETCH_TOPIC', activeId]);
     });
 
     it('should handle errors during refreshing topics', async () => {
@@ -381,14 +390,18 @@ describe('topic action', () => {
   describe('updateTopicLoading', () => {
     it('should call update topicLoadingId', async () => {
       const { result } = renderHook(() => useChatStore());
-      expect(result.current.topicLoadingId).toBeUndefined();
-
-      // Call the action with the topicId and newTitle
-      await act(async () => {
-        await result.current.updateTopicLoading('loading-id');
+      act(() => {
+        useChatStore.setState({ topicLoadingIds: [] });
       });
 
-      expect(result.current.topicLoadingId).toEqual('loading-id');
+      expect(result.current.topicLoadingIds).toHaveLength(0);
+
+      // Call the action with the topicId and newTitle
+      act(() => {
+        result.current.internal_updateTopicLoading('loading-id', true);
+      });
+
+      expect(result.current.topicLoadingIds).toEqual(['loading-id']);
     });
   });
   describe('summaryTopicTitle', () => {

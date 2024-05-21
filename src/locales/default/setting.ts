@@ -21,20 +21,23 @@ export default {
       action: '立即重置',
       confirm: '确认重置所有设置？',
       currentVersion: '当前版本',
-      desc: '重置所有设置项回默认值',
+      desc: '重置所有设置，使用默认值',
+      success: '已重置所有设置',
       title: '重置所有设置',
     },
   },
   header: {
+    desc: '偏好与模型设置',
     global: '全局设置',
     session: '会话设置',
+    sessionDesc: '角色设定与会话偏好',
     sessionWithName: '会话设置 · {{name}}',
+    title: '设置',
   },
   llm: {
     checker: {
       button: '检查',
       desc: '测试 Api Key 与代理地址是否正确填写',
-      ollamaDesc: '测试代理地址是否正确填写',
       pass: '检查通过',
       title: '连通性检查',
     },
@@ -68,7 +71,10 @@ export default {
           title: '模型 ID',
         },
         modalTitle: '自定义模型配置',
-        tokens: { title: '最大 token 数' },
+        tokens: {
+          title: '最大 token 数',
+          unlimited: '无限制',
+        },
         vision: {
           extra:
             '此配置将仅开启 LobeChat 中的图片上传配置，是否支持识别完全取决于模型本身，请自行测试该模型的视觉识别能力可用性',
@@ -91,6 +97,10 @@ export default {
       placeholder: '请从列表中选择模型',
       title: '模型列表',
       total: '共 {{count}} 个模型可用',
+    },
+    proxyUrl: {
+      desc: '除默认地址外，必须包含 http(s)://',
+      title: 'API 代理地址',
     },
     waitingForMore: '更多模型正在 <1>计划接入</1> 中，敬请期待 ✨',
   },

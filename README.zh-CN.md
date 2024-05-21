@@ -128,6 +128,8 @@
 - **01.AI (零一万物)**：集成了零一万物模型，系列 API 具备较快的推理速度，这不仅缩短了处理时间，同时也保持了出色的模型效果。[了解更多](https://www.lingyiwanwu.com/)
 - **Groq**：接入了 Groq 的 AI 模型，高效处理消息序列，生成回应，胜任多轮对话及单次交互任务。[了解更多](https://groq.com/)
 - **OpenRouter**：其支持包括 **Claude 3**，**Gemma**，**Mistral**，**Llama2**和**Cohere**等模型路由，支持智能路由优化，提升使用效率，开放且灵活。[了解更多](https://openrouter.ai/)
+- **Minimax**: 接入了 Minimax 的 AI 模型，包括 MoE 模型 **abab6**，提供了更多的选择空间。[了解更多](https://www.minimaxi.com/)
+- **DeepSeek**: 接入了 DeepSeek 的 AI 模型，包括最新的 **DeepSeek-V2**，提供兼顾性能与价格的模型。[了解更多](https://www.deepseek.com/)
 
 同时，我们也在计划支持更多的模型服务商，如 Replicate 和 Perplexity 等，以进一步丰富我们的服务商库。如果你希望让 LobeChat 支持你喜爱的服务商，欢迎加入我们的[社区讨论](https://github.com/lobehub/lobe-chat/discussions/1284)。
 
@@ -213,14 +215,14 @@ LobeChat 的插件生态系统是其核心功能的重要扩展，它极大地�
 
 <!-- PLUGIN LIST -->
 
-| 最近新增                                                                                                          | 插件描述                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [NFT Guru](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **swap** on **2024-04-03**</sup>          | 发现主要平台上 NFT 的当前价格，并通过实时跟踪快速变化的市场了解情况<br/>`加密货币` `nft`                       |
-| [社交搜索](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-04-02**</sup>      | 社交搜索提供访问推文、用户、关注者、图片、媒体等功能。<br/>`社交` `推特` `x` `搜索`                            |
-| [日历助手](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **cc** on **2024-03-13**</sup>            | 一个用于管理日历事件的插件 # 将自动生成工作流程中的 i18n<br/>`日历` `日程安排` `将自动生成工作流程中的-i-18-n` |
-| [TokenInsights](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **feednews** on **2024-01-27**</sup> | 获取实时加密货币价格，BTC，ETH，BNB 和最新见解。最新的币新闻和空投机会。<br/>`加密货币` `btc` `eth` `bnb`      |
+| 最近新增                                                                                                                 | 插件描述                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [空间](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **automateyournetwork** on **2024-05-12**</sup>      | 包括 NASA 的空间数据。<br/>`空间` `nasa`                                            |
+| [Search1API](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **fatwang2** on **2024-05-06**</sup>           | 搜索聚合服务，专为 LLMs 设计<br/>`web` `search`                                     |
+| [社交搜索](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-05-02**</sup>             | 社交搜索提供访问推文、用户、关注者、图片、媒体等功能。<br/>`社交` `推特` `x` `搜索` |
+| [通过 Serper 搜索 Google](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **Barry** on **2024-04-30**</sup> | 通过 Serper.dev 免费 API 进行 Google 搜索引擎（每月 2500 次🆓）<br/>`网络` `搜索`   |
 
-> 📊 Total plugins: [<kbd>**55**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
+> 📊 Total plugins: [<kbd>**56**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
 
  <!-- PLUGIN LIST -->
 
@@ -248,14 +250,14 @@ LobeChat 的插件生态系统是其核心功能的重要扩展，它极大地�
 
 <!-- AGENT LIST -->
 
-| 最近新增                                                                                                                                                                | 助手说明                                                                                                                                                                                                                                                                                                               |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [中文论文编辑师](https://chat-preview.lobehub.com/market?agent=chinese-paper-polishing)<br/><sup>By **[y22emc2](https://github.com/y22emc2)** on **2024-04-15**</sup>   | 作为一名中文学术论文写作改进助理，你的任务是改进所提供文本的拼写、语法、清晰、简洁和整体可读性，提高文本的学术规范性、文学性，同时分解长句，减少重复，并提供改进建议。请先提供文本的更正版本，然后在 markdown 表格中列出修改的内容，并给出修改的理由。<br/>`学术论文写作` `校对` `文本编辑`                            |
-| [生物学教授](https://chat-preview.lobehub.com/market?agent=bio-professor)<br/><sup>By **[luxiangze](https://github.com/luxiangze)** on **2024-04-13**</sup>             | 作为一位生物学教授，您将收到关于生物学的问题和概念，请用具体而简明的语言解释这些问题和概念，并尽量使用实际例子进行说明，以帮助您的听众更好地理解。请确保您的解释准确而清晰，并试图鼓励创造性和灵活性的答案。用中文回答<br/>`生物`                                                                                      |
-| [命理大师](https://chat-preview.lobehub.com/market?agent=fortune-teller)<br/><sup>By **[kamilkenrich](https://github.com/kamilkenrich)** on **2024-04-13**</sup>        | 擅长命理学、占卜预测、占星术和血型学分析<br/>`命理学、占卜、占星学、心理学、血型、星座`                                                                                                                                                                                                                                |
-| [高中理科学习助手](https://chat-preview.lobehub.com/market?agent=highschool-master)<br/><sup>By **[cnliucheng](https://github.com/cnliucheng)** on **2024-04-13**</sup> | 我是一个专门为中国高中生设计的学习辅助 AI。无论你在物理、化学、数学还是生物上遇到难题，我都能为你提供详细的解答和解析。不仅如此，我还能根据你的学习进度，推荐合适的练习题，帮助我巩固知识，提升学习效率。同时，我会尽可能使用 LaTeX 格式来呈现解题过程和公式<br/>`高中学习` `理科辅助` `题目解答` `学习进度` `la-te-x` |
+| 最近新增                                                                                                                                                         | 助手说明                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| [AWS Guru](https://chat-preview.lobehub.com/market?agent=aws-guru)<br/><sup>By **[wilbeibi](https://github.com/wilbeibi)** on **2024-05-15**</sup>               | Agent to answer AWS questions<br/>`programming`                                                                       |
+| [Linux Buddy](https://chat-preview.lobehub.com/market?agent=linux-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>             | 您的 Linux 专家朋友<br/>`linux` `technical-support` `buddy`                                                           |
+| [摄影评论家](https://chat-preview.lobehub.com/market?agent=photography-critic)<br/><sup>By **[Justin3go](https://github.com/Justin3go)** on **2024-05-15**</sup> | 擅长摄影作品细致分析，包括主题、构图、技术质量、光线使用、创意与原创性等。<br/>`摄影` `评价` `分析` `构图` `技术质量` |
+| [Python Buddy](https://chat-preview.lobehub.com/market?agent=python-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>           | 您的 Python 专家朋友<br/>`python` `软件开发` `编程` `代码` `伙伴`                                                     |
 
-> 📊 Total agents: [<kbd>**240**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
+> 📊 Total agents: [<kbd>**258**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
 
  <!-- AGENT LIST -->
 
@@ -733,7 +735,7 @@ This project is [MIT](./LICENSE) licensed.
 [image-feat-theme]: https://gw.alipayobjects.com/zos/kitchen/pvus1lo%26Z7/darkmode.webp
 [image-feat-tts]: https://github-production-user-asset-6210df.s3.amazonaws.com/17870709/284072124-c9853d8d-f1b5-44a8-a305-45ebc0f6d19a.png
 [image-feat-vision]: https://github-production-user-asset-6210df.s3.amazonaws.com/17870709/284072129-382bdf30-e3d6-4411-b5a0-249710b8ba08.png
-[image-overview]: https://github.com/lobehub/lobe-chat/assets/28616219/8b04c3c9-3d71-4fb4-bd9b-a4f415c5876d
+[image-overview]: https://github.com/lobehub/lobe-chat/assets/17870709/56b95d48-f573-41cd-8b38-387bf88bc4bf
 [image-star]: https://github.com/lobehub/lobe-chat/assets/17870709/cb06b748-513f-47c2-8740-d876858d7855
 [issues-link]: https://img.shields.io/github/issues/lobehub/lobe-chat.svg?style=flat
 [lobe-chat-plugins]: https://github.com/lobehub/lobe-chat-plugins

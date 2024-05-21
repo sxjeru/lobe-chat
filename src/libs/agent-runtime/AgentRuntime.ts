@@ -6,8 +6,10 @@ import { LobeRuntimeAI } from './BaseAI';
 import { LobeAnthropicAI } from './anthropic';
 import { LobeAzureOpenAI } from './azureOpenai';
 import { LobeBedrockAI, LobeBedrockAIParams } from './bedrock';
+import { LobeDeepSeekAI } from './deepseek';
 import { LobeGoogleAI } from './google';
 import { LobeGroq } from './groq';
+import { LobeMinimaxAI } from './minimax';
 import { LobeMistralAI } from './mistral';
 import { LobeMoonshotAI } from './moonshot';
 import { LobeOllamaAI } from './ollama';
@@ -15,7 +17,12 @@ import { LobeOpenAI } from './openai';
 import { LobeOpenRouterAI } from './openrouter';
 import { LobePerplexityAI } from './perplexity';
 import { LobeTogetherAI } from './togetherai';
-import { ChatCompetitionOptions, ChatStreamPayload, ModelProvider } from './types';
+import {
+  ChatCompetitionOptions,
+  ChatStreamPayload,
+  ModelProvider,
+  TextToImagePayload,
+} from './types';
 import { LobeZeroOneAI } from './zeroone';
 import { LobeZhipuAI } from './zhipu';
 
@@ -64,6 +71,9 @@ class AgentRuntime {
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
     return this._runtime.chat(payload, options);
   }
+  async textToImage(payload: TextToImagePayload) {
+    return this._runtime.textToImage?.(payload);
+  }
 
   async models() {
     return this._runtime.models?.();
@@ -92,8 +102,10 @@ class AgentRuntime {
       anthropic: Partial<ClientOptions>;
       azure: { apiVersion?: string; apikey?: string; endpoint?: string };
       bedrock: Partial<LobeBedrockAIParams>;
+      deepseek: Partial<ClientOptions>;
       google: { apiKey?: string; baseURL?: string };
       groq: Partial<ClientOptions>;
+      minimax: Partial<ClientOptions>;
       mistral: Partial<ClientOptions>;
       moonshot: Partial<ClientOptions>;
       ollama: Partial<ClientOptions>;
@@ -156,6 +168,16 @@ class AgentRuntime {
 
       case ModelProvider.Anthropic: {
         runtimeModel = new LobeAnthropicAI(params.anthropic ?? {});
+        break;
+      }
+
+      case ModelProvider.DeepSeek: {
+        runtimeModel = new LobeDeepSeekAI(params.deepseek ?? {});
+        break;
+      }
+      
+      case ModelProvider.Minimax: {
+        runtimeModel = new LobeMinimaxAI(params.minimax ?? {});
         break;
       }
 

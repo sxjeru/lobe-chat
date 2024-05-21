@@ -129,6 +129,8 @@ We have implemented support for the following model service providers:
 - **Together.ai**: Over 100 leading open-source Chat, Language, Image, Code, and Embedding models are available through the Together Inference API. For these models you pay just for what you use. [Learn more](https://www.together.ai/)
 - **ChatGLM**: Added the **ChatGLM** series models from Zhipuai (GLM-4/GLM-4-vision/GLM-3-turbo), providing users with another efficient conversation model choice. [Learn more](https://www.zhipuai.cn/)
 - **Moonshot AI (Dark Side of the Moon)**: Integrated with the Moonshot series models, an innovative AI startup from China, aiming to provide deeper conversation understanding. [Learn more](https://www.moonshot.cn/)
+- **Minimax**: Integrated the Minimax models, including the MoE model **abab6**, offers a broader range of choices. [Learn more](https://www.minimaxi.com/)
+- **DeepSeek**: Integrated with the DeepSeek series models, an innovative AI startup from China, The product has been designed to provide a model that balances performance with price. [Learn more](https://www.deepseek.com/)
 
 At the same time, we are also planning to support more model service providers, such as Replicate and Perplexity, to further enrich our service provider library. If you would like LobeChat to support your favorite service provider, feel free to join our [community discussion](https://github.com/lobehub/lobe-chat/discussions/1284).
 
@@ -221,14 +223,14 @@ In addition, these plugins are not limited to news aggregation, but can also ext
 
 <!-- PLUGIN LIST -->
 
-| Recent Submits                                                                                                    | Description                                                                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [NFT Guru](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **swap** on **2024-04-03**</sup>          | Discover current prices of NFTs across major platforms and keep track of the rapidly changing marketplace with real-time<br/>`crypto` `nft`      |
-| [Social Search](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-04-02**</sup> | The Social Search provides access to tweets, users, followers, images, media and more.<br/>`social` `twitter` `x` `search`                       |
-| [Calendar Assistant](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **cc** on **2024-03-13**</sup>  | A plugin to manage your calendar events # will auto generate i18n in workflow<br/>`calendar` `schedule` `will-auto-generate-i-18-n-in-workflow`  |
-| [TokenInsights](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **feednews** on **2024-01-27**</sup> | Get realtime crypto price, BTC, ETH, BNB, and the latest insights.The latest coin news and airdrop opportunities.<br/>`crypto` `btc` `eth` `bnb` |
+| Recent Submits                                                                                                            | Description                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Space](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **automateyournetwork** on **2024-05-12**</sup>      | Space data including NASA.<br/>`space` `nasa`                                                                              |
+| [Search1API](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **fatwang2** on **2024-05-06**</sup>            | Search aggregation service, specifically designed for LLMs<br/>`web` `search`                                              |
+| [Social Search](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-05-02**</sup>         | The Social Search provides access to tweets, users, followers, images, media and more.<br/>`social` `twitter` `x` `search` |
+| [Search Google via Serper](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **Barry** on **2024-04-30**</sup> | Google search engine via Serper.dev free API (2500x🆓/month)<br/>`web` `search`                                            |
 
-> 📊 Total plugins: [<kbd>**55**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
+> 📊 Total plugins: [<kbd>**56**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
 
  <!-- PLUGIN LIST -->
 
@@ -260,14 +262,14 @@ Our marketplace is not just a showcase platform but also a collaborative space. 
 
 <!-- AGENT LIST -->
 
-| Recent Submits                                                                                                                                                                             | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Chinese Academic Paper Editor](https://chat-preview.lobehub.com/market?agent=chinese-paper-polishing)<br/><sup>By **[y22emc2](https://github.com/y22emc2)** on **2024-04-15**</sup>       | As an assistant for improving Chinese academic paper writing, your task is to enhance the provided text in terms of spelling, grammar, clarity, conciseness, and overall readability, to improve the text's academic standards and literary quality. This includes breaking down long sentences, reducing repetition, and providing improvement suggestions. Please provide the corrected version of the text first, then list the modifications in the markdown table below, along with the reasons for the changes.<br/>`academic-paper-writing` `proofreading` `text-editing`                  |
-| [Biology Professor](https://chat-preview.lobehub.com/market?agent=bio-professor)<br/><sup>By **[luxiangze](https://github.com/luxiangze)** on **2024-04-13**</sup>                         | As a biology professor, you will receive questions and concepts about biology. Please explain these questions and concepts in specific and concise language, and try to use practical examples to illustrate them to help your audience better understand. Please ensure that your explanations are accurate and clear, and try to encourage creative and flexible answers. Respond in Chinese.<br/>`biology`                                                                                                                                                                                     |
-| [Master of Fortune Telling](https://chat-preview.lobehub.com/market?agent=fortune-teller)<br/><sup>By **[kamilkenrich](https://github.com/kamilkenrich)** on **2024-04-13**</sup>          | Specializes in numerology, divination, astrology, and blood type analysis<br/>`numerology` `divination` `astrology` `psychology` `blood-type` `constellation`                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| [High School Science Study Assistant](https://chat-preview.lobehub.com/market?agent=highschool-master)<br/><sup>By **[cnliucheng](https://github.com/cnliucheng)** on **2024-04-13**</sup> | I am a study assistant AI specially designed for Chinese high school students. Whether you encounter difficulties in physics, chemistry, mathematics, or biology, I can provide detailed answers and explanations for you. Not only that, I can also recommend suitable practice questions based on your learning progress to help you consolidate knowledge and improve learning efficiency. Additionally, I will use LaTeX format as much as possible to present the solution process and formulas.<br/>`high-school-study` `science-assistant` `problem-solving` `learning-progress` `la-te-x` |
+| Recent Submits                                                                                                                                                           | Description                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [AWS Guru](https://chat-preview.lobehub.com/market?agent=aws-guru)<br/><sup>By **[wilbeibi](https://github.com/wilbeibi)** on **2024-05-15**</sup>                       | Agent to answer AWS questions<br/>`programming`                                                                                                                                                                                  |
+| [Linux Buddy](https://chat-preview.lobehub.com/market?agent=linux-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>                     | Your Linux expert friend<br/>`linux` `technical-support` `buddy`                                                                                                                                                                 |
+| [Photography Critic](https://chat-preview.lobehub.com/market?agent=photography-critic)<br/><sup>By **[Justin3go](https://github.com/Justin3go)** on **2024-05-15**</sup> | Specializes in detailed analysis of photographic works, including themes, composition, technical quality, use of light, creativity, and originality.<br/>`photography` `evaluation` `analysis` `composition` `technical-quality` |
+| [Python Buddy](https://chat-preview.lobehub.com/market?agent=python-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>                   | Your Python expert friend<br/>`python` `software-development` `coding` `code` `buddy`                                                                                                                                            |
 
-> 📊 Total agents: [<kbd>**240**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
+> 📊 Total agents: [<kbd>**258**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
 
  <!-- AGENT LIST -->
 
@@ -625,7 +627,7 @@ Every bit counts and your one-time donation sparkles in our galaxy of support! Y
 
 </details>
 
-Copyright © 2023 [LobeHub][profile-link]. <br />
+Copyright © 2024 [LobeHub][profile-link]. <br />
 This project is [MIT](./LICENSE) licensed.
 
 <!-- LINK GROUP -->
@@ -712,7 +714,7 @@ This project is [MIT](./LICENSE) licensed.
 [image-feat-theme]: https://gw.alipayobjects.com/zos/kitchen/pvus1lo%26Z7/darkmode.webp
 [image-feat-tts]: https://github-production-user-asset-6210df.s3.amazonaws.com/17870709/284072124-c9853d8d-f1b5-44a8-a305-45ebc0f6d19a.png
 [image-feat-vision]: https://github-production-user-asset-6210df.s3.amazonaws.com/17870709/284072129-382bdf30-e3d6-4411-b5a0-249710b8ba08.png
-[image-overview]: https://github.com/lobehub/lobe-chat/assets/28616219/8b04c3c9-3d71-4fb4-bd9b-a4f415c5876d
+[image-overview]: https://github.com/lobehub/lobe-chat/assets/17870709/56b95d48-f573-41cd-8b38-387bf88bc4bf
 [image-star]: https://github.com/lobehub/lobe-chat/assets/17870709/cb06b748-513f-47c2-8740-d876858d7855
 [issues-link]: https://img.shields.io/github/issues/lobehub/lobe-chat.svg?style=flat
 [lobe-chat-plugins]: https://github.com/lobehub/lobe-chat-plugins
