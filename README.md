@@ -131,6 +131,7 @@ We have implemented support for the following model service providers:
 - **Moonshot AI (Dark Side of the Moon)**: Integrated with the Moonshot series models, an innovative AI startup from China, aiming to provide deeper conversation understanding. [Learn more](https://www.moonshot.cn/)
 - **Minimax**: Integrated the Minimax models, including the MoE model **abab6**, offers a broader range of choices. [Learn more](https://www.minimaxi.com/)
 - **DeepSeek**: Integrated with the DeepSeek series models, an innovative AI startup from China, The product has been designed to provide a model that balances performance with price. [Learn more](https://www.deepseek.com/)
+- **Qwen**: Integrated the Qwen series models, including the latest **qwen-turbo**, **qwen-plus** and **qwen-max**. [Lean more](https://help.aliyun.com/zh/dashscope/developer-reference/model-introduction)
 
 At the same time, we are also planning to support more model service providers, such as Replicate and Perplexity, to further enrich our service provider library. If you would like LobeChat to support your favorite service provider, feel free to join our [community discussion](https://github.com/lobehub/lobe-chat/discussions/1284).
 
@@ -225,12 +226,12 @@ In addition, these plugins are not limited to news aggregation, but can also ext
 
 | Recent Submits                                                                                                            | Description                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Social Search](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-06-02**</sup>         | The Social Search provides access to tweets, users, followers, images, media and more.<br/>`social` `twitter` `x` `search` |
 | [Space](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **automateyournetwork** on **2024-05-12**</sup>      | Space data including NASA.<br/>`space` `nasa`                                                                              |
 | [Search1API](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **fatwang2** on **2024-05-06**</sup>            | Search aggregation service, specifically designed for LLMs<br/>`web` `search`                                              |
-| [Social Search](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **say-apps** on **2024-05-02**</sup>         | The Social Search provides access to tweets, users, followers, images, media and more.<br/>`social` `twitter` `x` `search` |
 | [Search Google via Serper](https://chat-preview.lobehub.com/settings/agent)<br/><sup>By **Barry** on **2024-04-30**</sup> | Google search engine via Serper.dev free API (2500x🆓/month)<br/>`web` `search`                                            |
 
-> 📊 Total plugins: [<kbd>**56**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
+> 📊 Total plugins: [<kbd>**55**</kbd>](https://github.com/lobehub/lobe-chat-plugins)
 
  <!-- PLUGIN LIST -->
 
@@ -262,14 +263,14 @@ Our marketplace is not just a showcase platform but also a collaborative space. 
 
 <!-- AGENT LIST -->
 
-| Recent Submits                                                                                                                                                           | Description                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [AWS Guru](https://chat-preview.lobehub.com/market?agent=aws-guru)<br/><sup>By **[wilbeibi](https://github.com/wilbeibi)** on **2024-05-15**</sup>                       | Agent to answer AWS questions<br/>`programming`                                                                                                                                                                                  |
-| [Linux Buddy](https://chat-preview.lobehub.com/market?agent=linux-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>                     | Your Linux expert friend<br/>`linux` `technical-support` `buddy`                                                                                                                                                                 |
-| [Photography Critic](https://chat-preview.lobehub.com/market?agent=photography-critic)<br/><sup>By **[Justin3go](https://github.com/Justin3go)** on **2024-05-15**</sup> | Specializes in detailed analysis of photographic works, including themes, composition, technical quality, use of light, creativity, and originality.<br/>`photography` `evaluation` `analysis` `composition` `technical-quality` |
-| [Python Buddy](https://chat-preview.lobehub.com/market?agent=python-buddy)<br/><sup>By **[Firpo7](https://github.com/Firpo7)** on **2024-05-15**</sup>                   | Your Python expert friend<br/>`python` `software-development` `coding` `code` `buddy`                                                                                                                                            |
+| Recent Submits                                                                                                                                                                                 | Description                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Expert Response to Reviewer](https://chat-preview.lobehub.com/market?agent=academic-editor-en)<br/><sup>By **[Starlitnightly](https://github.com/Starlitnightly)** on **2024-06-03**</sup>    | Specializing in natural academic editing, assisting authors in responding to reviewer comments in a scientific, courteous, and point-by-point manner.<br/>`academic-editing` `response-to-reviewer-comments` `scientific-writing` |
+| [Translation of Novels: English to Chinese](https://chat-preview.lobehub.com/market?agent=noveltranslation)<br/><sup>By **[xbtachlb](https://github.com/xbtachlb)** on **2024-06-03**</sup>    | Secondary translation of novels<br/>`translation`                                                                                                                                                                                 |
+| [Convert Docker to Docker Compose](https://chat-preview.lobehub.com/market?agent=onekr-docker-2-compose)<br/><sup>By **[onekr-billy](https://github.com/onekr-billy)** on **2024-05-31**</sup> | Specialized in converting Docker run commands to Docker Compose configurations<br/>`docker` `docker-compose` `system-administration` `configuration-file` `conversion`                                                            |
+| [Java Class to MySQL](https://chat-preview.lobehub.com/market?agent=onekr-java-2-sql)<br/><sup>By **[onekr-billy](https://github.com/onekr-billy)** on **2024-05-31**</sup>                    | Specialized in generating SQL scripts that comply with MySQL specifications based on Java class files.<br/>`java-class-to-my-sql` `backend-development` `sql-scripts` `data-conversion` `databases`                               |
 
-> 📊 Total agents: [<kbd>**258**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
+> 📊 Total agents: [<kbd>**285**</kbd> ](https://github.com/lobehub/lobe-chat-agents)
 
  <!-- AGENT LIST -->
 

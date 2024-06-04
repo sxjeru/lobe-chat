@@ -134,6 +134,7 @@ export interface ChatMessageAction {
 }
 
 const getAgentConfig = () => agentSelectors.currentAgentConfig(useAgentStore.getState());
+const getAgentChatConfig = () => agentSelectors.currentAgentChatConfig(useAgentStore.getState());
 
 const preventLeavingFn = (e: BeforeUnloadEvent) => {
   // set returnValue to trigger alert modal
@@ -231,6 +232,7 @@ export const chatMessage: StateCreator<
 
     // if message is empty or no files, then stop
     if (!message && isNoFile) return;
+    set({ isCreatingMessage: true }, false, 'creatingMessage/start');
 
     const newMessage: CreateMessageParams = {
       content: message,
@@ -242,7 +244,7 @@ export const chatMessage: StateCreator<
       topicId: activeTopicId,
     };
 
-    const agentConfig = getAgentConfig();
+    const agentConfig = getAgentChatConfig();
 
     let tempMessageId: string | undefined = undefined;
     let newTopicId: string | undefined = undefined;
@@ -304,13 +306,15 @@ export const chatMessage: StateCreator<
 
     // if only add user message, then stop
     if (onlyAddUserMessage) {
+      set({ isCreatingMessage: false }, false, 'creatingMessage/start');
       return;
     }
 
     // Get the current messages to generate AI response
     const messages = chatSelectors.currentChats(get());
-
     await internal_coreProcessMessage(messages, id, { isWelcomeQuestion });
+
+    set({ isCreatingMessage: false }, false, 'creatingMessage/stop');
 
     // if autoCreateTopic is false, then stop
     if (!agentConfig.enableAutoCreateTopic) return;
@@ -463,19 +467,20 @@ export const chatMessage: StateCreator<
       n('generateMessage(start)', { assistantId, messages }) as string,
     );
 
-    const config = getAgentConfig();
+    const agentConfig = getAgentConfig();
+    const chatConfig = agentConfig.chatConfig;
 
-    const compiler = template(config.inputTemplate, { interpolate: /{{([\S\s]+?)}}/g });
+    const compiler = template(chatConfig.inputTemplate, { interpolate: /{{([\S\s]+?)}}/g });
 
     // ================================== //
     //   messages uniformly preprocess    //
     // ================================== //
 
     // 1. slice messages with config
-    let preprocessMsgs = chatHelpers.getSlicedMessagesWithConfig(messages, config);
+    let preprocessMsgs = chatHelpers.getSlicedMessagesWithConfig(messages, chatConfig);
 
     // 2. replace inputMessage template
-    preprocessMsgs = !config.inputTemplate
+    preprocessMsgs = !chatConfig.inputTemplate
       ? preprocessMsgs
       : preprocessMsgs.map((m) => {
           if (m.role === 'user') {
@@ -492,21 +497,23 @@ export const chatMessage: StateCreator<
         });
 
     // 3. add systemRole
-    if (config.systemRole) {
-      preprocessMsgs.unshift({ content: config.systemRole, role: 'system' } as ChatMessage);
+    if (agentConfig.systemRole) {
+      preprocessMsgs.unshift({ content: agentConfig.systemRole, role: 'system' } as ChatMessage);
     }
 
     // 4. handle max_tokens
-    config.params.max_tokens = config.enableMaxTokens ? config.params.max_tokens : undefined;
+    agentConfig.params.max_tokens = chatConfig.enableMaxTokens
+      ? agentConfig.params.max_tokens
+      : undefined;
 
     // 5. handle config for the vision model
     // Due to the gpt-4-vision-preview model's default max_tokens is very small
     // we need to set the max_tokens a larger one.
-    if (config.model === 'gpt-4-vision-preview') {
+    if (agentConfig.model === 'gpt-4-vision-preview') {
       /* eslint-disable unicorn/no-lonely-if */
-      if (!config.params.max_tokens)
+      if (!agentConfig.params.max_tokens)
         // refs: https://github.com/lobehub/lobe-chat/issues/837
-        config.params.max_tokens = 2048;
+        agentConfig.params.max_tokens = 2048;
     }
 
     let isFunctionCall = false;
@@ -517,10 +524,10 @@ export const chatMessage: StateCreator<
       abortController,
       params: {
         messages: preprocessMsgs,
-        model: config.model,
-        provider: config.provider,
-        ...config.params,
-        plugins: config.plugins,
+        model: agentConfig.model,
+        provider: agentConfig.provider,
+        ...agentConfig.params,
+        plugins: agentConfig.plugins,
       },
       trace: {
         traceId: params?.traceId,
@@ -703,7 +710,6 @@ export const chatMessage: StateCreator<
   internal_createMessage: async (message, context) => {
     const { internal_createTmpMessage, refreshMessages, internal_toggleMessageLoading } = get();
     let tempId = context?.tempMessageId;
-
     if (!tempId) {
       // use optimistic update to avoid the slow waiting
       tempId = internal_createTmpMessage(message);
@@ -717,7 +723,6 @@ export const chatMessage: StateCreator<
     }
 
     internal_toggleMessageLoading(false, tempId);
-
     return id;
   },
 

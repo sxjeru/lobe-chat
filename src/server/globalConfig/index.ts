@@ -1,23 +1,25 @@
+import { appEnv, getAppConfig } from '@/config/app';
 import { fileEnv } from '@/config/file';
+import { langfuseEnv } from '@/config/langfuse';
+import { getLLMConfig } from '@/config/llm';
 import {
   OllamaProviderCard,
   OpenAIProviderCard,
   OpenRouterProviderCard,
   TogetherAIProviderCard,
 } from '@/config/modelProviders';
-import { getServerConfig } from '@/config/server';
 import { enableNextAuth } from '@/const/auth';
+import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
 import { GlobalServerConfig } from '@/types/serverConfig';
 import { extractEnabledModels, transformToChatModelCards } from '@/utils/parseModels';
 
 import { parseAgentConfig } from './parseDefaultAgent';
 
 export const getServerGlobalConfig = () => {
-  const {
-    ACCESS_CODES,
-    ENABLE_LANGFUSE,
+  const { ACCESS_CODES, DEFAULT_AGENT_CONFIG } = getAppConfig();
 
-    DEFAULT_AGENT_CONFIG,
+  const {
+    ENABLED_OPENAI,
     OPENAI_MODEL_LIST,
 
     ENABLED_MOONSHOT,
@@ -30,11 +32,12 @@ export const getServerGlobalConfig = () => {
     ENABLED_ANTHROPIC,
     ENABLED_MINIMAX,
     ENABLED_MISTRAL,
+    ENABLED_QWEN,
 
     ENABLED_AZURE_OPENAI,
     AZURE_MODEL_LIST,
 
-    ENABLE_OLLAMA,
+    ENABLED_OLLAMA,
     OLLAMA_MODEL_LIST,
     OLLAMA_PROXY_URL,
 
@@ -44,13 +47,12 @@ export const getServerGlobalConfig = () => {
     ENABLED_ZEROONE,
     ENABLED_TOGETHERAI,
     TOGETHERAI_MODEL_LIST,
-  } = getServerConfig();
+  } = getLLMConfig();
 
   const config: GlobalServerConfig = {
     defaultAgent: {
       config: parseAgentConfig(DEFAULT_AGENT_CONFIG),
     },
-
     enableUploadFileToServer: !!fileEnv.S3_SECRET_ACCESS_KEY,
     enabledAccessCode: ACCESS_CODES?.length > 0,
     enabledOAuthSSO: enableNextAuth,
@@ -75,7 +77,7 @@ export const getServerGlobalConfig = () => {
       mistral: { enabled: ENABLED_MISTRAL },
       moonshot: { enabled: ENABLED_MOONSHOT },
       ollama: {
-        enabled: ENABLE_OLLAMA,
+        enabled: ENABLED_OLLAMA,
         fetchOnClient: !OLLAMA_PROXY_URL,
         serverModelCards: transformToChatModelCards({
           defaultChatModels: OllamaProviderCard.chatModels,
@@ -83,6 +85,7 @@ export const getServerGlobalConfig = () => {
         }),
       },
       openai: {
+        enabled: ENABLED_OPENAI,
         enabledModels: extractEnabledModels(OPENAI_MODEL_LIST),
         serverModelCards: transformToChatModelCards({
           defaultChatModels: OpenAIProviderCard.chatModels,
@@ -99,6 +102,7 @@ export const getServerGlobalConfig = () => {
         }),
       },
       perplexity: { enabled: ENABLED_PERPLEXITY },
+      qwen: { enabled: ENABLED_QWEN },
 
       togetherai: {
         enabled: ENABLED_TOGETHERAI,
@@ -112,8 +116,9 @@ export const getServerGlobalConfig = () => {
       zeroone: { enabled: ENABLED_ZEROONE },
       zhipu: { enabled: ENABLED_ZHIPU },
     },
+    systemAgent: parseSystemAgent(appEnv.SYSTEM_AGENT),
     telemetry: {
-      langfuse: ENABLE_LANGFUSE,
+      langfuse: langfuseEnv.ENABLE_LANGFUSE,
     },
   };
 
@@ -121,7 +126,7 @@ export const getServerGlobalConfig = () => {
 };
 
 export const getServerDefaultAgentConfig = () => {
-  const { DEFAULT_AGENT_CONFIG } = getServerConfig();
+  const { DEFAULT_AGENT_CONFIG } = getAppConfig();
 
   return parseAgentConfig(DEFAULT_AGENT_CONFIG) || {};
 };

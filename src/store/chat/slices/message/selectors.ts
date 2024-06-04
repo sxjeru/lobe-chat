@@ -102,7 +102,7 @@ const currentChatIDsWithGuideMessage = (s: ChatStore) => {
 
 const currentChatsWithHistoryConfig = (s: ChatStore): ChatMessage[] => {
   const chats = currentChats(s);
-  const config = agentSelectors.currentAgentConfig(useAgentStore.getState());
+  const config = agentSelectors.currentAgentChatConfig(useAgentStore.getState());
 
   return chatHelpers.getSlicedMessagesWithConfig(chats, config);
 };
@@ -125,6 +125,9 @@ const isCurrentChatLoaded = (s: ChatStore) => !!s.messagesMap[currentChatKey(s)]
 
 const isMessageEditing = (id: string) => (s: ChatStore) => s.messageEditingIds.includes(id);
 const isMessageLoading = (id: string) => (s: ChatStore) => s.messageLoadingIds.includes(id);
+const isHasMessageLoading = (s: ChatStore) => s.messageLoadingIds.length > 0;
+const isCreatingMessage = (s: ChatStore) => s.isCreatingMessage;
+
 const isMessageGenerating = (id: string) => (s: ChatStore) => s.chatLoadingIds.includes(id);
 const isToolCallStreaming = (id: string, index: number) => (s: ChatStore) => {
   const isLoading = s.toolCallingStreamIds[id];
@@ -146,7 +149,9 @@ export const chatSelectors = {
   getMessageById,
   getTraceIdByMessageId,
   isAIGenerating,
+  isCreatingMessage,
   isCurrentChatLoaded,
+  isHasMessageLoading,
   isMessageEditing,
   isMessageGenerating,
   isMessageLoading,

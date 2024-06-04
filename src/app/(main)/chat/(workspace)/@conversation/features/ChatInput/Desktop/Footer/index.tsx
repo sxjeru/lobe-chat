@@ -13,7 +13,8 @@ import { useSendMessage } from '@/features/ChatInput/useSend';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/slices/chat';
 import { useChatStore } from '@/store/chat';
-import { chatSelectors } from '@/store/chat/selectors';
+import { chatSelectors, topicSelectors } from '@/store/chat/selectors';
+import { filesSelectors, useFileStore } from '@/store/file';
 import { useUserStore } from '@/store/user';
 import { modelProviderSelectors, preferenceSelectors } from '@/store/user/selectors';
 import { isMacOS } from '@/utils/platform';
@@ -60,10 +61,21 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
 
   const { theme, styles } = useStyles();
 
-  const [loading, stopGenerateMessage] = useChatStore((s) => [
+  const [
+    isAIGenerating,
+    isHasMessageLoading,
+    isCreatingMessage,
+    isCreatingTopic,
+    stopGenerateMessage,
+  ] = useChatStore((s) => [
     chatSelectors.isAIGenerating(s),
+    chatSelectors.isHasMessageLoading(s),
+    chatSelectors.isCreatingMessage(s),
+    topicSelectors.isCreatingTopic(s),
     s.stopGenerateMessage,
   ]);
+
+  const isImageUploading = useFileStore(filesSelectors.isImageUploading);
 
   const model = useAgentStore(agentSelectors.currentAgentModel);
 
@@ -91,6 +103,9 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
 
   const wrapperShortcut = useCmdEnterToSend ? enter : cmdEnter;
 
+  const buttonDisabled =
+    isImageUploading || isHasMessageLoading || isCreatingTopic || isCreatingMessage;
+
   return (
     <Flexbox
       align={'end'}
@@ -101,7 +116,7 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
       horizontal
       padding={'0 24px'}
     >
-      <Flexbox align={'center'} gap={8} horizontal>
+      <Flexbox align={'center'} gap={8} horizontal style={{ overflow: 'hidden' }}>
         {canUpload && (
           <>
             <DragUpload />
@@ -109,7 +124,7 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
           </>
         )}
       </Flexbox>
-      <Flexbox align={'center'} gap={8} horizontal>
+      <Flexbox align={'center'} flex={'none'} gap={8} horizontal>
         <Flexbox
           gap={4}
           horizontal
@@ -123,7 +138,7 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
         </Flexbox>
         <SaveTopic />
         <Flexbox style={{ minWidth: 92 }}>
-          {loading ? (
+          {isAIGenerating ? (
             <Button
               className={styles.loadingButton}
               icon={<StopLoadingIcon />}
@@ -134,6 +149,8 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
           ) : (
             <Space.Compact>
               <Button
+                disabled={buttonDisabled}
+                loading={buttonDisabled}
                 onClick={() => {
                   sendMessage();
                   setExpand?.(false);
@@ -142,7 +159,7 @@ const Footer = memo<FooterProps>(({ setExpand }) => {
               >
                 {t('input.send')}
               </Button>
-              <SendMore />
+              <SendMore disabled={buttonDisabled} />
             </Space.Compact>
           )}
         </Flexbox>
