@@ -2,6 +2,175 @@
 
 # Changelog
 
+### [Version 0.162.24](https://github.com/lobehub/lobe-chat/compare/v0.162.23...v0.162.24)
+
+<sup>Released on **2024-06-14**</sup>
+
+#### 💄 Styles
+
+- **misc**: Update error card style, Update settings footer style and about page.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Update error card style, closes [#2868](https://github.com/lobehub/lobe-chat/issues/2868) ([a9d678b](https://github.com/lobehub/lobe-chat/commit/a9d678b))
+- **misc**: Update settings footer style and about page, closes [#2846](https://github.com/lobehub/lobe-chat/issues/2846) ([d815109](https://github.com/lobehub/lobe-chat/commit/d815109))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.23](https://github.com/lobehub/lobe-chat/compare/v0.162.22...v0.162.23)
+
+<sup>Released on **2024-06-12**</sup>
+
+#### 💄 Styles
+
+- **misc**: Add Qwen2 models, Add Zhipu new models.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Add Qwen2 models, closes [#2832](https://github.com/lobehub/lobe-chat/issues/2832) ([fb97be9](https://github.com/lobehub/lobe-chat/commit/fb97be9))
+- **misc**: Add Zhipu new models, closes [#2830](https://github.com/lobehub/lobe-chat/issues/2830) ([5be43f0](https://github.com/lobehub/lobe-chat/commit/5be43f0))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.22](https://github.com/lobehub/lobe-chat/compare/v0.162.21...v0.162.22)
+
+<sup>Released on **2024-06-11**</sup>
+
+#### 💄 Styles
+
+- **misc**: Expand `Clear` tooltip maxWidth.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Expand `Clear` tooltip maxWidth, closes [#2822](https://github.com/lobehub/lobe-chat/issues/2822) ([a5c3d6f](https://github.com/lobehub/lobe-chat/commit/a5c3d6f))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.21](https://github.com/lobehub/lobe-chat/compare/v0.162.20...v0.162.21)
+
+<sup>Released on **2024-06-09**</sup>
+
+#### 💄 Styles
+
+- **misc**: Do not show noDescription in new sesstion.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Do not show noDescription in new sesstion, closes [#2749](https://github.com/lobehub/lobe-chat/issues/2749) ([30b00aa](https://github.com/lobehub/lobe-chat/commit/30b00aa))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.20](https://github.com/lobehub/lobe-chat/compare/v0.162.19...v0.162.20)
+
+<sup>Released on **2024-06-08**</sup>
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.19](https://github.com/lobehub/lobe-chat/compare/v0.162.18...v0.162.19)
+
+<sup>Released on **2024-06-07**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix OpenAi BaseURL in api form.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix OpenAi BaseURL in api form, closes [#2806](https://github.com/lobehub/lobe-chat/issues/2806) ([1392957](https://github.com/lobehub/lobe-chat/commit/1392957))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 0.162.18](https://github.com/lobehub/lobe-chat/compare/v0.162.17...v0.162.18)
+
+<sup>Released on **2024-06-06**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Refactor model provider implement.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Refactor model provider implement, closes [#2801](https://github.com/lobehub/lobe-chat/issues/2801) ([7bb4fec](https://github.com/lobehub/lobe-chat/commit/7bb4fec))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ### [Version 0.162.17](https://github.com/lobehub/lobe-chat/compare/v0.162.16...v0.162.17)
 
 <sup>Released on **2024-06-04**</sup>
