@@ -7,11 +7,10 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
   baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   chatCompletion: {
     handlePayload: (payload) => {
+      // eslint-disable-next-line no-unused-vars
       const { temperature, ...restPayload } = payload;
       const top_p = payload.top_p;
       const model = payload.model;
-
-      ((_) => {})(temperature);
       
       return model.includes('-vl-') ? {
         ...restPayload,
