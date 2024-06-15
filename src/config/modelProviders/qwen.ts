@@ -6,6 +6,7 @@ const Qwen: ModelProviderCard = {
     {
       description: '通义千问超大规模语言模型，支持中文、英文等不同语言输入',
       displayName: 'Qwen Turbo',
+      functionCall: true,
       id: 'qwen-turbo',
       tokens: 8000,
     },
@@ -45,6 +46,7 @@ const Qwen: ModelProviderCard = {
     {
       description: '通义千问2对外开源的7B规模的模型',
       displayName: 'Qwen2 7B',
+      functionCall: true,
       enabled: true,
       id: 'qwen2-7b-instruct',
       tokens: 131_072,
@@ -59,6 +61,7 @@ const Qwen: ModelProviderCard = {
     {
       description: '通义千问2对外开源的72B规模的模型',
       displayName: 'Qwen2 72B',
+      functionCall: true,
       enabled: true,
       id: 'qwen2-72b-instruct',
       tokens: 131_072,
