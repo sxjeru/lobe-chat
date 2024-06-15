@@ -10,6 +10,8 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       const { temperature, ...restPayload } = payload;
       const top_p = payload.top_p;
       const model = payload.model;
+
+      ((_) => {})(temperature);
       
       return model.includes('-vl-') ? {
         ...restPayload,
