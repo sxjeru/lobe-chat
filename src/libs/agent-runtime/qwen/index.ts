@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { ModelProvider } from '../types';
+import { ModelProvider, UserMessageContentPart } from '../types';
 import { LobeOpenAICompatibleFactory } from '../utils/openaiCompatibleFactory';
 
 export const LobeQwenAI = LobeOpenAICompatibleFactory({
@@ -11,16 +11,17 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       const { temperature, messages, ...restPayload } = payload;
       const top_p = payload.top_p;
       const model = payload.model;
+      let newMessages = messages;
 
       if (Array.isArray(messages)) {
-        messages = messages.map(message => {
+        newMessages = messages.map(message => {
           if (!Array.isArray(message.content)) {
             return {
               ...message,
-              content: {
+              content: [{
                 text: message.content,
                 type: 'text'
-              }
+              } as UserMessageContentPart]
             };
           }
           return message;
@@ -29,7 +30,7 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       
       return model.includes('-vl-') ? {
         ...restPayload,
-        messages,
+        messages: newMessages,
         stream: restPayload.stream ?? true,
         top_p: top_p && top_p >= 1 ? 0.9999 : top_p,
       } as OpenAI.ChatCompletionCreateParamsStreaming : {
