@@ -11,11 +11,15 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       const { temperature, messages, ...restPayload } = payload;
       const top_p = payload.top_p;
       const model = payload.model;
+      const isVision = model.includes('vl');
       let newMessages = messages;
 
       if (Array.isArray(messages)) {
         newMessages = messages.map(message => {
+
           if (!Array.isArray(message.content)) {
+            if (message.content === "") return null; // Content length must be greater than 0
+            if (!isVision) return message; 
             return {
               ...message,
               content: [{
@@ -25,17 +29,19 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
             };
           }
           return message;
-        });
+        }).filter(message => message !== null);
       }
       
-      return model.includes('-vl-') ? {
+      return isVision ? {
         ...restPayload,
         messages: newMessages,
         stream: restPayload.stream ?? true,
         top_p: top_p && top_p >= 1 ? 0.9999 : top_p,
       } as OpenAI.ChatCompletionCreateParamsStreaming : {
-        ...payload,
+        ...restPayload,
+        messages: newMessages,
         stream: payload.stream ?? true,
+        temperature,
         top_p: top_p && top_p >= 1 ? 0.9999 : top_p,
       } as OpenAI.ChatCompletionCreateParamsStreaming;
     },
