@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { ModelProvider, UserMessageContentPart } from '../types';
+import { ModelProvider, UserMessageContentPart, OpenAIChatMessage } from '../types';
 import { LobeOpenAICompatibleFactory } from '../utils/openaiCompatibleFactory';
 
 export const LobeQwenAI = LobeOpenAICompatibleFactory({
@@ -29,7 +29,7 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
             };
           }
           return message;
-        }).filter(message => message !== null);
+        }).filter((message): message is OpenAIChatMessage => message !== null);
       }
       
       return isVision ? {
