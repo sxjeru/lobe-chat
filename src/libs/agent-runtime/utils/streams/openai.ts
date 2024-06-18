@@ -53,8 +53,8 @@ export const transformOpenAIStream = (chunk: OpenAI.ChatCompletionChunk): Stream
   // https://help.aliyun.com/zh/dashscope/developer-reference/compatibility-of-openai-with-dashscope/#9902f6795brjb
   if (
     Array.isArray(item.delta?.content) &&
-    item.delta.content.length > 0 && 
-    typeof item.delta.content[0]?.text === 'string'
+    (item.delta.content as any[]).length > 0 && 
+    typeof (item.delta.content as any[])[0]?.text === 'string'
   ) {
     return { data: item.delta.content[0].text, id: chunk.id, type: 'text' };
   }
