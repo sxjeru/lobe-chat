@@ -13,6 +13,7 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       const model = payload.model;
       const isVision = model.includes('vl');
       let newMessages = messages;
+      const imageUrlRegex = /(http(s?):)([/|.|\w|\s|-])*\.(?:jpg|gif|png)/g;
 
       if (Array.isArray(messages)) {
         newMessages = messages.map(message => {
@@ -20,12 +21,27 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
           if (!Array.isArray(message.content)) {
             if (message.content === "") return null; // Content length must be greater than 0
             if (!isVision) return message; 
+
+            let contentParts: UserMessageContentPart[] = [{
+              text: message.content,
+              type: 'text'
+            }];
+
+            const imageUrlMatches = message.content.match(imageUrlRegex);
+            if (imageUrlMatches) {
+              imageUrlMatches.forEach(url => {
+                contentParts.push({
+                  image_url: {
+                    url: url
+                  },
+                  type: 'image_url'
+                });
+              });
+            }
+
             return {
               ...message,
-              content: [{
-                text: message.content,
-                type: 'text'
-              } as UserMessageContentPart]
+              content: contentParts
             };
           }
           return message;
