@@ -12,7 +12,7 @@ import {
   generateToolCallId,
 } from './protocol';
 
-interface ContentItem {
+interface qwenContent {
   text?: string;
 }
 
@@ -51,8 +51,12 @@ export const transformOpenAIStream = (chunk: OpenAI.ChatCompletionChunk): Stream
     } as StreamProtocolToolCallChunk;
   }
   // https://help.aliyun.com/zh/dashscope/developer-reference/compatibility-of-openai-with-dashscope/#9902f6795brjb
-  if (typeof (item.delta?.content?.[0] as ContentItem)?.text === 'string') {
-    return { data: (item.delta?.content?.[0] as ContentItem).text, id: chunk.id, type: 'text' };
+  if (
+    Array.isArray(item.delta?.content) &&
+    item.delta.content.length > 0 && 
+    typeof item.delta.content[0]?.text === 'string'
+  ) {
+    return { data: item.delta.content[0].text, id: chunk.id, type: 'text' };
   }
 
   // 给定结束原因
