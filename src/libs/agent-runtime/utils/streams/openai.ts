@@ -56,7 +56,7 @@ export const transformOpenAIStream = (chunk: OpenAI.ChatCompletionChunk): Stream
     (item.delta.content as any[]).length > 0 && 
     typeof (item.delta.content as any[])[0]?.text === 'string'
   ) {
-    return { data: item.delta.content[0].text, id: chunk.id, type: 'text' };
+    return { data: (item.delta.content as any[])[0].text, id: chunk.id, type: 'text' };
   }
 
   // 给定结束原因
