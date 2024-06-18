@@ -46,6 +46,10 @@ export const transformOpenAIStream = (chunk: OpenAI.ChatCompletionChunk): Stream
       type: 'tool_calls',
     } as StreamProtocolToolCallChunk;
   }
+  // https://help.aliyun.com/zh/dashscope/developer-reference/compatibility-of-openai-with-dashscope/#9902f6795brjb
+  if (typeof item.delta?.content?.[0]?.text === 'string') {
+    return { data: item.delta.content[0].text, id: chunk.id, type: 'text' };
+  }
 
   // 给定结束原因
   if (item.finish_reason) {
