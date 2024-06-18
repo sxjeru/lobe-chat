@@ -12,10 +12,6 @@ import {
   generateToolCallId,
 } from './protocol';
 
-interface qwenContent {
-  text?: string;
-}
-
 export const transformOpenAIStream = (chunk: OpenAI.ChatCompletionChunk): StreamProtocolChunk => {
   // maybe need another structure to add support for multiple choices
 

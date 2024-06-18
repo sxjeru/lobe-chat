@@ -13,7 +13,7 @@ export const LobeQwenAI = LobeOpenAICompatibleFactory({
       const model = payload.model;
       const isVision = model.includes('vl');
       let newMessages = messages;
-      const imageUrlRegex = /(http(s?):)([/|.|\w|\s|-])*\.(?:jpg|gif|png)/g;
+      const imageUrlRegex = /(http(s?):)([\s\w./|-])*\.(?:jpg|webp|png)/g;
 
       if (Array.isArray(messages)) {
         newMessages = messages.map(message => {
