@@ -18,7 +18,7 @@ class UploadService {
       const pathname = `${dirname}/${filename}`;
 
       let url = await edgeClient.upload.createS3PreSignedUrl.mutate({ pathname });
-      url = url.replace(/(https?:\/\/[^\/]*\/)[^\/]*(\/.*)/, '$1$2');
+      url = url.replace(/(https?:\/\/[^/]*\/)[^/]*(\/.*)/, '$1$2');
 
       const res = await fetch(url, {
         body: data,
