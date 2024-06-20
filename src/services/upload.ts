@@ -16,6 +16,8 @@ class UploadService {
       const date = (Date.now() / 1000 / 60 / 60).toFixed(0);
       const dirname = `${fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/${date}`;
       const pathname = `${dirname}/${filename}`;
+      console.log(`dirname: ${dirname}`);
+      console.log(`pathname: ${pathname}`);
 
       const url = await edgeClient.upload.createS3PreSignedUrl.mutate({ pathname });
 
