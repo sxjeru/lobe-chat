@@ -31,7 +31,7 @@ export class ClientService implements IFileService {
         id,
         name: item.metadata.filename,
         saveMode: 'url',
-        url: urlJoin(fileEnv.NEXT_PUBLIC_S3_DOMAIN!, fileEnv.S3_BUCKET!, item.url!),
+        url: urlJoin(fileEnv.NEXT_PUBLIC_S3_DOMAIN!, item.url!),
       };
     }
 
