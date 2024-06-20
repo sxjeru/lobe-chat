@@ -14,10 +14,11 @@ class UploadService {
 
       // 精确到以 h 为单位的 path
       const date = (Date.now() / 1000 / 60 / 60).toFixed(0);
-      const dirname = `${fileEnv.S3_BUCKET}/${fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/${date}`;
+      const dirname = `${fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/${date}`;
       const pathname = `${dirname}/${filename}`;
 
-      const url = await edgeClient.upload.createS3PreSignedUrl.mutate({ pathname });
+      let url = await edgeClient.upload.createS3PreSignedUrl.mutate({ pathname });
+      url = url.replace(/(https?:\/\/[^\/]*\/)[^\/]*(\/.*)/, '$1$2');
 
       const res = await fetch(url, {
         body: data,
