@@ -139,7 +139,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           };
         }
 
-        // throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
+        throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
       }
     }
   };
