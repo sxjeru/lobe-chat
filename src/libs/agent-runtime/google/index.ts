@@ -130,16 +130,16 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           };
         }
 
-        // if (type === 'url') {
-        //   return {
-        //     fileData: {
-        //       fileUri: content.image_url.url,
-        //       mimeType: mimeType || 'image/png',
-        //     },
-        //   };
-        // }
+        if (type === 'url') {
+          return {
+            fileData: {
+              fileUri: content.image_url.url,
+              mimeType: mimeType || 'image/png',
+            },
+          };
+        }
 
-        throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
+        // throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
       }
     }
   };
