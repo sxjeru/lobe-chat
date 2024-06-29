@@ -113,6 +113,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     switch (content.type) {
       case 'text': {
         return { text: content.text };
+        /* falls through */
       }
       case 'image_url': {
         const { mimeType, base64, type } = parseDataUri(content.image_url.url);
@@ -151,9 +152,13 @@ export class LobeGoogleAI implements LobeRuntimeAI {
               console.error('Error fetching image:', error);
               throw error;
             });
+        } else {
+          throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
         }
-
-        throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
+        /* falls through */
+      }
+      default: {
+        throw new TypeError(`Unsupported content type: ${content.type}`);
       }
     }
   };
