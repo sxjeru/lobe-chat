@@ -131,12 +131,26 @@ export class LobeGoogleAI implements LobeRuntimeAI {
         }
 
         if (type === 'url') {
-          return {
-            fileData: {
-              fileUri: content.image_url.url,
-              mimeType: mimeType || 'image/png',
-            },
-          };
+          fetch(content.image_url.url)
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('Failed to fetch image');
+              }
+              return response.arrayBuffer();
+            })
+            .then((arrayBuffer) => {
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+              return {
+                inlineData: {
+                  data: base64,
+                  mimeType: mimeType || 'image/png',
+                },
+              };
+            })
+            .catch((error) => {
+              console.error('Error fetching image:', error);
+              throw error;
+            });
         }
 
         throw new TypeError(`currently we don't support image url: ${content.image_url.url}`);
