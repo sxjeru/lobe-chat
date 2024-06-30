@@ -15,7 +15,6 @@ import { merge } from '@/utils/merge';
 
 import { chatHelpers } from '../../helpers';
 import type { ChatStore } from '../../store';
-import { LobeAgentChatConfig } from '@/types/agent';
 
 const getMeta = (message: ChatMessage) => {
   switch (message.role) {
@@ -101,13 +100,15 @@ const currentChatIDsWithGuideMessage = (s: ChatStore) => {
   return currentChatsWithGuideMessage(meta)(s).map((s) => s.id);
 };
 
-const currentChatsWithHistoryConfig = (s: ChatStore, config: LobeAgentChatConfig): ChatMessage[] => {
+const currentChatsWithHistoryConfig = (s: ChatStore): ChatMessage[] => {
   const chats = currentChats(s);
+  const config = agentSelectors.currentAgentChatConfig(useAgentStore.getState());
+
   return chatHelpers.getSlicedMessagesWithConfig(chats, config);
 };
 
-const chatsMessageString = (s: ChatStore, config: LobeAgentChatConfig): string => {
-  const chats = currentChatsWithHistoryConfig(s, config);
+const chatsMessageString = (s: ChatStore): string => {
+  const chats = currentChatsWithHistoryConfig(s);
   return chats.map((m) => m.content).join('');
 };
 
@@ -128,6 +129,8 @@ const isHasMessageLoading = (s: ChatStore) => s.messageLoadingIds.length > 0;
 const isCreatingMessage = (s: ChatStore) => s.isCreatingMessage;
 
 const isMessageGenerating = (id: string) => (s: ChatStore) => s.chatLoadingIds.includes(id);
+const isPluginApiInvoking = (id: string) => (s: ChatStore) => s.pluginApiLoadingIds.includes(id);
+
 const isToolCallStreaming = (id: string, index: number) => (s: ChatStore) => {
   const isLoading = s.toolCallingStreamIds[id];
 
@@ -154,6 +157,7 @@ export const chatSelectors = {
   isMessageEditing,
   isMessageGenerating,
   isMessageLoading,
+  isPluginApiInvoking,
   isToolCallStreaming,
   latestMessage,
   showInboxWelcome,
