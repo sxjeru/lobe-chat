@@ -2,7 +2,7 @@ import { TokenTag, Tooltip } from '@lobehub/ui';
 import { Popover } from 'antd';
 import { useTheme } from 'antd-style';
 import numeral from 'numeral';
-import { memo, useEffect } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Center, Flexbox } from 'react-layout-kit';
 
@@ -22,10 +22,9 @@ const Token = memo(() => {
   const { t } = useTranslation(['chat', 'components']);
   const theme = useTheme();
 
-  const config = agentSelectors.currentAgentChatConfig(useAgentStore.getState());
   const [input, messageString] = useChatStore((s) => [
     s.inputMessage,
-    chatSelectors.chatsMessageString(s, config),
+    chatSelectors.chatsMessageString(s),
   ]);
 
   const [systemRole, model] = useAgentStore((s) => [
