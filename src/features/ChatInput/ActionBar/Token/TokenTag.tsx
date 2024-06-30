@@ -27,7 +27,7 @@ const Token = memo(() => {
   //   chatSelectors.chatsMessageString(s),
   // ]);
   const [input] = useChatStore((s) => [s.inputMessage]);
-  const chats = chatSelectors.currentChatsWithHistoryConfig(useAgentStore.getState());
+  const chats = chatSelectors.currentChatsWithHistoryConfig(useChatStore.getState());
   const messageString = chatSelectors.chatsMessageString(chats);
 
   const [systemRole, model] = useAgentStore((s) => [
