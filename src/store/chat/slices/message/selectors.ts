@@ -112,7 +112,7 @@ const currentChatsWithHistoryConfig = (s: ChatStore): ChatMessage[] => {
 //   return chats.map((m) => m.content).join('');
 // };
 
-const chatsMessageString = (chats: Chat[]): string => {
+const chatsMessageString = (chats: ChatMessage[]): string => {
   return chats.map((m) => m.content).join('');
 };
 

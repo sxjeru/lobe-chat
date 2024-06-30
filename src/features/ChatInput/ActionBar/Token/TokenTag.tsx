@@ -9,6 +9,7 @@ import { Center, Flexbox } from 'react-layout-kit';
 import { useTokenCount } from '@/hooks/useTokenCount';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
+import { useChatStore } from '@/store/chat';
 import { chatSelectors } from '@/store/chat/selectors';
 import { useToolStore } from '@/store/tool';
 import { toolSelectors } from '@/store/tool/selectors';
@@ -25,7 +26,7 @@ const Token = memo(() => {
   //   s.inputMessage,
   //   chatSelectors.chatsMessageString(s),
   // ]);
-
+  const [input] = useChatStore((s) => [s.inputMessage]);
   const chats = chatSelectors.currentChatsWithHistoryConfig(useAgentStore.getState());
   const messageString = chatSelectors.chatsMessageString(chats);
 
