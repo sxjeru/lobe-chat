@@ -9,7 +9,6 @@ import { Center, Flexbox } from 'react-layout-kit';
 import { useTokenCount } from '@/hooks/useTokenCount';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
-import { useChatStore } from '@/store/chat';
 import { chatSelectors } from '@/store/chat/selectors';
 import { useToolStore } from '@/store/tool';
 import { toolSelectors } from '@/store/tool/selectors';
@@ -22,10 +21,13 @@ const Token = memo(() => {
   const { t } = useTranslation(['chat', 'components']);
   const theme = useTheme();
 
-  const [input, messageString] = useChatStore((s) => [
-    s.inputMessage,
-    chatSelectors.chatsMessageString(s),
-  ]);
+  // const [input, messageString] = useChatStore((s) => [
+  //   s.inputMessage,
+  //   chatSelectors.chatsMessageString(s),
+  // ]);
+
+  const chats = chatSelectors.currentChatsWithHistoryConfig(useAgentStore.getState());
+  const messageString = chatSelectors.chatsMessageString(chats);
 
   const [systemRole, model] = useAgentStore((s) => [
     agentSelectors.currentAgentSystemRole(s),

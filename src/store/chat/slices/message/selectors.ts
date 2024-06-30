@@ -107,8 +107,12 @@ const currentChatsWithHistoryConfig = (s: ChatStore): ChatMessage[] => {
   return chatHelpers.getSlicedMessagesWithConfig(chats, config);
 };
 
-const chatsMessageString = (s: ChatStore): string => {
-  const chats = currentChatsWithHistoryConfig(s);
+// const chatsMessageString = (s: ChatStore): string => {
+//   const chats = currentChatsWithHistoryConfig(s);
+//   return chats.map((m) => m.content).join('');
+// };
+
+const chatsMessageString = (chats: Chat[]): string => {
   return chats.map((m) => m.content).join('');
 };
 
