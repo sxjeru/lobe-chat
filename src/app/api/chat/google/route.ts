@@ -18,9 +18,9 @@ export const runtime = 'edge';
 // regions include Dublin (dub1, Ireland), Paris (cdg1, France), Frankfurt (fra1, Germany), London (lhr1, UK), and Stockholm (arn1, Sweden).
 // refs: https://ai.google.dev/gemini-api/docs/available-regions
 export const preferredRegion = [
-  'hnd1',
-  'sin1',
   'icn1',
+  'sin1',
+  'hnd1',
   'kix1',
   'bom1',
   'cpt1',
