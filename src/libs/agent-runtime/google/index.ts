@@ -9,6 +9,9 @@ import {
 } from '@google/generative-ai';
 import { JSONSchema7 } from 'json-schema';
 import { transform } from 'lodash-es';
+import * as fs from 'fs';
+import { Buffer } from 'buffer';
+
 
 import { LobeRuntimeAI } from '../BaseAI';
 import { AgentRuntimeErrorType, ILobeAgentRuntimeErrorType } from '../error';
@@ -51,7 +54,6 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
     try {
       const model = payload.model;
-      const fs = require('fs');
       
       // TODO: 应先检测 Env 是否启用 S3
       // url -> base64, currently Gemini don't support image url.
