@@ -9,7 +9,7 @@ import {
 } from '@google/generative-ai';
 import { JSONSchema7 } from 'json-schema';
 import { transform } from 'lodash-es';
-import { Buffer } from 'node:buffer';
+import fetch from 'node-fetch';
 
 
 import { LobeRuntimeAI } from '../BaseAI';
@@ -53,9 +53,12 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
     async function imageUrlToBase64(imageUrl: string): Promise<string> {
       try {
-        const fs = await import('node:fs');
-        const imageData = await fs.promises.readFile(imageUrl);
-        const base64Image = Buffer.from(imageData).toString('base64');
+        const response = await fetch(imageUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const base64Image = 
+          typeof btoa === 'function' 
+          ? btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''))
+          : Buffer.from(arrayBuffer).toString('base64');  
         return base64Image;
       } catch (error) {
         console.error('Error converting image to base64:', error);
