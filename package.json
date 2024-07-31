@@ -276,9 +276,4 @@
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
-  "browser": {
-    "fs": false,
-    "os": false,
-    "path": false
-  }
 }
