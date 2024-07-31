@@ -51,29 +51,35 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
     try {
       const model = payload.model;
+      const fs = require('fs');
       
       // TODO: 应先检测 Env 是否启用 S3
       // url -> base64, currently Gemini don't support image url.
+
+      async function imageUrlToBase64(imageUrl: string): Promise<string> {
+        try {
+          const imageData = await fs.promises.readFile(imageUrl);
+          const base64Image = Buffer.from(imageData).toString('base64');
+          return base64Image;
+        } catch (error) {
+          console.error('Error converting image to base64:', error);
+          throw error;
+        }
+      }
+
       let messages: OpenAIChatMessage[] = [];
       const urlPattern = /^(https?):\/\/[^\s#$./?].\S*$/i;
 
       for (const message of payload.messages) {
         if (Array.isArray(message.content)) {
-          const newContent = await Promise.all(message.content.map(async (content) => {
-            if (content.type === 'image_url' && urlPattern.test(content.image_url?.url)) {
-              const response = await fetch(content.image_url.url);
-              const blob = await response.blob();
-              const reader = new FileReader();
-              return new Promise<UserMessageContentPart>((resolve) => {
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                  if (typeof reader.result === 'string') {
-                    resolve({ ...content, image_url: { ...content.image_url, url: reader.result } });
-                  } else {
-                    resolve(content);
-                  }
+          const newContent = await Promise.all(
+            message.content.map(async (content) => {
+              if (content.type === 'image_url' && urlPattern.test(content.image_url?.url)) {
+                const base64Image = await imageUrlToBase64(content.image_url.url);
+                return {
+                  ...content,
+                  image_url: { ...content.image_url, url: `data:image/png;base64,${base64Image}` },
                 };
-              });
             } else {
               return content as UserMessageContentPart;
             }
@@ -83,7 +89,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           messages.push(message as OpenAIChatMessage);
         }
       }
-      
+
       if (messages.length === 0) {
         messages = payload.messages;
       }
