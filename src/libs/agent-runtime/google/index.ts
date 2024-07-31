@@ -7,10 +7,9 @@ import {
   GoogleGenerativeAI,
   Part,
 } from '@google/generative-ai';
+import axios from 'axios';
 import { JSONSchema7 } from 'json-schema';
 import { transform } from 'lodash-es';
-import fetch from 'node-fetch';
-
 
 import { LobeRuntimeAI } from '../BaseAI';
 import { AgentRuntimeErrorType, ILobeAgentRuntimeErrorType } from '../error';
@@ -39,6 +38,26 @@ enum HarmBlockThreshold {
   BLOCK_NONE = 'BLOCK_NONE',
 }
 
+async function imageUrlToBase64(imageUrl: string): Promise<string> {
+  try {
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const arrayBuffer = response.data;
+    const base64Image =
+      typeof btoa === 'function'
+        ? btoa(
+            new Uint8Array(arrayBuffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              '',
+            ),
+          )
+        : Buffer.from(arrayBuffer).toString('base64');
+    return base64Image;
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    throw error;
+  }
+}
+
 export class LobeGoogleAI implements LobeRuntimeAI {
   private client: GoogleGenerativeAI;
   baseURL?: string;
@@ -51,24 +70,9 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   }
 
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
-    async function imageUrlToBase64(imageUrl: string): Promise<string> {
-      try {
-        const response = await fetch(imageUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const base64Image = 
-          typeof btoa === 'function' 
-          ? btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''))
-          : Buffer.from(arrayBuffer).toString('base64');  
-        return base64Image;
-      } catch (error) {
-        console.error('Error converting image to base64:', error);
-        throw error;
-      }
-    }
-    
     try {
       const model = payload.model;
-      
+
       // TODO: 应先检测 Env 是否启用 S3
       // url -> base64, currently Gemini don't support image url.
 
@@ -85,10 +89,11 @@ export class LobeGoogleAI implements LobeRuntimeAI {
                   ...content,
                   image_url: { ...content.image_url, url: `data:image/png;base64,${base64Image}` },
                 };
-            } else {
-              return content as UserMessageContentPart;
-            }
-          }));
+              } else {
+                return content as UserMessageContentPart;
+              }
+            }),
+          );
           messages.push({ ...message, content: newContent as UserMessageContentPart[] });
         } else {
           messages.push(message as OpenAIChatMessage);
