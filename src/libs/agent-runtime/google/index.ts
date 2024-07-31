@@ -9,9 +9,8 @@ import {
 } from '@google/generative-ai';
 import { JSONSchema7 } from 'json-schema';
 import { transform } from 'lodash-es';
-import * as fs from 'fs';
-import { Buffer } from 'buffer';
-
+import * as fs from 'node:fs';
+import { Buffer } from 'node:buffer';
 
 import { LobeRuntimeAI } from '../BaseAI';
 import { AgentRuntimeErrorType, ILobeAgentRuntimeErrorType } from '../error';
@@ -52,22 +51,22 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   }
 
   async chat(payload: ChatStreamPayload, options?: ChatCompetitionOptions) {
+    async function imageUrlToBase64(imageUrl: string): Promise<string> {
+      try {
+        const imageData = await fs.promises.readFile(imageUrl);
+        const base64Image = Buffer.from(imageData).toString('base64');
+        return base64Image;
+      } catch (error) {
+        console.error('Error converting image to base64:', error);
+        throw error;
+      }
+    }
+    
     try {
       const model = payload.model;
       
       // TODO: 应先检测 Env 是否启用 S3
       // url -> base64, currently Gemini don't support image url.
-
-      async function imageUrlToBase64(imageUrl: string): Promise<string> {
-        try {
-          const imageData = await fs.promises.readFile(imageUrl);
-          const base64Image = Buffer.from(imageData).toString('base64');
-          return base64Image;
-        } catch (error) {
-          console.error('Error converting image to base64:', error);
-          throw error;
-        }
-      }
 
       let messages: OpenAIChatMessage[] = [];
       const urlPattern = /^(https?):\/\/[^\s#$./?].\S*$/i;
