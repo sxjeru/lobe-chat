@@ -70,7 +70,7 @@ const ZeroOne: ModelProviderCard = {
     },
   ],
   checkModel: 'yi-large',
-  disableBrowserRequest: true,
+  // disableBrowserRequest: true,
   id: 'zeroone',
   name: '01.AI',
 };
