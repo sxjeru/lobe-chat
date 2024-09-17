@@ -322,7 +322,7 @@ class ChatService {
       signal,
       // use smoothing when enable client fetch
       // https://github.com/lobehub/lobe-chat/issues/3800
-      smoothing: providerConfig?.smoothing,
+      smoothing: providerConfig?.smoothing || enableFetchOnClient,
     });
   };
 
