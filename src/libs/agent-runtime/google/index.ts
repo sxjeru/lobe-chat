@@ -91,7 +91,13 @@ export class LobeGoogleAI implements LobeRuntimeAI {
         .generateContentStream({
           contents,
           systemInstruction: payload.system as string,
-          tools: this.buildGoogleTools(payload.tools),
+          tools: (() => {
+            const processedTools = this.buildGoogleTools(payload.tools);
+            if (model.startsWith('gemini-2.0')) {
+              return [...(processedTools || []), { googleSearch: {} }];
+            }
+            return processedTools;
+          })(),
         });
 
       const googleStream = convertIterableToStream(geminiStreamResult.stream);
