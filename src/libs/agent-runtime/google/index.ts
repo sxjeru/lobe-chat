@@ -294,7 +294,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
       name: functionDeclaration.name,
       parameters: {
         description: parameters?.description,
-        properties: parameters?.properties,
+        properties: parameters?.properties || {},
         required: parameters?.required,
         type: SchemaType.OBJECT,
       },
