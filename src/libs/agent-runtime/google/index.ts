@@ -92,9 +92,9 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           contents,
           systemInstruction: payload.system as string,
           tools: (() => {
-            const processedTools = this.buildGoogleTools(payload.tools);
+            const processedTools = this.buildGoogleTools(payload.tools) || [];
             if (model.startsWith('gemini-2.0')) {
-              return [...(processedTools || []), { googleSearch: {} }];
+              processedTools.push({ googleSearch: {} });
             }
             return processedTools;
           })(),
