@@ -275,7 +275,6 @@ export class LobeGoogleAI implements LobeRuntimeAI {
 
   private buildGoogleTools(
     tools: ChatCompletionTool[] | undefined,
-    models: string,
   ): GoogleFunctionCallTool[] | undefined {
     if (!tools || tools.length === 0 || 1 ) return;
 
