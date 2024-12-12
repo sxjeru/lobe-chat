@@ -279,6 +279,8 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     if (!tools || tools.length === 0) return;
 
     return [
+      {'google_search': {}},
+      // {'code_execution': {}},
       {
         functionDeclarations: tools.map((tool) => this.convertToolToGoogleTool(tool)),
       },
