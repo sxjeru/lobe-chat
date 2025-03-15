@@ -10,7 +10,6 @@ import {
   SchemaType,
 } from '@google/generative-ai';
 
-import { VertexAIStream } from '@/libs/agent-runtime/utils/streams/vertex-ai';
 import type { ChatModelCard } from '@/types/llm';
 import { imageUrlToBase64 } from '@/utils/imageToBase64';
 import { safeParseJSON } from '@/utils/safeParseJSON';
@@ -28,8 +27,24 @@ import { ModelProvider } from '../types/type';
 import { AgentRuntimeError } from '../utils/createError';
 import { debugStream } from '../utils/debugStream';
 import { StreamingResponse } from '../utils/response';
-import { GoogleGenerativeAIStream, convertIterableToStream } from '../utils/streams';
+import {
+  GoogleGenerativeAIStream,
+  VertexAIStream,
+  convertIterableToStream,
+} from '../utils/streams';
 import { parseDataUri } from '../utils/uriParser';
+
+const modelsOffSafetySettings = new Set(['gemini-2.0-flash-exp']);
+
+const modelsWithModalities = new Set([
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-exp-image-generation',
+]);
+
+const modelsDisableInstuction = new Set([
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-exp-image-generation',
+]);
 
 export interface GoogleModelCard {
   displayName: string;
@@ -50,8 +65,7 @@ enum HarmBlockThreshold {
 }
 
 function getThreshold(model: string): HarmBlockThreshold {
-  const useOFF = ['gemini-2.0-flash-exp'];
-  if (useOFF.includes(model)) {
+  if (modelsOffSafetySettings.has(model)) {
     return 'OFF' as HarmBlockThreshold; // https://discuss.ai.google.dev/t/59352
   }
   return HarmBlockThreshold.BLOCK_NONE;
@@ -94,6 +108,8 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           {
             generationConfig: {
               maxOutputTokens: payload.max_tokens,
+              // @ts-expect-error - Google SDK 0.24.0 doesn't have this property for now with
+              response_modalities: modelsWithModalities.has(model) ? ['Text', 'Image'] : undefined,
               temperature: payload.temperature,
               topP: payload.top_p,
             },
@@ -123,7 +139,9 @@ export class LobeGoogleAI implements LobeRuntimeAI {
         )
         .generateContentStream({
           contents,
-          systemInstruction: payload.system as string,
+          systemInstruction: modelsDisableInstuction.has(model)
+            ? undefined
+            : (payload.system as string),
           tools: this.buildGoogleTools(payload.tools, payload),
         });
 
