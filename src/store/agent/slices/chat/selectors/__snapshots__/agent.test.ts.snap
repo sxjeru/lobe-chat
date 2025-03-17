@@ -5,8 +5,8 @@ exports[`agentSelectors > defaultAgentConfig > should merge DEFAULT_AGENT_CONFIG
   "chatConfig": {
     "autoCreateTopicThreshold": 2,
     "displayMode": "chat",
-    "enableAutoCreateTopic": true,
-    "enableCompressHistory": true,
+    "enableAutoCreateTopic": false,
+    "enableCompressHistory": false,
     "enableHistoryCount": true,
     "enableReasoning": false,
     "historyCount": 8,
