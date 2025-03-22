@@ -151,7 +151,7 @@ const ProviderConfig = memo<ProviderConfigProps>(
       aiProviderSelectors.isProviderFetchOnClient(id)(s),
       aiProviderSelectors.isActiveProviderEndpointNotEmpty(s),
       aiProviderSelectors.isActiveProviderApiKeyNotEmpty(s),
-      aiProviderSelectors.providerConfigById(id)(s),
+      aiProviderSelectors.providerConfigById,
     ]);
 
     const { data } = useFetchAiProviderItem(id);
@@ -351,9 +351,12 @@ const ProviderConfig = memo<ProviderConfigProps>(
         form={form}
         items={[model]}
         onValuesChange={(_, values) => {
-          const currentConfig = providerConfigById(id)(s);
-          const updatedConfig = { ...currentConfig, ...values };
-          debouncedUpdate(id, updatedConfig);
+          useAiInfraStore.setState((s) => {
+            const currentConfig = providerConfigById(id)(s);
+            const updatedConfig = { ...currentConfig, ...values };
+            debouncedUpdate(id, updatedConfig);
+            return s;
+          });
         }}
         variant={'pure'}
         {...FORM_STYLE}
