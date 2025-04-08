@@ -54,9 +54,9 @@ export class LobeAzureAI implements LobeRuntimeAI {
         body: {
           messages: updatedMessages as OpenAI.ChatCompletionMessageParam[],
           model,
-          temperature: model.includes('o3') ? undefined : temperature,
           ...params,
           stream: enableStreaming,
+          temperature: model.includes('o3') ? undefined : temperature,
           tool_choice: params.tools ? 'auto' : undefined,
         },
       });
