@@ -60,7 +60,7 @@ export class LobeAzureAI implements LobeRuntimeAI {
                     return {
                       ...part,
                       image_url: {
-                        ...(part.image_url || {}),
+                        ...part.image_url,
                         url: newDataUri,
                       },
                     };
@@ -70,7 +70,7 @@ export class LobeAzureAI implements LobeRuntimeAI {
                     );
                     throw AgentRuntimeError.chat({
                         endpoint: this.maskSensitiveUrl(this.baseURL),
-                        error: { message: `Failed to process image URL: ${imageUrl}`, cause: error },
+                        error: { cause: error, message: `Failed to process image URL: ${imageUrl}` },
                         errorType: AgentRuntimeErrorType.ProviderBizError,
                         provider: ModelProvider.Azure,
                     });
