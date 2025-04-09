@@ -3,15 +3,22 @@ import { AzureKeyCredential } from '@azure/core-auth';
 import OpenAI from 'openai';
 
 import { systemToUserModels } from '@/const/models';
+import { imageUrlToBase64 } from '@/utils/imageToBase64';
 
 import { LobeRuntimeAI } from '../BaseAI';
 import { AgentRuntimeErrorType } from '../error';
-import { ChatCompetitionOptions, ChatStreamPayload, ModelProvider } from '../types';
+import {
+  ChatCompetitionOptions,
+  ChatStreamPayload,
+  ModelProvider,
+  UserMessageContentPart,
+} from '../types';
 import { AgentRuntimeError } from '../utils/createError';
 import { debugStream } from '../utils/debugStream';
 import { transformResponseToStream } from '../utils/openaiCompatibleFactory';
 import { StreamingResponse } from '../utils/response';
 import { OpenAIStream, createSSEDataExtractor } from '../utils/streams';
+import { parseDataUri } from '../utils/uriParser';
 
 interface AzureAIParams {
   apiKey?: string;
@@ -38,7 +45,49 @@ export class LobeAzureAI implements LobeRuntimeAI {
     // o1 series models on Azure OpenAI does not support streaming currently
     const enableStreaming = model.includes('o1') ? false : (params.stream ?? true);
 
-    const updatedMessages = messages.map((message) => ({
+    const processedMessages = await Promise.all(
+      messages.map(async (message) => {
+        if (Array.isArray(message.content)) {
+          const newContent = await Promise.all(
+            message.content.map(async (part: UserMessageContentPart) => {
+              if (part.type === 'image_url' && part.image_url?.url) {
+                const imageUrl = part.image_url.url;
+                const { type: uriType } = parseDataUri(imageUrl);
+                if (uriType === 'url' && !imageUrl.startsWith('data:')) {
+                  try {
+                    const { base64, mimeType } = await imageUrlToBase64(imageUrl);
+                    const newDataUri = `data:${mimeType};base64,${base64}`;
+                    return {
+                      ...part,
+                      image_url: {
+                        ...(part.image_url || {}),
+                        url: newDataUri,
+                      },
+                    };
+                  } catch (error) {
+                    console.error(
+                      `[LobeAzureAI] Failed to convert image URL to Base64: ${imageUrl}`, error
+                    );
+                    throw AgentRuntimeError.chat({
+                        endpoint: this.maskSensitiveUrl(this.baseURL),
+                        error: { message: `Failed to process image URL: ${imageUrl}`, cause: error },
+                        errorType: AgentRuntimeErrorType.ProviderBizError,
+                        provider: ModelProvider.Azure,
+                    });
+                  }
+                }
+                return part;
+              }
+              return part;
+            }),
+          );
+          return { ...message, content: newContent };
+        }
+        return message;
+      }),
+    );
+
+    const updatedMessages = processedMessages.map((message) => ({
       ...message,
       role:
         // Convert 'system' role to 'user' or 'developer' based on the model
