@@ -278,7 +278,7 @@ const novitaChatModels: AIChatModelCard[] = [
   },
   {
     contextWindowTokens: 32_000,
-    displayName: 'Qwen 2.5 72B Instruct',
+    displayName: 'Qwen2.5 72B Instruct',
     id: 'qwen/qwen-2.5-72b-instruct',
     pricing: {
       input: 0.38,
@@ -331,7 +331,7 @@ const novitaChatModels: AIChatModelCard[] = [
       vision: true,
     },
     contextWindowTokens: 96_000,
-    displayName: 'Qwen 2.5 VL 72B Instruct',
+    displayName: 'Qwen2.5 VL 72B Instruct',
     enabled: true,
     id: 'qwen/qwen2.5-vl-72b-instruct',
     pricing: {
@@ -390,21 +390,30 @@ const novitaChatModels: AIChatModelCard[] = [
     },
     type: 'chat',
   },
-    {
-    abilities: {
-      reasoning: true,
-    },
-    contextWindowTokens: 32_768,
-    displayName: 'QwQ 32B',
-    enabled: true,
-    id: 'qwen/qwq-32b',
-    pricing: {
-      input: 0.18,
-      output: 0.2,
-    },
-    type: 'chat',
+  {
+  abilities: {
+    reasoning: true,
   },
-
+  contextWindowTokens: 32_768,
+  displayName: 'QwQ 32B',
+  enabled: true,
+  id: 'qwen/qwq-32b',
+  pricing: {
+    input: 0.18,
+    output: 0.2,
+  },
+  type: 'chat',
+  },
+  {
+  contextWindowTokens: 32_000,
+  displayName: 'Qwen2.5 7B Instruct',
+  id: 'qwen/qwen2.5-7b-instruct',
+  pricing: {
+    input: 0.07,
+    output: 0.07,
+  },
+  type: 'chat',
+  },
 ];
 
 export const allModels = [...novitaChatModels];
