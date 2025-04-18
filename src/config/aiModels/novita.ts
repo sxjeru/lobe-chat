@@ -1,5 +1,5 @@
 import { AIChatModelCard } from '@/types/aiModel';
-
+// https://novita.ai/pricing
 const novitaChatModels: AIChatModelCard[] = [
   {
     contextWindowTokens: 131_072,
@@ -114,7 +114,7 @@ const novitaChatModels: AIChatModelCard[] = [
   {
     contextWindowTokens: 65_535,
     description: 'WizardLM-2 8x22B 是微软AI最先进的Wizard模型，显示出极其竞争力的表现。',
-    displayName: 'WizardLM-2 8x22b',
+    displayName: 'WizardLM-2 8x22B',
     id: 'microsoft/wizardlm-2-8x22b',
     pricing: {
       input: 0.62,
