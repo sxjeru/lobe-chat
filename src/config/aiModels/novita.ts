@@ -1,6 +1,5 @@
 import { AIChatModelCard } from '@/types/aiModel';
 
-// https://novita.ai/pricing
 const novitaChatModels: AIChatModelCard[] = [
   {
     contextWindowTokens: 131_072,
@@ -19,14 +18,14 @@ const novitaChatModels: AIChatModelCard[] = [
     enabled: true,
     id: 'meta-llama/llama-4-maverick-17b-128e-instruct-fp8',
     pricing: {
-      input: 0.2,
+      input: 0.17,
       output: 0.85,
     },
     type: 'chat',
   },
   {
     contextWindowTokens: 16_384,
-    description: 'Llama 3.1 8B Instruct  优化了高质量对话场景，表现优于许多领先的闭源模型。',
+    description: 'Llama 3.1 8B Instruct 优化了高质量对话场景，表现优于许多领先的闭源模型。',
     displayName: 'Llama 3.1 8B Instruct',
     id: 'meta-llama/llama-3.1-8b-instruct',
     pricing: {
@@ -41,7 +40,7 @@ const novitaChatModels: AIChatModelCard[] = [
     displayName: 'Llama 3.1 70B Instruct',
     id: 'meta-llama/llama-3.1-70b-instruct',
     pricing: {
-      input: 0.34,
+      input: 0.119,
       output: 0.39,
     },
     type: 'chat',
@@ -85,7 +84,7 @@ const novitaChatModels: AIChatModelCard[] = [
     displayName: 'Gemma 3 27B',
     id: 'google/gemma-3-27b-it',
     pricing: {
-      input: 0.2,
+      input: 0.119,
       output: 0.2,
     },
     type: 'chat',
@@ -96,7 +95,7 @@ const novitaChatModels: AIChatModelCard[] = [
     displayName: 'Mistral Nemo',
     id: 'mistralai/mistral-nemo',
     pricing: {
-      input: 0.17,
+      input: 0.04,
       output: 0.17,
     },
     type: 'chat',
@@ -107,7 +106,7 @@ const novitaChatModels: AIChatModelCard[] = [
     displayName: 'Mistral 7B Instruct',
     id: 'mistralai/mistral-7b-instruct',
     pricing: {
-      input: 0.059,
+      input: 0.029,
       output: 0.059,
     },
     type: 'chat',
@@ -115,7 +114,7 @@ const novitaChatModels: AIChatModelCard[] = [
   {
     contextWindowTokens: 65_535,
     description: 'WizardLM-2 8x22B 是微软AI最先进的Wizard模型，显示出极其竞争力的表现。',
-    displayName: 'WizardLM-2 8x22B',
+    displayName: 'WizardLM-2 8x22b',
     id: 'microsoft/wizardlm-2-8x22b',
     pricing: {
       input: 0.62,
@@ -199,7 +198,7 @@ const novitaChatModels: AIChatModelCard[] = [
     enabled: true,
     id: 'deepseek/deepseek-v3-0324',
     pricing: {
-      input: 0.37,
+      input: 0.33,
       output: 1.3,
     },
     type: 'chat',
