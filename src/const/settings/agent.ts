@@ -24,7 +24,7 @@ export const DEFAULT_AGENT_CHAT_CONFIG: LobeAgentChatConfig = {
   enableCompressHistory: false,
   enableHistoryCount: true,
   enableReasoning: false,
-  historyCount: 8,
+  historyCount: 20,
   reasoningBudgetToken: 1024,
   searchFCModel: DEFAULT_AGENT_SEARCH_FC_MODEL,
   searchMode: 'off',
