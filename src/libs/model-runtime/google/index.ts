@@ -16,8 +16,8 @@ import { safeParseJSON } from '@/utils/safeParseJSON';
 import { LobeRuntimeAI } from '../BaseAI';
 import { AgentRuntimeErrorType, ILobeAgentRuntimeErrorType } from '../error';
 import {
-  ChatCompetitionOptions,
   ChatCompletionTool,
+  ChatMethodOptions,
   ChatStreamPayload,
   OpenAIChatMessage,
   UserMessageContentPart,
@@ -110,15 +110,15 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     this.provider = id || (isVertexAi ? 'vertexai' : 'google');
   }
 
-  async chat(rawPayload: ChatStreamPayload, options?: ChatCompetitionOptions) {
+  async chat(rawPayload: ChatStreamPayload, options?: ChatMethodOptions) {
     try {
       const payload = this.buildPayload(rawPayload);
       const { model, thinking } = payload;
 
       const thinkingConfig: GoogleAIThinkingConfig = {
         includeThoughts:
-          (thinking?.type === 'enabled') || 
-          (!thinking && model && (model.includes('-2.5-') || model.includes('thinking'))) 
+          thinking?.type === 'enabled' ||
+          (!thinking && model && (model.includes('-2.5-') || model.includes('thinking')))
             ? true
             : undefined,
         thinkingBudget:
@@ -141,7 +141,9 @@ export class LobeGoogleAI implements LobeRuntimeAI {
               response_modalities: modelsWithModalities.has(model) ? ['Text', 'Image'] : undefined,
               temperature: payload.temperature,
               topP: payload.top_p,
-              ...(modelsDisableInstuction.has(model) || model.toLowerCase().includes('learnlm') ? {} : { thinkingConfig }),
+              ...(modelsDisableInstuction.has(model) || model.toLowerCase().includes('learnlm')
+                ? {}
+                : { thinkingConfig }),
             },
             model,
             // avoid wide sensitive words
@@ -208,18 +210,18 @@ export class LobeGoogleAI implements LobeRuntimeAI {
       const response = await fetch(url, {
         method: 'GET',
       });
-  
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-  
+
       const json = await response.json();
-      
+
       const modelList: GoogleModelCard[] = json.models;
-  
+
       const processedModels = modelList.map((model) => {
         const id = model.name.replace(/^models\//, '');
-        
+
         return {
           contextWindowTokens: (model.inputTokenLimit || 0) + (model.outputTokenLimit || 0),
           displayName: model.displayName || id,
@@ -227,9 +229,9 @@ export class LobeGoogleAI implements LobeRuntimeAI {
           maxOutput: model.outputTokenLimit || undefined,
         };
       });
-  
+
       const { MODEL_LIST_CONFIGS, processModelList } = await import('../utils/modelParse');
-      
+
       return processModelList(processedModels, MODEL_LIST_CONFIGS.google);
     } catch (error) {
       console.error('Failed to fetch Google models:', error);
