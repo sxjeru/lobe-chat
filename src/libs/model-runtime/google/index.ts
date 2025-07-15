@@ -510,7 +510,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     };
 
     // 1. 处理 "got status: UNAVAILABLE. {JSON}" 格式
-    const statusJsonMatch = message.match(/got status: (\w+)\.\s*(\{.*\})$/);
+    const statusJsonMatch = message.match(/got status: (\w+)\.\s*({.*})$/);
     if (statusJsonMatch) {
       const statusFromMessage = statusJsonMatch[1];
       const jsonPart = statusJsonMatch[2];
