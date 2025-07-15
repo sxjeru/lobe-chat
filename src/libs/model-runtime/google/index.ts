@@ -466,35 +466,84 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     if (message.includes('location is not supported'))
       return { error: { message }, errorType: AgentRuntimeErrorType.LocationNotSupportError };
 
-    const startIndex = message.lastIndexOf('[');
-    if (startIndex === -1) {
-      return defaultError;
-    }
-
+    // 尝试解析多层嵌套的JSON错误信息
     try {
-      // 从开始位置截取字符串到最后
-      const jsonString = message.slice(startIndex);
-
-      // 尝试解析 JSON 字符串
-      const json: GoogleChatErrors = JSON.parse(jsonString);
-
-      const bizError = json[0];
-
-      switch (bizError.reason) {
-        case 'API_KEY_INVALID': {
-          return { ...defaultError, errorType: AgentRuntimeErrorType.InvalidProviderAPIKey };
+      let parsedMessage = message;
+      let maxAttempts = 5; // 防止无限循环
+      
+      // 多次解析可能的JSON嵌套
+      while (maxAttempts > 0) {
+        try {
+          const parsed = JSON.parse(parsedMessage);
+          if (parsed && typeof parsed === 'object') {
+            // 检查是否包含error字段
+            if (parsed.error) {
+              if (typeof parsed.error === 'string') {
+                parsedMessage = parsed.error;
+                maxAttempts--;
+                continue;
+              } else if (parsed.error.message) {
+                // 找到了实际的错误信息
+                const errorInfo = parsed.error;
+                const cleanMessage = errorInfo.message || message;
+                const code = errorInfo.code || errorInfo.status || null;
+                const status = errorInfo.status || '';
+                
+                // 根据错误代码确定错误类型
+                let errorType: ILobeAgentRuntimeErrorType = AgentRuntimeErrorType.ProviderBizError;
+                if (code === 401 || cleanMessage.includes('API_KEY_INVALID')) {
+                  errorType = AgentRuntimeErrorType.InvalidProviderAPIKey;
+                } else if (code === 429) {
+                  errorType = AgentRuntimeErrorType.QuotaLimitReached;
+                } else if (code === 503 || status === 'UNAVAILABLE') {
+                  errorType = AgentRuntimeErrorType.ProviderBizError;
+                }
+                
+                return {
+                  error: {
+                    code,
+                    message: cleanMessage,
+                    status
+                  },
+                  errorType
+                };
+              }
+            }
+            // 如果没有error字段，直接返回解析的对象
+            break;
+          }
+        } catch {
+          // 如果解析失败，跳出循环
+          break;
         }
-
-        default: {
-          return { error: json, errorType: AgentRuntimeErrorType.ProviderBizError };
-        }
+        maxAttempts--;
       }
     } catch {
-      //
+      // 继续使用原有的解析逻辑
+    }
+
+    // 原有的解析逻辑作为后备
+    const startIndex = message.lastIndexOf('[');
+    if (startIndex !== -1) {
+      try {
+        const jsonString = message.slice(startIndex);
+        const json: GoogleChatErrors = JSON.parse(jsonString);
+        const bizError = json[0];
+
+        switch (bizError.reason) {
+          case 'API_KEY_INVALID': {
+            return { ...defaultError, errorType: AgentRuntimeErrorType.InvalidProviderAPIKey };
+          }
+          default: {
+            return { error: json, errorType: AgentRuntimeErrorType.ProviderBizError };
+          }
+        }
+      } catch {
+        // 忽略解析错误
+      }
     }
 
     const errorObj = this.extractErrorObjectFromError(message);
-
     const { errorDetails } = errorObj;
 
     if (errorDetails) {
