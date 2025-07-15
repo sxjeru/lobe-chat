@@ -501,8 +501,8 @@ export class LobeGoogleAI implements LobeRuntimeAI {
                 
                 return {
                   error: {
-                    message: cleanMessage,
                     code,
+                    message: cleanMessage,
                     status
                   },
                   errorType
