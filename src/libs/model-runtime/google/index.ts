@@ -466,63 +466,117 @@ export class LobeGoogleAI implements LobeRuntimeAI {
     if (message.includes('location is not supported'))
       return { error: { message }, errorType: AgentRuntimeErrorType.LocationNotSupportError };
 
-    // 尝试解析多层嵌套的JSON错误信息
-    try {
-      let parsedMessage = message;
-      let maxAttempts = 5; // 防止无限循环
-      
-      // 多次解析可能的JSON嵌套
-      while (maxAttempts > 0) {
-        try {
-          const parsed = JSON.parse(parsedMessage);
-          if (parsed && typeof parsed === 'object') {
-            // 检查是否包含error字段
-            if (parsed.error) {
-              if (typeof parsed.error === 'string') {
-                parsedMessage = parsed.error;
-                maxAttempts--;
-                continue;
-              } else if (parsed.error.message) {
-                // 找到了实际的错误信息
-                const errorInfo = parsed.error;
-                const cleanMessage = errorInfo.message || message;
-                const code = errorInfo.code || errorInfo.status || null;
-                const status = errorInfo.status || '';
-                
-                // 根据错误代码确定错误类型
-                let errorType: ILobeAgentRuntimeErrorType = AgentRuntimeErrorType.ProviderBizError;
-                if (code === 401 || cleanMessage.includes('API_KEY_INVALID')) {
-                  errorType = AgentRuntimeErrorType.InvalidProviderAPIKey;
-                } else if (code === 429) {
-                  errorType = AgentRuntimeErrorType.QuotaLimitReached;
-                } else if (code === 503 || status === 'UNAVAILABLE') {
-                  errorType = AgentRuntimeErrorType.ProviderBizError;
-                }
-                
-                return {
-                  error: {
-                    code,
-                    message: cleanMessage,
-                    status
-                  },
-                  errorType
-                };
-              }
-            }
-            // 如果没有error字段，直接返回解析的对象
-            break;
-          }
-        } catch {
-          // 如果解析失败，跳出循环
-          break;
-        }
-        maxAttempts--;
+    // 统一的错误类型判断函数
+    const getErrorType = (code: number | null, message: string): ILobeAgentRuntimeErrorType => {
+      if (code === 401 || message.includes('API_KEY_INVALID')) {
+        return AgentRuntimeErrorType.InvalidProviderAPIKey;
+      } else if (code === 429) {
+        return AgentRuntimeErrorType.QuotaLimitReached;
       }
-    } catch {
-      // 继续使用原有的解析逻辑
+      return AgentRuntimeErrorType.ProviderBizError;
+    };
+
+    // 递归解析JSON，处理嵌套的JSON字符串
+    const parseJsonRecursively = (str: string, maxDepth: number = 5): any => {
+      if (maxDepth <= 0) return null;
+      
+      try {
+        const parsed = JSON.parse(str);
+        
+        // 如果解析出的对象包含error字段
+        if (parsed && typeof parsed === 'object' && parsed.error) {
+          const errorInfo = parsed.error;
+          
+          // 如果error.message还是一个JSON字符串，继续递归解析
+          if (typeof errorInfo.message === 'string') {
+            try {
+              const nestedResult = parseJsonRecursively(errorInfo.message, maxDepth - 1);
+              if (nestedResult && nestedResult.error) {
+                // 使用更深层的错误信息
+                return nestedResult;
+              }
+            } catch {
+              // 如果嵌套解析失败，使用当前层的信息
+            }
+          }
+          
+          return parsed;
+        }
+        
+        return parsed;
+      } catch {
+        return null;
+      }
+    };
+
+    // 1. 处理 "got status: UNAVAILABLE. {JSON}" 格式
+    const statusJsonMatch = message.match(/got status: (\w+)\.\s*(\{.*\})$/);
+    if (statusJsonMatch) {
+      const statusFromMessage = statusJsonMatch[1];
+      const jsonPart = statusJsonMatch[2];
+      
+      const parsedError = parseJsonRecursively(jsonPart);
+      if (parsedError && parsedError.error) {
+        const errorInfo = parsedError.error;
+        const finalMessage = errorInfo.message || message;
+        const finalCode = errorInfo.code || null;
+        const finalStatus = errorInfo.status || statusFromMessage;
+        
+        return {
+          error: {
+            code: finalCode,
+            message: finalMessage,
+            status: finalStatus
+          },
+          errorType: getErrorType(finalCode, finalMessage)
+        };
+      }
     }
 
-    // 原有的解析逻辑作为后备
+    // 2. 尝试直接解析整个消息作为JSON
+    const directParsed = parseJsonRecursively(message);
+    if (directParsed && directParsed.error) {
+      const errorInfo = directParsed.error;
+      const finalMessage = errorInfo.message || message;
+      const finalCode = errorInfo.code || null;
+      const finalStatus = errorInfo.status || '';
+      
+      return {
+        error: {
+          code: finalCode,
+          message: finalMessage,
+          status: finalStatus
+        },
+        errorType: getErrorType(finalCode, finalMessage)
+      };
+    }
+
+    // 3. 处理嵌套JSON格式，特别是message字段包含JSON的情况
+    try {
+      const firstLevelParsed = JSON.parse(message);
+      if (firstLevelParsed && firstLevelParsed.error && firstLevelParsed.error.message) {
+        const nestedParsed = parseJsonRecursively(firstLevelParsed.error.message);
+        if (nestedParsed && nestedParsed.error) {
+          const errorInfo = nestedParsed.error;
+          const finalMessage = errorInfo.message || message;
+          const finalCode = errorInfo.code || null;
+          const finalStatus = errorInfo.status || '';
+          
+          return {
+            error: {
+              code: finalCode,
+              message: finalMessage,
+              status: finalStatus
+            },
+            errorType: getErrorType(finalCode, finalMessage)
+          };
+        }
+      }
+    } catch {
+      // 继续其他解析方式
+    }
+
+    // 4. 原有的数组格式解析逻辑
     const startIndex = message.lastIndexOf('[');
     if (startIndex !== -1) {
       try {
@@ -530,24 +584,19 @@ export class LobeGoogleAI implements LobeRuntimeAI {
         const json: GoogleChatErrors = JSON.parse(jsonString);
         const bizError = json[0];
 
-        switch (bizError.reason) {
-          case 'API_KEY_INVALID': {
-            return { ...defaultError, errorType: AgentRuntimeErrorType.InvalidProviderAPIKey };
-          }
-          default: {
-            return { error: json, errorType: AgentRuntimeErrorType.ProviderBizError };
-          }
+        if (bizError?.reason === 'API_KEY_INVALID') {
+          return { ...defaultError, errorType: AgentRuntimeErrorType.InvalidProviderAPIKey };
         }
+        return { error: json, errorType: AgentRuntimeErrorType.ProviderBizError };
       } catch {
         // 忽略解析错误
       }
     }
 
+    // 5. 使用现有的错误对象提取逻辑作为最后的后备方案
     const errorObj = this.extractErrorObjectFromError(message);
-    const { errorDetails } = errorObj;
-
-    if (errorDetails) {
-      return { error: errorDetails, errorType: AgentRuntimeErrorType.ProviderBizError };
+    if (errorObj.errorDetails) {
+      return { error: errorObj.errorDetails, errorType: AgentRuntimeErrorType.ProviderBizError };
     }
 
     return defaultError;
