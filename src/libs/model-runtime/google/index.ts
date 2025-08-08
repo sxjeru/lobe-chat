@@ -232,7 +232,11 @@ export class LobeGoogleAI implements LobeRuntimeAI {
 
       // Convert the response into a friendly text-stream
       const Stream = this.isVertexAi ? VertexAIStream : GoogleGenerativeAIStream;
-      const stream = Stream(prod, { callbacks: options?.callback, inputStartAt });
+      const stream = Stream(prod, {
+        callbacks: options?.callback,
+        inputStartAt,
+        provider: this.provider,
+      });
 
       // Respond with the stream
       return StreamingResponse(stream, { headers: options?.headers });
@@ -303,6 +307,8 @@ export class LobeGoogleAI implements LobeRuntimeAI {
   }
 
   private createEnhancedStream(originalStream: any, signal: AbortSignal): ReadableStream {
+    const provider = this.provider; // 保存 provider 引用，因为在 ReadableStream 内部 this 不指向类实例
+
     return new ReadableStream({
       async start(controller) {
         let hasData = false;
@@ -340,8 +346,32 @@ export class LobeGoogleAI implements LobeRuntimeAI {
               return;
             }
           } else {
-            // 处理其他流解析错误
+            // 处理其他流解析错误，包括 Google API 错误
             console.error('Stream parsing error:', err);
+
+            // 解析 Google API 错误并转换为结构化格式
+            const { errorType, error: parsedError } = parseGoogleErrorMessage(err.message);
+
+            // 构造错误数据块，使用标准的错误块格式
+            const errorData = {
+              error: parsedError,
+              errorType,
+              message: err.message,
+              name: err.name,
+              provider,
+              stack: err.stack,
+            };
+
+            // 使用错误块前缀格式发送错误
+            const errorChunkText = `%FIRST_CHUNK_ERROR%: ${JSON.stringify(errorData)}`;
+
+            // 将错误作为特殊的数据块发送，而不是直接抛出错误
+            try {
+              controller.enqueue(errorChunkText);
+            } catch (enqueueError) {
+              console.error('Failed to enqueue error chunk:', enqueueError);
+            }
+
             controller.error(err);
             return;
           }
@@ -511,7 +541,7 @@ export class LobeGoogleAI implements LobeRuntimeAI {
       .map(async (msg) => await this.convertOAIMessagesToGoogleMessage(msg, toolCallNameMap));
 
     const contents = await Promise.all(pools);
-    
+
     // 筛除空消息: contents.parts must not be empty.
     return contents.filter((content: Content) => content.parts && content.parts.length > 0);
   };
@@ -563,7 +593,6 @@ export class LobeGoogleAI implements LobeRuntimeAI {
       },
     };
   };
-
 }
 
 export default LobeGoogleAI;

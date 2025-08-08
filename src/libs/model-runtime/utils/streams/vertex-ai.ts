@@ -9,6 +9,7 @@ import {
   StreamContext,
   StreamProtocolChunk,
   createCallbacksTransformer,
+  createFirstErrorHandleTransformer,
   createSSEProtocolTransformer,
   createTokenSpeedCalculator,
   generateToolCallId,
@@ -143,11 +144,12 @@ const transformVertexAIStream = (
 
 export const VertexAIStream = (
   rawStream: ReadableStream<GenerateContentResponse>,
-  { callbacks, inputStartAt }: GoogleAIStreamOptions = {},
+  { callbacks, inputStartAt, provider }: GoogleAIStreamOptions = {},
 ) => {
   const streamStack: StreamContext = { id: 'chat_' + nanoid() };
 
   return rawStream
+    .pipeThrough(createFirstErrorHandleTransformer(undefined, provider))
     .pipeThrough(createTokenSpeedCalculator(transformVertexAIStream, { inputStartAt, streamStack }))
     .pipeThrough(createSSEProtocolTransformer((c) => c, streamStack))
     .pipeThrough(createCallbacksTransformer(callbacks));

@@ -10,6 +10,7 @@ import {
   StreamProtocolChunk,
   StreamToolCallChunkData,
   createCallbacksTransformer,
+  createFirstErrorHandleTransformer,
   createSSEProtocolTransformer,
   createTokenSpeedCalculator,
   generateToolCallId,
@@ -34,9 +35,9 @@ const transformGoogleGenerativeAIStream = (
       {
         data: {
           inputCachedTokens: usage.cachedContentTokenCount,
-          inputImageTokens: usage.promptTokensDetails?.find((i) => i.modality === 'IMAGE')
+          inputImageTokens: usage.promptTokensDetails?.find((i: any) => i.modality === 'IMAGE')
             ?.tokenCount,
-          inputTextTokens: usage.promptTokensDetails?.find((i) => i.modality === 'TEXT')
+          inputTextTokens: usage.promptTokensDetails?.find((i: any) => i.modality === 'TEXT')
             ?.tokenCount,
           outputReasoningTokens: reasoningTokens,
           outputTextTokens,
@@ -56,7 +57,7 @@ const transformGoogleGenerativeAIStream = (
     return [
       {
         data: functionCalls.map(
-          (value, index): StreamToolCallChunkData => ({
+          (value: any, index: number): StreamToolCallChunkData => ({
             function: {
               arguments: JSON.stringify(value.args),
               name: value.name,
@@ -92,7 +93,7 @@ const transformGoogleGenerativeAIStream = (
         { data: text, id: context.id, type: 'text' },
         {
           data: {
-            citations: groundingChunks?.map((chunk) => ({
+            citations: groundingChunks?.map((chunk: any) => ({
               // google 返回的 uri 是经过 google 自己处理过的 url，因此无法展现真实的 favicon
               // 需要使用 title 作为替换
               favicon: chunk.web?.title,
@@ -144,15 +145,17 @@ const transformGoogleGenerativeAIStream = (
 export interface GoogleAIStreamOptions {
   callbacks?: ChatStreamCallbacks;
   inputStartAt?: number;
+  provider?: string;
 }
 
 export const GoogleGenerativeAIStream = (
   rawStream: ReadableStream<GenerateContentResponse>,
-  { callbacks, inputStartAt }: GoogleAIStreamOptions = {},
+  { callbacks, inputStartAt, provider }: GoogleAIStreamOptions = {},
 ) => {
   const streamStack: StreamContext = { id: 'chat_' + nanoid() };
 
   return rawStream
+    .pipeThrough(createFirstErrorHandleTransformer(undefined, provider))
     .pipeThrough(
       createTokenSpeedCalculator(transformGoogleGenerativeAIStream, { inputStartAt, streamStack }),
     )
