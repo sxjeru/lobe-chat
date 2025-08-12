@@ -1,6 +1,15 @@
 import { LobeDefaultAiModelListItem } from '@/types/aiModel';
 import { ModelTokensUsage } from '@/types/message';
-import { getAudioInputUnitRate, getAudioOutputUnitRate } from '@/utils/pricing';
+import { 
+  getAudioInputUnitRate, 
+  getAudioOutputUnitRate,
+  calculateTextInputCost,
+  calculateTextOutputCost,
+  calculateAudioInputCost,
+  calculateAudioOutputCost,
+  calculateCachedTextInputCost,
+  calculateWriteCacheInputCost,
+} from '@/utils/pricing';
 
 import { getPrice } from './pricing';
 
@@ -8,6 +17,35 @@ const calcCredit = (token: number, pricing?: number) => {
   if (!pricing) return '-';
 
   return parseInt((token * pricing).toFixed(0));
+};
+
+// Enhanced calculation function that uses tiered pricing when available
+const calcCreditTiered = (
+  tokens: number, 
+  modelCard?: LobeDefaultAiModelListItem, 
+  unitName?: 'textInput' | 'textOutput' | 'textInput_cacheRead' | 'textInput_cacheWrite'
+) => {
+  if (!modelCard?.pricing || !unitName) return '-';
+  
+  let cost = 0;
+  switch (unitName) {
+    case 'textInput':
+      cost = calculateTextInputCost(modelCard.pricing, tokens);
+      break;
+    case 'textOutput':
+      cost = calculateTextOutputCost(modelCard.pricing, tokens);
+      break;
+    case 'textInput_cacheRead':
+      cost = calculateCachedTextInputCost(modelCard.pricing, tokens);
+      break;
+    case 'textInput_cacheWrite':
+      cost = calculateWriteCacheInputCost(modelCard.pricing, tokens);
+      break;
+    default:
+      return '-';
+  }
+  
+  return parseInt(cost.toFixed(0));
 };
 
 export const getDetailsToken = (
@@ -36,22 +74,22 @@ export const getDetailsToken = (
   const formatPrice = getPrice(modelCard?.pricing || { units: [] });
 
   const inputCacheMissCredit = (
-    !!inputCacheMissTokens ? calcCredit(inputCacheMissTokens, formatPrice.input) : 0
+    !!inputCacheMissTokens ? calcCreditTiered(inputCacheMissTokens, modelCard, 'textInput') : 0
   ) as number;
 
   const inputCachedCredit = (
-    !!inputCacheTokens ? calcCredit(inputCacheTokens, formatPrice.cachedInput) : 0
+    !!inputCacheTokens ? calcCreditTiered(inputCacheTokens, modelCard, 'textInput_cacheRead') : 0
   ) as number;
 
   const inputWriteCachedCredit = !!inputWriteCacheTokens
-    ? (calcCredit(inputWriteCacheTokens, formatPrice.writeCacheInput) as number)
+    ? (calcCreditTiered(inputWriteCacheTokens, modelCard, 'textInput_cacheWrite') as number)
     : 0;
 
   const totalOutputCredit = (
-    !!totalOutputTokens ? calcCredit(totalOutputTokens, formatPrice.output) : 0
+    !!totalOutputTokens ? calcCreditTiered(totalOutputTokens, modelCard, 'textOutput') : 0
   ) as number;
   const totalInputCredit = (
-    !!totalInputTokens ? calcCredit(totalInputTokens, formatPrice.input) : 0
+    !!totalInputTokens ? calcCreditTiered(totalInputTokens, modelCard, 'textInput') : 0
   ) as number;
 
   const totalCredit =
@@ -60,7 +98,7 @@ export const getDetailsToken = (
   return {
     inputAudio: !!usage.inputAudioTokens
       ? {
-          credit: calcCredit(usage.inputAudioTokens, getAudioInputUnitRate(modelCard?.pricing)),
+          credit: parseInt(calculateAudioInputCost(modelCard?.pricing, usage.inputAudioTokens).toFixed(0)),
           token: usage.inputAudioTokens,
         }
       : undefined,
@@ -75,33 +113,33 @@ export const getDetailsToken = (
       : undefined,
     inputCitation: !!usage.inputCitationTokens
       ? {
-          credit: calcCredit(usage.inputCitationTokens, formatPrice.input),
+          credit: calcCreditTiered(usage.inputCitationTokens, modelCard, 'textInput'),
           token: usage.inputCitationTokens,
         }
       : undefined,
     inputText: !!inputTextTokens
       ? {
-          credit: calcCredit(inputTextTokens, formatPrice.input),
+          credit: calcCreditTiered(inputTextTokens, modelCard, 'textInput'),
           token: inputTextTokens,
         }
       : undefined,
 
     outputAudio: !!usage.outputAudioTokens
       ? {
-          credit: calcCredit(usage.outputAudioTokens, getAudioOutputUnitRate(modelCard?.pricing)),
+          credit: parseInt(calculateAudioOutputCost(modelCard?.pricing, usage.outputAudioTokens).toFixed(0)),
           id: 'outputAudio',
           token: usage.outputAudioTokens,
         }
       : undefined,
     outputReasoning: !!outputReasoningTokens
       ? {
-          credit: calcCredit(outputReasoningTokens, formatPrice.output),
+          credit: calcCreditTiered(outputReasoningTokens, modelCard, 'textOutput'),
           token: outputReasoningTokens,
         }
       : undefined,
     outputText: !!outputTextTokens
       ? {
-          credit: calcCredit(outputTextTokens, formatPrice.output),
+          credit: calcCreditTiered(outputTextTokens, modelCard, 'textOutput'),
           token: outputTextTokens,
         }
       : undefined,
