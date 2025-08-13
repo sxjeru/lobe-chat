@@ -123,7 +123,8 @@ export class UserService {
       if (!file) {
         return null;
       }
-      return Buffer.from(file);
+      // 在 Edge Runtime 中使用 Uint8Array 而不是 Buffer
+      return file;
     } catch (error) {
       pino.error({ error }, 'Failed to get user avatar');
     }
