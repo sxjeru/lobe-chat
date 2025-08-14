@@ -16,8 +16,6 @@ import { DynamicLayoutProps } from '@/types/next';
 
 import { RouteVariants } from '@/utils/server/routeVariants';
 
-export const runtime = 'edge';
-
 const inVercel = process.env.VERCEL === '1';
 
 interface RootLayoutProps extends DynamicLayoutProps {
