@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { OAuthHandoffModel } from '@/database/models/oauthHandoff';
 import { serverDB } from '@/database/server';
 
+export const runtime = 'edge';
+
 const log = debug('lobe-oidc:handoff');
 
 /**

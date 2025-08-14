@@ -5,6 +5,8 @@ import { OAuthHandoffModel } from '@/database/models/oauthHandoff';
 import { serverDB } from '@/database/server';
 import { correctOIDCUrl } from '@/utils/server/correctOIDCUrl';
 
+export const runtime = 'edge';
+
 const log = debug('lobe-oidc:callback:desktop');
 
 const errorPathname = '/oauth/callback/error';

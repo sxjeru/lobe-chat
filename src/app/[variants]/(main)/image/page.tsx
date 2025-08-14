@@ -12,6 +12,8 @@ import { RouteVariants } from '@/utils/server/routeVariants';
 import ImageWorkspace from './features/ImageWorkspace';
 import SkeletonList from './features/ImageWorkspace/SkeletonList';
 
+export const runtime = 'edge';
+
 export const generateMetadata = async (props: DynamicLayoutProps) => {
   const locale = await RouteVariants.getLocale(props);
   const { t } = await translation('metadata', locale);

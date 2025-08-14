@@ -13,7 +13,10 @@ import AuthProvider from '@/layout/AuthProvider';
 import GlobalProvider from '@/layout/GlobalProvider';
 import { Locales } from '@/locales/resources';
 import { DynamicLayoutProps } from '@/types/next';
+
 import { RouteVariants } from '@/utils/server/routeVariants';
+
+export const runtime = 'edge';
 
 const inVercel = process.env.VERCEL === '1';
 

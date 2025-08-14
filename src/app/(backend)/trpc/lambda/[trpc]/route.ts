@@ -5,6 +5,8 @@ import { pino } from '@/libs/logger';
 import { createLambdaContext } from '@/libs/trpc/lambda/context';
 import { lambdaRouter } from '@/server/routers/lambda';
 
+export const runtime = 'edge';
+
 const handler = (req: NextRequest) =>
   fetchRequestHandler({
     /**

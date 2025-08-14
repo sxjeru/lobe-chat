@@ -6,6 +6,8 @@ import { useFileCategory } from '@/app/[variants]/(main)/files/hooks/useFileCate
 import FileManager from '@/features/FileManager';
 import { FilesTabs } from '@/types/files';
 
+export const runtime = 'edge';
+
 export default () => {
   const { t } = useTranslation('file');
   const [category] = useFileCategory();

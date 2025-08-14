@@ -9,6 +9,8 @@ import { RouteVariants } from '@/utils/server/routeVariants';
 
 import Page from './index';
 
+export const runtime = 'edge';
+
 export const generateMetadata = async (props: DynamicLayoutProps) => {
   const locale = await RouteVariants.getLocale(props);
   const { t } = await translation('setting', locale);

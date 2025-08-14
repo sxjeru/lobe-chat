@@ -4,6 +4,8 @@ import { RequestFilteringAgentOptions, useAgent as ssrfAgent } from 'request-fil
 
 import { appEnv } from '@/envs/app';
 
+export const runtime = 'edge';
+
 /**
  * just for a proxy
  */

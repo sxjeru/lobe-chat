@@ -1,6 +1,6 @@
 import { UserService } from '@/server/services/user';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 type Params = Promise<{ id: string; image: string }>;
 

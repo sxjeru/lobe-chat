@@ -1,6 +1,8 @@
 import { encode } from 'gpt-tokenizer/encoding/o200k_base';
 import { NextResponse } from 'next/server';
 
+export const runtime = 'edge';
+
 export const POST = async (req: Request) => {
   const str = await req.text();
 

@@ -5,6 +5,8 @@ import { OIDCService } from '@/server/services/oidc';
 import { getUserAuth } from '@/utils/server/auth';
 import { correctOIDCUrl } from '@/utils/server/correctOIDCUrl';
 
+export const runtime = 'edge';
+
 const log = debug('lobe-oidc:consent');
 
 export async function POST(request: NextRequest) {

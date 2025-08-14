@@ -8,6 +8,8 @@ import Conversation from './features/Conversation';
 import Desktop from './features/Desktop';
 import Essential from './features/Essential';
 
+export const runtime = 'edge';
+
 export const generateMetadata = async (props: DynamicLayoutProps) => {
   const locale = await RouteVariants.getLocale(props);
   const { t } = await translation('setting', locale);

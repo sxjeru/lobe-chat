@@ -8,6 +8,8 @@ import ConsentClientError from './ClientError';
 import Consent from './Consent';
 import Login from './Login';
 
+export const runtime = 'edge';
+
 const InteractionPage = async (props: { params: Promise<{ uid: string }> }) => {
   if (!oidcEnv.ENABLE_OIDC) return notFound();
 

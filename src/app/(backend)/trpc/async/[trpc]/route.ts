@@ -5,6 +5,8 @@ import { pino } from '@/libs/logger';
 import { createAsyncRouteContext } from '@/libs/trpc/async/context';
 import { asyncRouter } from '@/server/routers/async';
 
+export const runtime = 'edge';
+
 const handler = (req: NextRequest) =>
   fetchRequestHandler({
     // 避免请求之间互相影响

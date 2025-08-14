@@ -6,6 +6,8 @@ import { oidcEnv } from '@/envs/oidc';
 import { createNodeRequest, createNodeResponse } from '@/libs/oidc-provider/http-adapter';
 import { getOIDCProvider } from '@/server/services/oidc/oidcProvider';
 
+export const runtime = 'edge';
+
 const log = debug('lobe-oidc:route'); // Create a debug instance with a namespace
 
 const handler = async (req: NextRequest) => {
