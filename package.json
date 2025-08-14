@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "prebuild": "tsx scripts/prebuild.mts",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=3500 next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4000 next build --experimental-debug-memory-usage",
     "postbuild": "npm run build-sitemap && npm run build-migrate-db",
     "build-migrate-db": "bun run db:migrate",
     "build-sitemap": "tsx ./scripts/buildSitemapIndex/index.ts",
