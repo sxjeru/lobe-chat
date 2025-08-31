@@ -48,7 +48,7 @@ const VirtualizedList = memo<VirtualizedListProps>(({ mobile, dataSource, itemCo
 
   const theme = useTheme();
   // overscan should be 3 times the height of the window
-  const overscan = typeof window !== 'undefined' ? window.innerHeight * 3 : 0;
+  // const overscan = typeof window !== 'undefined' ? window.innerHeight * 3 : 0;
 
   // first time loading or not loaded
   if (isFirstLoading) return <SkeletonList mobile={mobile} />;
