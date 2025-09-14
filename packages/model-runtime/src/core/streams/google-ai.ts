@@ -16,6 +16,8 @@ import {
   generateToolCallId,
 } from './protocol';
 
+export const LOBE_ERROR_KEY = '__lobe_error';
+
 const getBlockReasonMessage = (blockReason: string): string => {
   const blockReasonMessages = errorLocale.response.GoogleAIBlockReason;
 
@@ -30,9 +32,9 @@ const transformGoogleGenerativeAIStream = (
   context: StreamContext,
 ): StreamProtocolChunk | StreamProtocolChunk[] => {
   // Handle injected internal error marker to pass through detailed error info
-  if ((chunk as any)?.__lobe_error) {
+  if ((chunk as any)?.[LOBE_ERROR_KEY]) {
     return {
-      data: (chunk as any).__lobe_error,
+      data: (chunk as any)[LOBE_ERROR_KEY],
       id: context?.id || 'error',
       type: 'error',
     };
@@ -224,6 +226,8 @@ export const GoogleGenerativeAIStream = (
     .pipeThrough(
       createTokenSpeedCalculator(transformGoogleGenerativeAIStream, { inputStartAt, streamStack }),
     )
-    .pipeThrough(createSSEProtocolTransformer((c) => c, streamStack))
+    .pipeThrough(
+      createSSEProtocolTransformer((c) => c, streamStack, { requireTerminalEvent: true }),
+    )
     .pipeThrough(createCallbacksTransformer(callbacks));
 };

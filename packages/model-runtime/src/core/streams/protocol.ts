@@ -58,28 +58,28 @@ export interface StreamProtocolChunk {
   id?: string;
   type: // pure text
   | 'text'
-    // base64 format image
-    | 'base64_image'
-    // Tools use
-    | 'tool_calls'
-    // Model Thinking
-    | 'reasoning'
-    // use for reasoning signature, maybe only anthropic
-    | 'reasoning_signature'
-    // flagged reasoning signature
-    | 'flagged_reasoning_signature'
-    // Search or Grounding
-    | 'grounding'
-    // stop signal
-    | 'stop'
-    // Error
-    | 'error'
-    // token usage
-    | 'usage'
-    // performance monitor
-    | 'speed'
-    // unknown data result
-    | 'data';
+  // base64 format image
+  | 'base64_image'
+  // Tools use
+  | 'tool_calls'
+  // Model Thinking
+  | 'reasoning'
+  // use for reasoning signature, maybe only anthropic
+  | 'reasoning_signature'
+  // flagged reasoning signature
+  | 'flagged_reasoning_signature'
+  // Search or Grounding
+  | 'grounding'
+  // stop signal
+  | 'stop'
+  // Error
+  | 'error'
+  // token usage
+  | 'usage'
+  // performance monitor
+  | 'speed'
+  // unknown data result
+  | 'data';
 }
 
 export interface StreamToolCallChunkData {
@@ -166,13 +166,15 @@ export const convertIterableToStream = <T>(stream: AsyncIterable<T>) => {
 export const createSSEProtocolTransformer = (
   transformer: (chunk: any, stack: StreamContext) => StreamProtocolChunk | StreamProtocolChunk[],
   streamStack?: StreamContext,
+  options?: { requireTerminalEvent?: boolean },
 ) => {
   let hasTerminalEvent = false;
+  const requireTerminalEvent = Boolean(options?.requireTerminalEvent);
 
   return new TransformStream({
     flush(controller) {
       // If the upstream closes without sending a terminal event, emit a final error event
-      if (!hasTerminalEvent) {
+      if (requireTerminalEvent && !hasTerminalEvent) {
         const id = streamStack?.id || 'stream_end';
         const data = {
           body: { name: 'Stream parsing error', reason: 'unexpected_end' },
