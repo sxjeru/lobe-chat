@@ -198,7 +198,7 @@ const nextConfig: NextConfig = {
     },
   },
   reactStrictMode: true,
-  cacheDir: '../../.next/cache',
+  cacheDir: '.cache',
 
   redirects: async () => [
     {
