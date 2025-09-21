@@ -44,6 +44,7 @@ const nextConfig: NextConfig = {
     // refs: https://github.com/lobehub/lobe-chat/pull/7430
     serverMinification: false,
     webVitalsAttribution: ['CLS', 'LCP'],
+    webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
   },
   async headers() {
@@ -320,10 +321,10 @@ const withBundleAnalyzer = process.env.ANALYZE === 'true' ? analyzer() : noWrapp
 const withPWA =
   isProd && !isDesktop
     ? withSerwistInit({
-        register: false,
-        swDest: 'public/sw.js',
-        swSrc: 'src/app/sw.ts',
-      })
+      register: false,
+      swDest: 'public/sw.js',
+      swSrc: 'src/app/sw.ts',
+    })
     : noWrapper;
 
 export default withBundleAnalyzer(withPWA(nextConfig as NextConfig));
