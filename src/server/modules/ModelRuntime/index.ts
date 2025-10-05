@@ -1,5 +1,6 @@
-import { ModelProvider, ModelRuntime } from '@lobechat/model-runtime';
+import { ModelRuntime } from '@lobechat/model-runtime';
 import { ClientSecretPayload } from '@lobechat/types';
+import { ModelProvider } from 'model-bank';
 
 import { getLLMConfig } from '@/envs/llm';
 
@@ -97,6 +98,14 @@ const getParamsFromPayload = (provider: string, payload: ClientSecretPayload) =>
       return { apiKey };
     }
 
+    case ModelProvider.OllamaCloud: {
+      const { OLLAMA_CLOUD_API_KEY } = llmConfig;
+
+      const apiKey = apiKeyManager.pick(payload?.apiKey || OLLAMA_CLOUD_API_KEY);
+
+      return { apiKey };
+    }
+
     case ModelProvider.TencentCloud: {
       const { TENCENT_CLOUD_API_KEY } = llmConfig;
 
@@ -119,8 +128,10 @@ export const initModelRuntimeWithUserPayload = (
   payload: ClientSecretPayload,
   params: any = {},
 ) => {
-  return ModelRuntime.initializeWithProvider(provider, {
-    ...getParamsFromPayload(provider, payload),
+  const runtimeProvider = payload.runtimeProvider ?? provider;
+
+  return ModelRuntime.initializeWithProvider(runtimeProvider, {
+    ...getParamsFromPayload(runtimeProvider, payload),
     ...params,
   });
 };

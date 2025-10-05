@@ -150,6 +150,11 @@
       "total": "Totale consumato"
     }
   },
+  "minimap": {
+    "jumpToMessage": "Vai al messaggio n. {{index}}",
+    "nextMessage": "Messaggio successivo",
+    "previousMessage": "Messaggio precedente"
+  },
   "newAgent": "Nuovo assistente",
   "pin": "Fissa in alto",
   "pinOff": "Annulla fissaggio in alto",
@@ -281,6 +286,7 @@
       "actionFiletip": "Carica file",
       "actionTooltip": "Carica",
       "disabled": "Il modello attuale non supporta il riconoscimento visivo e l'analisi dei file, si prega di cambiare modello per utilizzare questa funzione",
+      "fileNotSupported": "La modalità browser non supporta il caricamento di file, è consentito solo il caricamento di immagini",
       "visionNotSupported": "Il modello attuale non supporta il riconoscimento visivo, si prega di cambiare modello per utilizzare questa funzione"
     },
     "preview": {
@@ -289,6 +295,9 @@
         "pending": "Preparazione al caricamento...",
         "processing": "Elaborazione del file..."
       }
+    },
+    "validation": {
+      "videoSizeExceeded": "La dimensione del file video non può superare i 20MB, la dimensione attuale del file è {{actualSize}}"
     }
   },
   "zenMode": "Modalità di concentrazione"

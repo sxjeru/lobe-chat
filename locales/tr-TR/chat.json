@@ -150,6 +150,11 @@
       "total": "Toplam tüketim"
     }
   },
+  "minimap": {
+    "jumpToMessage": "{{index}} numaralı mesaja atla",
+    "nextMessage": "Sonraki mesaj",
+    "previousMessage": "Önceki mesaj"
+  },
   "newAgent": "Yeni Asistan",
   "pin": "Pin",
   "pinOff": "Unpin",
@@ -281,6 +286,7 @@
       "actionFiletip": "Dosya Yükle",
       "actionTooltip": "Yükle",
       "disabled": "Mevcut model görsel tanımayı ve dosya analizini desteklemiyor, lütfen modeli değiştirin ve tekrar deneyin",
+      "fileNotSupported": "Tarayıcı modunda dosya yükleme desteklenmiyor, sadece resimler desteklenmektedir",
       "visionNotSupported": "Seçili model görsel tanımayı desteklemiyor, lütfen başka bir modele geçiş yaparak kullanın"
     },
     "preview": {
@@ -289,6 +295,9 @@
         "pending": "Yüklemeye Hazırlanıyor...",
         "processing": "Dosya İşleniyor..."
       }
+    },
+    "validation": {
+      "videoSizeExceeded": "Video dosyası boyutu 20MB'ı geçemez, mevcut dosya boyutu {{actualSize}}"
     }
   },
   "zenMode": "Odak Modu"

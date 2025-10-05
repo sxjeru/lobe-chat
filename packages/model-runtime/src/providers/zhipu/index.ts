@@ -1,7 +1,8 @@
+import { ModelProvider } from 'model-bank';
+
 import { createOpenAICompatibleRuntime } from '../../core/openaiCompatibleFactory';
 import { OpenAIStream } from '../../core/streams/openai';
 import { convertIterableToStream } from '../../core/streams/protocol';
-import { ModelProvider } from '../../types';
 import { MODEL_LIST_CONFIGS, processModelList } from '../../utils/modelParse';
 
 export interface ZhipuModelCard {
@@ -107,7 +108,9 @@ export const LobeZhipuAI = createOpenAICompatibleRuntime({
       return OpenAIStream(preprocessedStream, {
         callbacks,
         inputStartAt,
-        provider: 'zhipu',
+        payload: {
+          provider: 'zhipu',
+        },
       });
     },
   },

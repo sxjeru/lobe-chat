@@ -150,6 +150,11 @@
       "total": "Total Consumption"
     }
   },
+  "minimap": {
+    "jumpToMessage": "Jump to message {{index}}",
+    "nextMessage": "Next message",
+    "previousMessage": "Previous message"
+  },
   "newAgent": "New Assistant",
   "pin": "Pin",
   "pinOff": "Unpin",
@@ -281,6 +286,7 @@
       "actionFiletip": "Upload File",
       "actionTooltip": "Upload",
       "disabled": "The current model does not support visual recognition and file analysis. Please switch models to use this feature.",
+      "fileNotSupported": "File uploads are not supported in browser mode; only images are allowed.",
       "visionNotSupported": "The current model does not support visual recognition. Please switch to a different model to use this feature."
     },
     "preview": {
@@ -289,6 +295,9 @@
         "pending": "Preparing to upload...",
         "processing": "Processing file..."
       }
+    },
+    "validation": {
+      "videoSizeExceeded": "Video file size must not exceed 20MB. Current file size is {{actualSize}}."
     }
   },
   "zenMode": "Zen Mode"

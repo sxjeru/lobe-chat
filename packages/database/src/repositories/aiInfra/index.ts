@@ -128,7 +128,7 @@ export class AiInfraRepos {
               providerId: provider.id,
               settings: item.settings,
               sort: user.sort || undefined,
-              type: item.type,
+              type: user.type || item.type,
             };
           })
           .filter((item) => (filterEnabled ? item.enabled : true));
@@ -186,7 +186,7 @@ export class AiInfraRepos {
   };
 
   /**
-   * use in the `/settings/provider/[id]` page
+   * use in the `/settings?active=provider&provider=[id]` page
    */
   getAiProviderDetail = async (id: string, decryptor?: DecryptUserKeyVaults) => {
     const config = await this.aiProviderModel.getAiProviderById(id, decryptor);

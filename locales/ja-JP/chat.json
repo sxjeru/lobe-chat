@@ -150,6 +150,11 @@
       "total": "合計消費"
     }
   },
+  "minimap": {
+    "jumpToMessage": "メッセージ {{index}} へジャンプ",
+    "nextMessage": "次のメッセージ",
+    "previousMessage": "前のメッセージ"
+  },
   "newAgent": "新しいエージェント",
   "pin": "ピン留め",
   "pinOff": "ピン留め解除",
@@ -281,6 +286,7 @@
       "actionFiletip": "ファイルをアップロード",
       "actionTooltip": "アップロード",
       "disabled": "現在のモデルは視覚認識とファイル分析をサポートしていません。モデルを切り替えてから使用してください。",
+      "fileNotSupported": "ブラウザモードではファイルのアップロードはサポートされておらず、画像のみ対応しています",
       "visionNotSupported": "現在のモデルはビジョン認識をサポートしていません。モデルを切り替えてからご利用ください。"
     },
     "preview": {
@@ -289,6 +295,9 @@
         "pending": "アップロードの準備中...",
         "processing": "ファイル処理中..."
       }
+    },
+    "validation": {
+      "videoSizeExceeded": "動画ファイルのサイズは20MBを超えることはできません。現在のファイルサイズは{{actualSize}}です"
     }
   },
   "zenMode": "集中モード"

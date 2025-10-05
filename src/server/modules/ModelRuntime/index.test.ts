@@ -18,10 +18,10 @@ import {
   LobeTogetherAI,
   LobeZeroOneAI,
   LobeZhipuAI,
-  ModelProvider,
   ModelRuntime,
 } from '@lobechat/model-runtime';
 import { ClientSecretPayload } from '@lobechat/types';
+import { ModelProvider } from 'model-bank';
 import { describe, expect, it, vi } from 'vitest';
 
 import { initModelRuntimeWithUserPayload } from './index';
@@ -82,6 +82,19 @@ describe('initModelRuntimeWithUserPayload method', () => {
         azureApiVersion: '2024-06-01',
       };
       const runtime = await initModelRuntimeWithUserPayload(ModelProvider.Azure, jwtPayload);
+      expect(runtime).toBeInstanceOf(ModelRuntime);
+      expect(runtime['_runtime']).toBeInstanceOf(LobeAzureOpenAI);
+      expect(runtime['_runtime'].baseURL).toBe(jwtPayload.baseURL);
+    });
+
+    it('Custom provider should use runtimeProvider to init', async () => {
+      const jwtPayload: ClientSecretPayload = {
+        apiKey: 'user-azure-key',
+        azureApiVersion: '2024-06-01',
+        baseURL: 'user-azure-endpoint',
+        runtimeProvider: ModelProvider.Azure,
+      };
+      const runtime = await initModelRuntimeWithUserPayload('custom-provider', jwtPayload);
       expect(runtime).toBeInstanceOf(ModelRuntime);
       expect(runtime['_runtime']).toBeInstanceOf(LobeAzureOpenAI);
       expect(runtime['_runtime'].baseURL).toBe(jwtPayload.baseURL);

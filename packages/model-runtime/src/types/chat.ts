@@ -1,5 +1,6 @@
+import { ModelSpeed, ModelTokensUsage, ModelUsage } from '@/types/message';
+
 import { MessageToolCall, MessageToolCallChunk } from './toolsCalling';
-import { ModelTokensUsage } from './usage';
 
 export type LLMRoleType = 'user' | 'system' | 'assistant' | 'function' | 'tool';
 
@@ -21,23 +22,20 @@ interface UserMessageContentPartImage {
   type: 'image_url';
 }
 
+interface UserMessageContentPartVideo {
+  type: 'video_url';
+  video_url: { url: string };
+}
+
 export type UserMessageContentPart =
   | UserMessageContentPartText
   | UserMessageContentPartImage
+  | UserMessageContentPartVideo
   | UserMessageContentPartThinking;
 
 export interface OpenAIChatMessage {
-  /**
-   * @title 内容
-   * @description 消息内容
-   */
   content: string | UserMessageContentPart[];
-
   name?: string;
-  /**
-   * 角色
-   * @description 消息发送者的角色
-   */
   role: LLMRoleType;
   tool_call_id?: string;
   tool_calls?: MessageToolCall[];
@@ -174,12 +172,13 @@ export interface ChatCompletionTool {
   type: 'function';
 }
 
-interface OnFinishData {
+export interface OnFinishData {
   grounding?: any;
+  speed?: ModelSpeed;
   text: string;
   thinking?: string;
   toolsCalling?: MessageToolCall[];
-  usage?: ModelTokensUsage;
+  usage?: ModelUsage;
 }
 
 export interface ChatStreamCallbacks {
