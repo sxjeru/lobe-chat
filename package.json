@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "prebuild1": "tsx scripts/prebuild.mts && npm run lint",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4700 next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4300 next build",
     "build:cf": "cross-env NODE_OPTIONS=--max-old-space-size=5000 next build",
     
     "postbuild": "npm run build-sitemap && npm run build-migrate-db",
