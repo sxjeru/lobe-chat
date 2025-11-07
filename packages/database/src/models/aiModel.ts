@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { SQL, and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   AiModelSortMap,
   AiModelSourceEnum,
@@ -78,6 +78,7 @@ export class AiModelModel {
         parameters: aiModels.parameters,
         pricing: aiModels.pricing,
         releasedAt: aiModels.releasedAt,
+        settings: aiModels.settings,
         source: aiModels.source,
         type: aiModels.type,
       })
@@ -104,6 +105,7 @@ export class AiModelModel {
         id: aiModels.id,
         parameters: aiModels.parameters,
         providerId: aiModels.providerId,
+        settings: aiModels.settings,
         sort: aiModels.sort,
         source: aiModels.source,
         type: aiModels.type,
@@ -121,11 +123,42 @@ export class AiModelModel {
   };
 
   update = async (id: string, providerId: string, value: Partial<AiModelSelectItem>) => {
+    const now = new Date();
+    const { settings, ...rest } = value;
+
+    const filteredRest = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== undefined),
+    ) as Partial<Omit<typeof aiModels.$inferInsert, 'settings'>>;
+
+    const insertValues: typeof aiModels.$inferInsert = {
+      ...filteredRest,
+      id,
+      providerId,
+      updatedAt: now,
+      userId: this.userId,
+    };
+
+    if (settings !== undefined) {
+      insertValues.settings = settings;
+    }
+
+    const updateValues: Partial<Omit<typeof aiModels.$inferInsert, 'settings'>> & {
+      settings?: SQL<unknown>;
+    } = {
+      ...filteredRest,
+      updatedAt: now,
+    };
+
+    if (settings !== undefined) {
+      const settingsJson = JSON.stringify(settings);
+      updateValues.settings = sql`coalesce(${aiModels.settings}, '{}'::jsonb) || ${settingsJson}::jsonb`;
+    }
+
     return this.db
       .insert(aiModels)
-      .values({ ...value, id, providerId, updatedAt: new Date(), userId: this.userId })
+      .values(insertValues)
       .onConflictDoUpdate({
-        set: value,
+        set: updateValues,
         target: [aiModels.id, aiModels.providerId, aiModels.userId],
       });
   };

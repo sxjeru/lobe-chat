@@ -245,8 +245,24 @@ export interface AiModelSettings {
    * 模型层实现搜索的方式
    */
   searchImpl?: ModelSearchImplementType;
+  /**
+   * 搜索模式（按模型保存）
+   */
+  searchMode?: 'off' | 'auto';
   searchProvider?: string;
+  /**
+   * 是否使用模型内置搜索引擎（按模型保存）
+   */
+  useModelBuiltinSearch?: boolean;
 }
+
+export const AiModelSettingsSchema = z.object({
+  extendParams: z.array(z.string()).optional(),
+  searchImpl: z.enum(['tool', 'params', 'internal']).optional(),
+  searchMode: z.enum(['off', 'auto']).optional(),
+  searchProvider: z.string().optional(),
+  useModelBuiltinSearch: z.boolean().optional(),
+});
 
 export interface AIChatModelCard extends AIBaseModelCard {
   abilities?: ModelAbilities;
@@ -369,6 +385,7 @@ export const UpdateAiModelSchema = z.object({
     .optional(),
   contextWindowTokens: z.number().nullable().optional(),
   displayName: z.string().nullable().optional(),
+  settings: AiModelSettingsSchema.optional(),
   type: AiModelTypeSchema.optional(),
 });
 

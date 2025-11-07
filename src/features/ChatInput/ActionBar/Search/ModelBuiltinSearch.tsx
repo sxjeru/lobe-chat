@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Flexbox } from 'react-layout-kit';
 
 import { useAgentStore } from '@/store/agent';
-import { agentChatConfigSelectors, agentSelectors } from '@/store/agent/selectors';
+import { agentSelectors } from '@/store/agent/selectors';
 import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
 
 interface SearchEngineIconProps {
@@ -32,15 +32,18 @@ const SearchEngineIcon = ({ icon }: SearchEngineIconProps) => {
 
 const ModelBuiltinSearch = memo(() => {
   const { t } = useTranslation('chat');
-  const [model, provider, checked, updateAgentChatConfig] = useAgentStore((s) => [
+  const [model, provider] = useAgentStore((s) => [
     agentSelectors.currentAgentModel(s),
     agentSelectors.currentAgentModelProvider(s),
-    agentChatConfigSelectors.useModelBuiltinSearch(s),
-    s.updateAgentChatConfig,
   ]);
 
   const [isLoading, setLoading] = useState(false);
-  const modelCard = useAiInfraStore(aiModelSelectors.getEnabledModelById(model, provider));
+  const activeProvider = useAiInfraStore((s) => s.activeAiProvider);
+  const enabledModel = useAiInfraStore(aiModelSelectors.getEnabledModelById(model, provider));
+  const fallbackModel = useAiInfraStore(aiModelSelectors.getAiModelById(model));
+  const modelCard = enabledModel || (activeProvider === provider ? fallbackModel : undefined);
+  const checked = !!modelCard?.settings?.useModelBuiltinSearch;
+  const updateAiModelSettings = useAiInfraStore((s) => s.updateAiModelSettings);
 
   return (
     <Flexbox
@@ -49,7 +52,8 @@ const ModelBuiltinSearch = memo(() => {
       justify={'space-between'}
       onClick={async () => {
         setLoading(true);
-        await updateAgentChatConfig({ useModelBuiltinSearch: !checked });
+        // 只更新模型的 settings
+        await updateAiModelSettings(model, provider, { useModelBuiltinSearch: !checked });
         setLoading(false);
       }}
       padding={'8px 12px'}

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Center, Flexbox } from 'react-layout-kit';
 
 import { useAgentStore } from '@/store/agent';
-import { agentChatConfigSelectors, agentSelectors } from '@/store/agent/slices/chat';
+import { agentSelectors } from '@/store/agent/slices/chat';
 import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { SearchMode } from '@/types/search';
 
@@ -64,10 +64,19 @@ interface NetworkOption {
 
 const Item = memo<NetworkOption>(({ value, description, icon, label }) => {
   const { cx, styles } = useStyles();
-  const [mode, updateAgentChatConfig] = useAgentStore((s) => [
-    agentChatConfigSelectors.agentSearchMode(s),
-    s.updateAgentChatConfig,
+  // get current model/provider
+  const [model, provider] = useAgentStore((s) => [
+    agentSelectors.currentAgentModel(s),
+    agentSelectors.currentAgentModelProvider(s),
   ]);
+  // derive mode from model settings to react to aiInfra updates
+  const activeProvider = useAiInfraStore((s) => s.activeAiProvider);
+  const enabledModel = useAiInfraStore(aiModelSelectors.getEnabledModelById(model, provider));
+  const fallbackModel = useAiInfraStore(aiModelSelectors.getAiModelById(model));
+  const modelCard = enabledModel || (activeProvider === provider ? fallbackModel : undefined);
+  const mode = (modelCard?.settings?.searchMode ?? 'off') as 'off' | 'auto';
+
+  const updateAiModelSettings = useAiInfraStore((s) => s.updateAiModelSettings);
 
   return (
     <Flexbox
@@ -77,7 +86,9 @@ const Item = memo<NetworkOption>(({ value, description, icon, label }) => {
       horizontal
       key={value}
       onClick={async () => {
-        await updateAgentChatConfig({ searchMode: value });
+        // 只更新模型的 settings
+        // value 是 'off' | 'auto'，因为 options 数组只包含这两个值
+        await updateAiModelSettings(model, provider, { searchMode: value as 'off' | 'auto' });
       }}
     >
       <Center className={styles.icon} flex={'none'} height={32} width={32}>
@@ -93,12 +104,9 @@ const Item = memo<NetworkOption>(({ value, description, icon, label }) => {
 
 const Controls = memo(() => {
   const { t } = useTranslation('chat');
-  const [model, provider, useModelBuiltinSearch, searchMode, updateAgentChatConfig] = useAgentStore((s) => [
+  const [model, provider] = useAgentStore((s) => [
     agentSelectors.currentAgentModel(s),
     agentSelectors.currentAgentModelProvider(s),
-    agentChatConfigSelectors.useModelBuiltinSearch(s),
-    agentChatConfigSelectors.currentChatConfig(s).searchMode,
-    s.updateAgentChatConfig,
   ]);
 
   const supportFC = useAiInfraStore(aiModelSelectors.isModelSupportToolUse(model, provider));
@@ -111,43 +119,55 @@ const Controls = memo(() => {
   const isModelBuiltinSearchInternal = useAiInfraStore(
     aiModelSelectors.isModelBuiltinSearchInternal(model, provider),
   );
-  const modelBuiltinSearchImpl = useAiInfraStore(aiModelSelectors.modelBuiltinSearchImpl(model, provider));
+  const modelBuiltinSearchImpl = useAiInfraStore(
+    aiModelSelectors.modelBuiltinSearchImpl(model, provider),
+  );
+  const activeProvider = useAiInfraStore((s) => s.activeAiProvider);
+  const enabledModel2 = useAiInfraStore(aiModelSelectors.getEnabledModelById(model, provider));
+  const fallbackModel2 = useAiInfraStore(aiModelSelectors.getAiModelById(model));
+  const modelCard = enabledModel2 || (activeProvider === provider ? fallbackModel2 : undefined);
+  const searchMode = (modelCard?.settings?.searchMode ?? 'off') as 'off' | 'auto';
+  const useModelBuiltinSearch = modelCard?.settings?.useModelBuiltinSearch;
+  const updateAiModelSettings = useAiInfraStore((s) => s.updateAiModelSettings);
 
   useEffect(() => {
     if (isModelBuiltinSearchInternal && (searchMode ?? 'off') === 'off') {
-      updateAgentChatConfig({ searchMode: 'auto' });
+      // 如果是内置搜索实现，自动设置为 auto
+      updateAiModelSettings(model, provider, { searchMode: 'auto' });
     }
-  }, [isModelBuiltinSearchInternal, searchMode, updateAgentChatConfig]);
+  }, [isModelBuiltinSearchInternal, searchMode, updateAiModelSettings, model, provider]);
 
   const options: NetworkOption[] = isModelBuiltinSearchInternal
     ? [
-      {
-        description: t('search.mode.auto.desc'),
-        icon: SparkleIcon,
-        label: t('search.mode.auto.title'),
-        value: 'auto',
-      },
-    ]
+        {
+          description: t('search.mode.auto.desc'),
+          icon: SparkleIcon,
+          label: t('search.mode.auto.title'),
+          value: 'auto',
+        },
+      ]
     : [
-      {
-        description: t('search.mode.off.desc'),
-        icon: GlobeOffIcon,
-        label: t('search.mode.off.title'),
-        value: 'off',
-      },
-      {
-        description: t('search.mode.auto.desc'),
-        icon: SparkleIcon,
-        label: t('search.mode.auto.title'),
-        value: 'auto',
-      },
-    ];
+        {
+          description: t('search.mode.off.desc'),
+          icon: GlobeOffIcon,
+          label: t('search.mode.off.title'),
+          value: 'off',
+        },
+        {
+          description: t('search.mode.auto.desc'),
+          icon: SparkleIcon,
+          label: t('search.mode.auto.title'),
+          value: 'auto',
+        },
+      ];
 
-  const showModelBuiltinSearch = !isModelBuiltinSearchInternal &&
+  const showModelBuiltinSearch =
+    !isModelBuiltinSearchInternal &&
     (isModelHasBuiltinSearchConfig || isProviderHasBuiltinSearchConfig);
 
   const showFCSearchModel =
-    !supportFC && (!modelBuiltinSearchImpl || (!isModelBuiltinSearchInternal && !useModelBuiltinSearch));
+    !supportFC &&
+    (!modelBuiltinSearchImpl || (!isModelBuiltinSearchInternal && !useModelBuiltinSearch));
 
   const showDivider = showModelBuiltinSearch || showFCSearchModel;
 

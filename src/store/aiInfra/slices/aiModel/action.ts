@@ -26,6 +26,11 @@ export interface AiModelAction {
   refreshAiModelList: () => Promise<void>;
   removeAiModel: (id: string, providerId: string) => Promise<void>;
   toggleModelEnabled: (params: Omit<ToggleAiModelEnableParams, 'providerId'>) => Promise<void>;
+  updateAiModelSettings: (
+    id: string,
+    providerId: string,
+    settings: Partial<{ searchMode?: 'off' | 'auto'; useModelBuiltinSearch?: boolean }>,
+  ) => Promise<void>;
   updateAiModelsConfig: (
     id: string,
     providerId: string,
@@ -126,6 +131,36 @@ export const createAiModelSlice: StateCreator<
     get().internal_toggleAiModelLoading(params.id, false);
   },
 
+  updateAiModelSettings: async (id, providerId, settings) => {
+    // Optimistic update: patch aiProviderModelList & enabledAiModels
+    const state = get();
+    const patchedModelList = state.aiProviderModelList.map((m) => {
+      if (m.id !== id) return m;
+      const nextSettings = m.settings ? { ...m.settings, ...settings } : { ...settings };
+      return { ...m, settings: nextSettings } as typeof m;
+    });
+    const patchedEnabledModels = (state.enabledAiModels || []).map((m) => {
+      if (m.id !== id || m.providerId !== providerId) return m;
+      const nextSettings = m.settings ? { ...m.settings, ...settings } : { ...settings };
+      return { ...m, settings: nextSettings } as typeof m;
+    });
+
+    set(
+      { aiProviderModelList: patchedModelList, enabledAiModels: patchedEnabledModels },
+      false,
+      'optimistic/updateAiModelSettings',
+    );
+
+    try {
+      await aiModelService.updateAiModel(id, providerId, { settings });
+    } catch (error) {
+      // rollback by forcing refresh
+      console.warn('updateAiModelSettings failed, refreshing list', error);
+    }
+    // Force refresh for that provider regardless of activeAiProvider
+    await mutate(['FETCH_AI_PROVIDER_MODELS', providerId]);
+    get().refreshAiProviderRuntimeState();
+  },
   updateAiModelsConfig: async (id, providerId, data) => {
     await aiModelService.updateAiModel(id, providerId, data);
     await get().refreshAiModelList();
