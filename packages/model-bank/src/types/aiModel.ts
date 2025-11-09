@@ -257,7 +257,21 @@ export interface AiModelSettings {
 }
 
 export const AiModelSettingsSchema = z.object({
-  extendParams: z.array(z.string()).optional(),
+  extendParams: z
+    .array(
+      z.enum([
+        'reasoningBudgetToken',
+        'enableReasoning',
+        'disableContextCaching',
+        'reasoningEffort',
+        'gpt5ReasoningEffort',
+        'textVerbosity',
+        'thinking',
+        'thinkingBudget',
+        'urlContext',
+      ]),
+    )
+    .optional(),
   searchImpl: z.enum(['tool', 'params', 'internal']).optional(),
   searchMode: z.enum(['off', 'auto']).optional(),
   searchProvider: z.string().optional(),
