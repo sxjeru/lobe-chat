@@ -1,20 +1,17 @@
 import { defineConfig } from './src/libs/next/config/define-config';
 
 const nextConfig = defineConfig({
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   experimental: {
     webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
   },
-
-  webpack: (config, { dev }) => {
+  webpack: (webpackConfig, context) => {
+    const { dev } = context;
     if (!dev) {
-        config.cache = false;
+      webpackConfig.cache = false;
     }
-    return config;
+
+    return webpackConfig;
   },
 });
 
