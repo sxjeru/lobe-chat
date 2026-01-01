@@ -42,7 +42,7 @@ export const params = {
 
       return {
         ...payload,
-        model: payload.enabledSearch ? `${payload.model}:online` : payload.model,
+        model: payload.model,
         reasoning,
         stream: payload.stream ?? true,
       } as any;
