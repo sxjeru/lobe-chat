@@ -67,7 +67,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'Magistral Small 1.2 是Mistral AI于2025年9月发布的开源小型推理模型，具有视觉支持。',
+      'Magistral Small 1.2 is an open-source small reasoning model from Mistral AI (Sep 2025) with vision support.',
     displayName: 'Magistral Small 1.2',
     id: 'magistral-small-2509',
     pricing: {
@@ -85,7 +85,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'Mistral Nemo是一个与Nvidia合作开发的12B模型，提供出色的推理和编码性能，易于集成和替换。',
+      'Mistral Nemo is a 12B model co-developed with Nvidia, offering strong reasoning and coding performance with easy integration.',
     displayName: 'Mistral Nemo',
     id: 'open-mistral-nemo',
     pricing: {
@@ -120,7 +120,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'Mistral Large是旗舰大模型，擅长多语言任务、复杂推理和代码生成，是高端应用的理想选择。',
+      'Mistral Large is the flagship model, strong in multilingual tasks, complex reasoning, and code generation—ideal for high-end applications.',
     displayName: 'Mistral Large 2.1',
     id: 'mistral-large-2411',
     pricing: {
@@ -137,7 +137,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 262_144,
     description:
-      'Codestral 是我们最先进的编码语言模型，第二个版本于2025年1月发布，专门从事低延迟、高频任务如中间填充（RST）、代码纠正和测试生成。',
+      'Codestral is our most advanced coding model; v2 (Jan 2025) targets low-latency, high-frequency tasks like FIM, code correction, and test generation.',
     displayName: 'Codestral 2508',
     id: 'codestral-2508',
     pricing: {
@@ -156,7 +156,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'Pixtral Large 是一款拥有 1240 亿参数的开源多模态模型，基于 Mistral Large 2 构建。这是我们多模态家族中的第二款模型，展现了前沿水平的图像理解能力。',
+      'Pixtral Large is a 124B-parameter open multimodal model built on Mistral Large 2, the second in our multimodal family with frontier-level image understanding.',
     displayName: 'Pixtral Large',
     id: 'pixtral-large-2411',
     pricing: {
@@ -174,7 +174,7 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'Pixtral 模型在图表和图理解、文档问答、多模态推理和指令遵循等任务上表现出强大的能力，能够以自然分辨率和宽高比摄入图像，还能够在长达 128K 令牌的长上下文窗口中处理任意数量的图像。',
+      'Pixtral is strong at chart/image understanding, document QA, multimodal reasoning, and instruction following. It ingests images at native resolution/aspect ratio and handles any number of images within a 128K context window.',
     displayName: 'Pixtral 12B',
     id: 'pixtral-12b-2409',
     pricing: {
@@ -245,7 +245,7 @@ const mistralChatModels: AIChatModelCard[] = [
   {
     contextWindowTokens: 262_144,
     description:
-      'Codestral Mamba是专注于代码生成的Mamba 2语言模型，为先进的代码和推理任务提供强力支持。',
+      'Codestral Mamba is a Mamba 2 language model focused on code generation, supporting advanced coding and reasoning tasks.',
     displayName: 'Codestral Mamba',
     id: 'open-codestral-mamba',
     pricing: {

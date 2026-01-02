@@ -1,12 +1,12 @@
 /* eslint-disable sort-keys-fix/sort-keys-fix, typescript-sort-keys/interface */
 import { ToolNameResolver } from '@lobechat/context-engine';
-import { ChatToolPayload, MessageToolCall, ToolsCallingContext } from '@lobechat/types';
-import { LobeChatPluginManifest } from '@lobehub/chat-plugin-sdk';
-import { StateCreator } from 'zustand/vanilla';
+import { type ChatToolPayload, type MessageToolCall, type ToolsCallingContext } from '@lobechat/types';
+import { type LobeChatPluginManifest } from '@lobehub/chat-plugin-sdk';
+import { type StateCreator } from 'zustand/vanilla';
 
-import { ChatStore } from '@/store/chat/store';
+import { type ChatStore } from '@/store/chat/store';
 import { useToolStore } from '@/store/tool';
-import { pluginSelectors } from '@/store/tool/selectors';
+import { klavisStoreSelectors, pluginSelectors } from '@/store/tool/selectors';
 import { builtinTools } from '@/tools';
 
 import { displayMessageSelectors } from '../../message/selectors';
@@ -40,11 +40,16 @@ export const pluginInternals: StateCreator<
     const toolStoreState = useToolStore.getState();
     const manifests: Record<string, LobeChatPluginManifest> = {};
 
+    // Track source for each identifier
+    const sourceMap: Record<string, 'builtin' | 'plugin' | 'mcp' | 'klavis'> = {};
+
     // Get all installed plugins
     const installedPlugins = pluginSelectors.installedPlugins(toolStoreState);
     for (const plugin of installedPlugins) {
       if (plugin.manifest) {
         manifests[plugin.identifier] = plugin.manifest as LobeChatPluginManifest;
+        // Check if this plugin has MCP params
+        sourceMap[plugin.identifier] = plugin.customParams?.mcp ? 'mcp' : 'plugin';
       }
     }
 
@@ -52,10 +57,25 @@ export const pluginInternals: StateCreator<
     for (const tool of builtinTools) {
       if (tool.manifest) {
         manifests[tool.identifier] = tool.manifest as LobeChatPluginManifest;
+        sourceMap[tool.identifier] = 'builtin';
       }
     }
 
-    return toolNameResolver.resolve(toolCalls, manifests);
+    // Get all Klavis tools
+    const klavisTools = klavisStoreSelectors.klavisAsLobeTools(toolStoreState);
+    for (const tool of klavisTools) {
+      if (tool.manifest) {
+        manifests[tool.identifier] = tool.manifest as LobeChatPluginManifest;
+        sourceMap[tool.identifier] = 'klavis';
+      }
+    }
+
+    // Resolve tool calls and add source field
+    const resolved = toolNameResolver.resolve(toolCalls, manifests);
+    return resolved.map((payload) => ({
+      ...payload,
+      source: sourceMap[payload.identifier],
+    }));
   },
 
   internal_constructToolsCallingContext: (id: string) => {
