@@ -240,10 +240,13 @@ export type ExtendParamsType =
   | 'gpt5ReasoningEffort'
   | 'gpt5_1ReasoningEffort'
   | 'codexMaxReasoningEffort'
+  | 'gpt5_2ReasoningEffort'
+  | 'gpt5_2ProReasoningEffort'
   | 'textVerbosity'
   | 'thinking'
   | 'thinkingBudget'
   | 'thinkingLevel'
+  | 'thinkingLevel2'
   | 'imageAspectRatio'
   | 'imageResolution'
   | 'urlContext';
