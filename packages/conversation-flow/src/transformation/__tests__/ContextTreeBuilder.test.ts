@@ -35,7 +35,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Hello',
             createdAt: 0,
             id: 'msg-1',
-            meta: {},
             role: 'user',
             updatedAt: 0,
           },
@@ -46,7 +45,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Hi',
             createdAt: 0,
             id: 'msg-2',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -76,7 +74,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Hello',
             createdAt: 0,
             id: 'msg-1',
-            meta: {},
             metadata: { activeBranchIndex: 0 },
             role: 'user',
             updatedAt: 0,
@@ -88,7 +85,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Response 1',
             createdAt: 0,
             id: 'msg-2',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -99,7 +95,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Response 2',
             createdAt: 0,
             id: 'msg-3',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -137,7 +132,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Assistant with tools',
             createdAt: 0,
             id: 'msg-1',
-            meta: {},
             role: 'assistant',
             tools: [
               {
@@ -157,7 +151,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Tool result',
             createdAt: 0,
             id: 'tool-1',
-            meta: {},
             role: 'tool',
             updatedAt: 0,
           },
@@ -191,7 +184,6 @@ describe('ContextTreeBuilder', () => {
             createdAt: 0,
             groupId: 'group-1',
             id: 'msg-1',
-            meta: {},
             metadata: { activeColumn: true },
             role: 'assistant',
             updatedAt: 0,
@@ -204,7 +196,6 @@ describe('ContextTreeBuilder', () => {
             createdAt: 0,
             groupId: 'group-1',
             id: 'msg-2',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -237,7 +228,6 @@ describe('ContextTreeBuilder', () => {
             content: 'User message',
             createdAt: 0,
             id: 'msg-1',
-            meta: {},
             metadata: { compare: true },
             role: 'user',
             updatedAt: 0,
@@ -249,7 +239,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Assistant 1',
             createdAt: 0,
             id: 'msg-2',
-            meta: {},
             metadata: { activeColumn: true },
             role: 'assistant',
             updatedAt: 0,
@@ -261,7 +250,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Assistant 2',
             createdAt: 0,
             id: 'msg-3',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -311,6 +299,67 @@ describe('ContextTreeBuilder', () => {
       expect(result).toHaveLength(0);
     });
 
+    it('should set activeBranchIndex to children.length for optimistic update', () => {
+      const messageMap = new Map<string, Message>([
+        [
+          'msg-1',
+          {
+            content: 'Hello',
+            createdAt: 0,
+            id: 'msg-1',
+            // activeBranchIndex = 2 means optimistic update (pointing to not-yet-created branch)
+            metadata: { activeBranchIndex: 2 },
+            role: 'user',
+            updatedAt: 0,
+          },
+        ],
+        [
+          'msg-2',
+          {
+            content: 'Response 1',
+            createdAt: 0,
+            id: 'msg-2',
+            role: 'assistant',
+            updatedAt: 0,
+          },
+        ],
+        [
+          'msg-3',
+          {
+            content: 'Response 2',
+            createdAt: 0,
+            id: 'msg-3',
+            role: 'assistant',
+            updatedAt: 0,
+          },
+        ],
+      ]);
+
+      const builder = createBuilder(messageMap);
+      const idNodes: IdNode[] = [
+        {
+          children: [
+            { children: [], id: 'msg-2' },
+            { children: [], id: 'msg-3' },
+          ],
+          id: 'msg-1',
+        },
+      ];
+
+      const result = builder.transformAll(idNodes);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 'msg-1', type: 'message' });
+      // When activeBranchIndex === children.length (optimistic update),
+      // BranchResolver returns undefined, and ContextTreeBuilder uses children.length as index
+      expect(result[1]).toMatchObject({
+        activeBranchIndex: 2, // children.length = 2
+        branches: [[{ id: 'msg-2', type: 'message' }], [{ id: 'msg-3', type: 'message' }]],
+        parentMessageId: 'msg-1',
+        type: 'branch',
+      });
+    });
+
     it('should continue with active column children in compare mode', () => {
       const messageMap = new Map<string, Message>([
         [
@@ -319,7 +368,6 @@ describe('ContextTreeBuilder', () => {
             content: 'User',
             createdAt: 0,
             id: 'msg-1',
-            meta: {},
             metadata: { compare: true },
             role: 'user',
             updatedAt: 0,
@@ -331,7 +379,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Assistant 1',
             createdAt: 0,
             id: 'msg-2',
-            meta: {},
             metadata: { activeColumn: true },
             role: 'assistant',
             updatedAt: 0,
@@ -343,7 +390,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Assistant 2',
             createdAt: 0,
             id: 'msg-3',
-            meta: {},
             role: 'assistant',
             updatedAt: 0,
           },
@@ -354,7 +400,6 @@ describe('ContextTreeBuilder', () => {
             content: 'Follow-up',
             createdAt: 0,
             id: 'msg-4',
-            meta: {},
             role: 'user',
             updatedAt: 0,
           },

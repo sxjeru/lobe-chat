@@ -5,6 +5,7 @@ import debug from 'debug';
 import { z } from 'zod';
 
 import { publicProcedure, router } from '@/libs/trpc/lambda';
+import { marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { DiscoverService } from '@/server/services/discover';
 import {
   AssistantSorts,
@@ -19,13 +20,20 @@ const log = debug('lambda-router:market');
 
 const marketSourceSchema = z.enum(['legacy', 'new']);
 
-const marketProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  return next({
-    ctx: {
-      discoverService: new DiscoverService({ accessToken: ctx.marketAccessToken }),
-    },
+// Public procedure with optional user info for trusted client token
+const marketProcedure = publicProcedure
+  .use(serverDatabase)
+  .use(marketUserInfo)
+  .use(async ({ ctx, next }) => {
+    return next({
+      ctx: {
+        discoverService: new DiscoverService({
+          accessToken: ctx.marketAccessToken,
+          userInfo: ctx.marketUserInfo,
+        }),
+      },
+    });
   });
-});
 
 export const marketRouter = router({
   // ============================== Assistant Market ==============================
@@ -486,6 +494,28 @@ export const marketRouter = router({
       }
     }),
 
+  // ============================== User Profile ==============================
+  getUserInfo: marketProcedure
+    .input(
+      z.object({
+        locale: z.string().optional(),
+        username: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      log('getUserInfo input: %O', input);
+
+      try {
+        return await ctx.discoverService.getUserInfo(input);
+      } catch (error) {
+        log('Error fetching user info: %O', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch user info',
+        });
+      }
+    }),
+
   registerClientInMarketplace: marketProcedure.input(z.object({})).mutation(async ({ ctx }) => {
     return ctx.discoverService.registerClient({
       userAgent: ctx.userAgent,
@@ -557,8 +587,24 @@ export const marketRouter = router({
       }
     }),
 
-  // ============================== Analytics ==============================
+  reportAgentInstall: marketProcedure
+    .input(
+      z.object({
+        identifier: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      log('reportAgentInstall input: %O', input);
+      try {
+        await ctx.discoverService.increaseAgentInstallCount(input.identifier);
+        return { success: true };
+      } catch (error) {
+        log('Error reporting agent installation: %O', error);
+        return { success: false };
+      }
+    }),
 
+  // ============================== Analytics ==============================
   reportCall: marketProcedure
     .input(
       z.object({

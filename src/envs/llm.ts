@@ -28,6 +28,8 @@ export const getLLMConfig = () => {
       ENABLED_GOOGLE: z.boolean(),
       GOOGLE_API_KEY: z.string().optional(),
 
+      ENABLED_VERTEXAI: z.boolean(),
+
       ENABLED_MOONSHOT: z.boolean(),
       MOONSHOT_API_KEY: z.string().optional(),
 
@@ -212,6 +214,8 @@ export const getLLMConfig = () => {
 
       ENABLED_ZENMUX: z.boolean(),
       ZENMUX_API_KEY: z.string().optional(),
+
+      ENABLED_LOBEHUB: z.boolean(),
     },
     runtimeEnv: {
       API_KEY_SELECT_MODE: process.env.API_KEY_SELECT_MODE,
@@ -236,6 +240,8 @@ export const getLLMConfig = () => {
 
       ENABLED_GOOGLE: !!process.env.GOOGLE_API_KEY,
       GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+
+      ENABLED_VERTEXAI: !!process.env.VERTEXAI_CREDENTIALS,
 
       ENABLED_VOLCENGINE: !!process.env.VOLCENGINE_API_KEY,
       VOLCENGINE_API_KEY: process.env.VOLCENGINE_API_KEY,
@@ -422,6 +428,8 @@ export const getLLMConfig = () => {
 
       ENABLED_ZENMUX: !!process.env.ZENMUX_API_KEY,
       ZENMUX_API_KEY: process.env.ZENMUX_API_KEY,
+
+      ENABLED_LOBEHUB: !!process.env.ENABLED_LOBEHUB,
     },
   });
 };

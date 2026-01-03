@@ -1,13 +1,13 @@
 'use client';
 
-import { Avatar, Button, Form, type FormGroupItemType, Tag, Tooltip } from '@lobehub/ui';
-import { Empty, Space, Switch } from 'antd';
+import { Avatar, Button, Empty, Form, type FormGroupItemType, Tag, Tooltip } from '@lobehub/ui';
+import { Center, Flexbox } from '@lobehub/ui';
+import { Space, Switch } from 'antd';
 import isEqual from 'fast-deep-equal';
-import { LucideTrash2, Store } from 'lucide-react';
-import Link from 'next/link';
+import { LucideTrash2, Plug2, Store } from 'lucide-react';
 import { memo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Center, Flexbox } from 'react-layout-kit';
+import { Link, useNavigate } from 'react-router-dom';
 
 import PluginAvatar from '@/components/Plugins/PluginAvatar';
 import PluginTag from '@/components/Plugins/PluginTag';
@@ -28,6 +28,8 @@ const AgentPlugin = memo(() => {
   const { t } = useTranslation('setting');
 
   const [showStore, setShowStore] = useState(false);
+
+  const navigate = useNavigate();
 
   const [userEnabledPlugins, toggleAgentPlugin] = useStore((s) => [
     s.config.plugins || [],
@@ -71,7 +73,7 @@ const AgentPlugin = memo(() => {
   const deprecatedList = userEnabledPlugins
     .filter((pluginId) => !installedPlugins.some((p) => p.identifier === pluginId))
     .map((id) => ({
-      avatar: <Avatar avatar={'♻️'} size={40} />,
+      avatar: <Avatar avatar={'♻️'} shape={'square'} size={40} />,
       children: (
         <Switch
           checked={true}
@@ -134,18 +136,22 @@ const AgentPlugin = memo(() => {
           <Trans i18nKey={'plugin.empty'} ns={'setting'}>
             暂无安装插件，
             <Link
-              href={'/'}
               onClick={(e) => {
+                e.stopPropagation();
                 e.preventDefault();
                 setShowStore(true);
+                navigate('/community/mcp');
               }}
+              to={'/community/mcp'}
             >
               前往插件市场
             </Link>
             安装
           </Trans>
         }
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        descriptionProps={{ fontSize: 14 }}
+        icon={Plug2}
+        style={{ maxWidth: 400 }}
       />
     </Center>
   );

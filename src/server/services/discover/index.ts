@@ -3,35 +3,38 @@ import {
   DEFAULT_DISCOVER_ASSISTANT_ITEM,
   DEFAULT_DISCOVER_PLUGIN_ITEM,
   DEFAULT_DISCOVER_PROVIDER_ITEM,
+  KLAVIS_SERVER_TYPES,
   isDesktop,
 } from '@lobechat/const';
 import {
-  AssistantListResponse,
-  AssistantMarketSource,
-  AssistantQueryParams,
+  type AgentStatus,
+  type AssistantListResponse,
+  type AssistantMarketSource,
+  type AssistantQueryParams,
   AssistantSorts,
   CacheRevalidate,
   CacheTag,
-  DiscoverAssistantDetail,
-  DiscoverAssistantItem,
-  DiscoverMcpDetail,
-  DiscoverModelDetail,
-  DiscoverModelItem,
-  DiscoverPluginDetail,
-  DiscoverPluginItem,
-  DiscoverProviderDetail,
-  DiscoverProviderItem,
-  IdentifiersResponse,
-  McpListResponse,
-  McpQueryParams,
-  ModelListResponse,
-  ModelQueryParams,
+  type DiscoverAssistantDetail,
+  type DiscoverAssistantItem,
+  type DiscoverMcpDetail,
+  type DiscoverModelDetail,
+  type DiscoverModelItem,
+  type DiscoverPluginDetail,
+  type DiscoverPluginItem,
+  type DiscoverProviderDetail,
+  type DiscoverProviderItem,
+  type DiscoverUserProfile,
+  type IdentifiersResponse,
+  type McpListResponse,
+  type McpQueryParams,
+  type ModelListResponse,
+  type ModelQueryParams,
   ModelSorts,
-  PluginListResponse,
-  PluginQueryParams,
+  type PluginListResponse,
+  type PluginQueryParams,
   PluginSorts,
-  ProviderListResponse,
-  ProviderQueryParams,
+  type ProviderListResponse,
+  type ProviderQueryParams,
   ProviderSorts,
 } from '@lobechat/types';
 import {
@@ -39,33 +42,54 @@ import {
   getTextInputUnitRate,
   getTextOutputUnitRate,
 } from '@lobechat/utils';
-import { CategoryItem, CategoryListQuery, MarketSDK } from '@lobehub/market-sdk';
-import { CallReportRequest, InstallReportRequest } from '@lobehub/market-types';
+import {
+  type CategoryItem,
+  type CategoryListQuery,
+  MarketSDK,
+  type UserInfoResponse,
+} from '@lobehub/market-sdk';
+import { type CallReportRequest, type InstallReportRequest } from '@lobehub/market-types';
 import dayjs from 'dayjs';
 import debug from 'debug';
+import { cloneDeep, countBy, isString, merge, uniq, uniqBy } from 'es-toolkit/compat';
 import matter from 'gray-matter';
-import { cloneDeep, countBy, isString, merge, uniq, uniqBy } from 'lodash-es';
 import urlJoin from 'url-join';
 
+import { type TrustedClientUserInfo, generateTrustedClientToken } from '@/libs/trusted-client';
 import { normalizeLocale } from '@/locales/resources';
 import { AssistantStore } from '@/server/modules/AssistantStore';
 import { PluginStore } from '@/server/modules/PluginStore';
 
 const log = debug('lobe-server:discover');
 
+export interface DiscoverServiceOptions {
+  /** Access token from OIDC flow (legacy) */
+  accessToken?: string;
+  /** User info for generating trusted client token */
+  userInfo?: TrustedClientUserInfo;
+}
+
 export class DiscoverService {
   assistantStore = new AssistantStore();
   pluginStore = new PluginStore();
   market: MarketSDK;
 
-  constructor({ accessToken }: { accessToken?: string } = {}) {
+  constructor(options: DiscoverServiceOptions = {}) {
+    const { accessToken, userInfo } = options;
+
+    // Generate trusted client token if user info is available
+    const trustedClientToken = userInfo ? generateTrustedClientToken(userInfo) : undefined;
+
     this.market = new MarketSDK({
       accessToken,
       baseURL: process.env.NEXT_PUBLIC_MARKET_BASE_URL,
+      trustedClientToken,
     });
     log(
-      'DiscoverService initialized with market baseURL: %s',
+      'DiscoverService initialized with market baseURL: %s, hasTrustedToken: %s, userId: %s',
       process.env.NEXT_PUBLIC_MARKET_BASE_URL,
+      !!trustedClientToken,
+      userInfo?.userId,
     );
   }
 
@@ -117,6 +141,44 @@ export class DiscoverService {
       accessToken: tokenInfo.accessToken,
       expiresIn: tokenInfo.expiresIn,
     };
+  }
+
+  // ============================== Call Cloud Mcp Endpoint Methods ==============================
+
+  async callCloudMcpEndpoint(params: {
+    apiParams: Record<string, any>;
+    identifier: string;
+    toolName: string;
+    userAccessToken: string;
+  }) {
+    log('callCloudMcpEndpoint: params=%O', {
+      apiParams: params.apiParams,
+      hasUserAccessToken: !!params.userAccessToken,
+      identifier: params.identifier,
+      toolName: params.toolName,
+    });
+
+    try {
+      // Call cloud gateway with user access token in Authorization header
+      const result = await this.market.plugins.callCloudGateway(
+        {
+          apiParams: params.apiParams,
+          identifier: params.identifier,
+          toolName: params.toolName,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${params.userAccessToken}`,
+          },
+        },
+      );
+
+      log('callCloudMcpEndpoint: success, result=%O', result);
+      return result;
+    } catch (error) {
+      log('callCloudMcpEndpoint: error=%O', error);
+      throw error;
+    }
   }
 
   // ============================== Helper Methods ==============================
@@ -212,24 +274,32 @@ export class DiscoverService {
     return result;
   };
 
-  private normalizeAuthorField = (author: unknown): string => {
-    if (!author) return '';
+  private normalizeAuthorField = (author: unknown): { name: string; userName?: string } => {
+    if (!author) return { name: '' };
 
-    if (typeof author === 'string') return author;
+    if (typeof author === 'string') return { name: author };
 
     if (typeof author === 'object') {
-      const { avatar, url, name } = author as {
+      const { avatar, url, name, userName } = author as {
         avatar?: unknown;
         name?: unknown;
         url?: unknown;
+        userName?: unknown;
       };
 
-      if (typeof name === 'string' && name.length > 0) return name;
-      if (typeof avatar === 'string' && avatar.length > 0) return avatar;
-      if (typeof url === 'string' && url.length > 0) return url;
+      const authorName =
+        (typeof name === 'string' && name.length > 0 && name) ||
+        (typeof avatar === 'string' && avatar.length > 0 && avatar) ||
+        (typeof url === 'string' && url.length > 0 && url) ||
+        '';
+
+      return {
+        name: authorName,
+        userName: typeof userName === 'string' ? userName : undefined,
+      };
     }
 
-    return '';
+    return { name: '' };
   };
 
   private isLegacySource = (source?: AssistantMarketSource) => source === 'legacy';
@@ -530,18 +600,22 @@ export class DiscoverService {
 
       const normalizedAuthor = this.normalizeAuthorField(data.author);
       const assistant = {
-        author: normalizedAuthor || (data.ownerId !== null ? `User${data.ownerId}` : 'Unknown'),
-        avatar: data.avatar || normalizedAuthor || '',
+        author:
+          normalizedAuthor.name || (data.ownerId !== null ? `User${data.ownerId}` : 'Unknown'),
+        avatar: data.avatar || normalizedAuthor.name || '',
         category: (data as any).category || 'general',
         config: data.config || {},
         createdAt: (data as any).createdAt,
         currentVersion: data.version,
         description: (data as any).description || data.summary,
+        // @ts-ignore
+        editorData: data.editorData || {},
+
         examples: Array.isArray((data as any).examples)
           ? (data as any).examples.map((example: any) => ({
-            content: typeof example === 'string' ? example : example.content || '',
-            role: example.role || 'user',
-          }))
+              content: typeof example === 'string' ? example : example.content || '',
+              role: example.role || 'user',
+            }))
           : [],
         homepage:
           (data as any).homepage ||
@@ -552,12 +626,13 @@ export class DiscoverService {
         pluginCount: (data.config as any)?.plugins?.length || (data as any).pluginCount || 0,
         readme: data.documentationUrl || '',
         schemaVersion: 1,
-        status: data.status,
+        status: (data.status as AgentStatus) || undefined,
         summary: data.summary || '',
         systemRole: (data.config as any)?.systemRole || '',
         tags: data.tags || [],
         title: (data as any).name || (data as any).identifier,
         tokenUsage: data.tokenUsage || 0,
+        userName: normalizedAuthor.userName,
         versions:
           // @ts-ignore
           data.versions?.map((item) => ({
@@ -670,20 +745,23 @@ export class DiscoverService {
       const transformedItems: DiscoverAssistantItem[] = (data.items || []).map((item: any) => {
         const normalizedAuthor = this.normalizeAuthorField(item.author);
         return {
-          author: normalizedAuthor || (item.ownerId !== null ? `User${item.ownerId}` : 'Unknown'),
-          avatar: item.avatar || normalizedAuthor || '',
+          author:
+            normalizedAuthor.name || (item.ownerId !== null ? `User${item.ownerId}` : 'Unknown'),
+          avatar: item.avatar || normalizedAuthor.name || '',
           category: item.category || 'general',
           config: item.config || {},
           createdAt: item.createdAt || item.updatedAt || new Date().toISOString(),
           description: item.description || item.summary || '',
           homepage: item.homepage || `https://lobehub.com/discover/assistant/${item.identifier}`,
           identifier: item.identifier,
+          installCount: item.installCount,
           knowledgeCount: item.knowledgeCount ?? item.config?.knowledgeBases?.length ?? 0,
           pluginCount: item.pluginCount ?? item.config?.plugins?.length ?? 0,
           schemaVersion: item.schemaVersion ?? 1,
           tags: item.tags || [],
           title: item.name || item.identifier,
           tokenUsage: item.tokenUsage || 0,
+          userName: normalizedAuthor.userName,
         };
       });
 
@@ -821,6 +899,15 @@ export class DiscoverService {
     await this.market.plugins.reportCall(params);
   };
 
+  // ============================== Agent Analytics ==============================
+
+  /**
+   * Increase agent install count in marketplace
+   */
+  increaseAgentInstallCount = async (identifier: string) => {
+    await this.market.agents.increaseInstallCount(identifier);
+  };
+
   // ============================== Plugin Market ==============================
 
   private _getPluginList = async (locale?: string): Promise<DiscoverPluginItem[]> => {
@@ -883,45 +970,136 @@ export class DiscoverService {
   }): Promise<DiscoverPluginDetail | undefined> => {
     log('getPluginDetail: params=%O', params);
     const { locale, identifier, withManifest } = params;
+
+    // Step 1: Try to find in legacy plugin list
     const all = await this._getPluginList(locale);
-    let raw = all.find((item) => item.identifier === identifier);
-    if (!raw) {
-      log('getPluginDetail: plugin not found for identifier=%s', identifier);
-      return;
-    }
+    const raw = all.find((item) => item.identifier === identifier);
+    if (raw) {
+      log('getPluginDetail: found plugin in legacy list for identifier=%s', identifier);
+      const mergedRaw = merge(cloneDeep(DEFAULT_DISCOVER_PLUGIN_ITEM), raw);
+      const list = await this.getPluginList({
+        category: mergedRaw.category,
+        locale,
+        page: 1,
+        pageSize: 7,
+      });
 
-    raw = merge(cloneDeep(DEFAULT_DISCOVER_PLUGIN_ITEM), raw);
-    const list = await this.getPluginList({
-      category: raw.category,
-      locale,
-      page: 1,
-      pageSize: 7,
-    });
+      const plugin: DiscoverPluginDetail = {
+        ...mergedRaw,
+        related: list.items.filter((item) => item.identifier !== mergedRaw.identifier).slice(0, 6),
+        source: 'legacy',
+      };
 
-    let plugin = {
-      ...raw,
-      related: list.items.filter((item) => item.identifier !== raw.identifier).slice(0, 6),
-    };
+      if (!withManifest || !plugin?.manifest || !isString(plugin?.manifest)) {
+        log('getPluginDetail: returning legacy plugin without manifest processing');
+        return plugin;
+      }
 
-    if (!withManifest || !plugin?.manifest || !isString(plugin?.manifest)) {
-      log('getPluginDetail: returning plugin without manifest processing');
       return plugin;
     }
 
-    // 在 Edge Runtime 环境中使用了 Node.js 的 path 模块，但 Edge Runtime 不支持所有 Node.js API
-    // 这个函数使用了 @lobehub/chat-plugin-sdk/openapi，该包最终依赖了 @apidevtools/swagger-parser，而这个包在 Edge Runtime 环境中使用了不被支持的 Node.js path 模块。
-    // try {
-    //   const manifest = await getToolManifest(plugin.manifest);
-    //
-    //   return {
-    //     ...plugin,
-    //     manifest,
-    //   };
-    // } catch {
-    //   return plugin;
-    // }
+    // Step 2: Try to find in Market MCP plugins
+    log(
+      'getPluginDetail: plugin not found in legacy store for identifier=%s, trying MCP plugin',
+      identifier,
+    );
+    try {
+      const mcpDetail = await this.getMcpDetail({ identifier, locale });
+      const convertedMcp: Partial<DiscoverPluginDetail> = {
+        author:
+          typeof (mcpDetail as any).author === 'object'
+            ? (mcpDetail as any).author?.name || ''
+            : (mcpDetail as any).author || '',
+        avatar: (mcpDetail as any).icon || (mcpDetail as any).avatar || '',
+        category: (mcpDetail as any).category as any,
+        createdAt: (mcpDetail as any).createdAt || '',
+        description: mcpDetail.description || '',
+        homepage: mcpDetail.homepage || '',
+        identifier: mcpDetail.identifier,
+        manifest: undefined,
+        related: mcpDetail.related.map((item) => ({
+          author:
+            typeof (item as any).author === 'object'
+              ? (item as any).author?.name || ''
+              : (item as any).author || '',
+          avatar: (item as any).icon || (item as any).avatar || '',
+          category: (item as any).category as any,
+          createdAt: (item as any).createdAt || '',
+          description: (item as any).description || '',
+          homepage: (item as any).homepage || '',
+          identifier: item.identifier,
+          manifest: undefined,
+          schemaVersion: 1,
+          tags: (item as any).tags || [],
+          title: (item as any).name || item.identifier,
+        })) as unknown as DiscoverPluginItem[],
+        schemaVersion: 1,
+        source: 'market',
+        tags: (mcpDetail as any).tags || [],
+        title: (mcpDetail as any).name || mcpDetail.identifier,
+      };
+      const plugin = merge(cloneDeep(DEFAULT_DISCOVER_PLUGIN_ITEM), convertedMcp);
+      log('getPluginDetail: returning converted MCP plugin');
+      return plugin as DiscoverPluginDetail;
+    } catch {
+      log(
+        'getPluginDetail: MCP plugin not found for identifier=%s, trying builtin tools',
+        identifier,
+      );
+    }
 
-    return plugin;
+    // Step 3: Try to find in builtin tools
+    const { builtinTools } = await import('@/tools/index');
+    const builtinTool = builtinTools.find((tool) => tool.identifier === identifier);
+    if (builtinTool) {
+      log('getPluginDetail: found builtin tool for identifier=%s', identifier);
+      const plugin: DiscoverPluginDetail = {
+        author: 'LobeHub',
+        avatar: builtinTool.manifest.meta.avatar || '',
+        category: undefined,
+        createdAt: '',
+        description: builtinTool.manifest.meta.description || '',
+        homepage: 'https://lobehub.com',
+        identifier: builtinTool.identifier,
+        manifest: undefined,
+        related: [],
+        schemaVersion: 1,
+        source: 'builtin',
+        tags: builtinTool.manifest.meta.tags || [],
+        title: builtinTool.manifest.meta.title,
+      };
+      log('getPluginDetail: returning builtin tool plugin');
+      return plugin;
+    }
+
+    // Step 4: Try to find in Klavis server types (builtin tools that require env config)
+    const klavisTool = KLAVIS_SERVER_TYPES.find((tool) => tool.identifier === identifier);
+    if (klavisTool) {
+      log('getPluginDetail: found Klavis tool for identifier=%s', identifier);
+
+      // Avatar is empty here because frontend will render Klavis icons using KlavisIcon component
+      // which handles both string URLs and React component icons
+      const plugin: DiscoverPluginDetail = {
+        author: 'Klavis',
+        avatar: typeof klavisTool.icon === 'string' ? klavisTool.icon : '',
+        category: undefined,
+        createdAt: '',
+        description: `LobeHub Mcp Server: ${klavisTool.label}`,
+        homepage: 'https://klavis.ai',
+        identifier: klavisTool.identifier,
+        manifest: undefined,
+        related: [],
+        schemaVersion: 1,
+        source: 'builtin',
+        tags: ['klavis', 'mcp'],
+        title: klavisTool.label,
+      };
+      log('getPluginDetail: returning Klavis tool plugin');
+      return plugin;
+    }
+
+    log('getPluginDetail: plugin not found anywhere for identifier=%s', identifier);
+    return;
   };
 
   getPluginIdentifiers = async (): Promise<IdentifiersResponse> => {
@@ -1033,7 +1211,7 @@ export class DiscoverService {
     log('_getProviderList: fetching provider list');
     const [{ LOBE_DEFAULT_MODEL_LIST }, { DEFAULT_MODEL_PROVIDER_LIST }] = await Promise.all([
       import('model-bank'),
-      import('@/config/modelProviders'),
+      import('model-bank/modelProviders'),
     ]);
     const result = DEFAULT_MODEL_PROVIDER_LIST.map((item) => {
       const models = uniq(
@@ -1323,7 +1501,7 @@ export class DiscoverService {
     log('getModelDetail: params=%O', params);
     const [{ LOBE_DEFAULT_MODEL_LIST }, { DEFAULT_MODEL_PROVIDER_LIST }] = await Promise.all([
       import('model-bank'),
-      import('@/config/modelProviders'),
+      import('model-bank/modelProviders'),
     ]);
     const { identifier } = params;
     const all = await this._getModelList();
@@ -1510,5 +1688,73 @@ export class DiscoverService {
       result.items.length,
     );
     return result;
+  };
+
+  // ============================== User Profile ==============================
+
+  /**
+   * Get user profile and their published agents by username
+   */
+  getUserInfo = async (params: {
+    locale?: string;
+    username: string;
+  }): Promise<DiscoverUserProfile | undefined> => {
+    log('getUserInfo: params=%O', params);
+    const { username, locale } = params;
+
+    try {
+      // Call Market SDK to get user info
+      const response: UserInfoResponse = await this.market.user.getUserInfo(username, { locale });
+
+      if (!response?.user) {
+        log('getUserInfo: user not found for username=%s', username);
+        return undefined;
+      }
+
+      const { user, agents } = response;
+
+      // Transform agents to DiscoverAssistantItem format
+      const transformedAgents: DiscoverAssistantItem[] = (agents || []).map((agent: any) => ({
+        author: user.displayName || user.userName || user.namespace || '',
+        avatar: agent.avatar || '',
+        category: agent.category as any,
+        config: {} as any,
+        createdAt: agent.createdAt,
+        description: agent.description || '',
+        homepage: `https://lobehub.com/discover/assistant/${agent.identifier}`,
+        identifier: agent.identifier,
+        installCount: agent.installCount,
+        knowledgeCount: agent.knowledgeCount || 0,
+        pluginCount: agent.pluginCount || 0,
+        schemaVersion: 1,
+        tags: agent.tags || [],
+        title: agent.name || agent.identifier,
+        tokenUsage: agent.tokenUsage || 0,
+      }));
+
+      const result: DiscoverUserProfile = {
+        agents: transformedAgents,
+        user: {
+          avatarUrl: user.avatarUrl || null,
+          bannerUrl: user.meta?.bannerUrl || null,
+          createdAt: user.createdAt,
+          description: user.meta?.description || null,
+          displayName: user.displayName || null,
+          followersCount: user.followerCount ?? 0,
+          followingCount: user.followingCount ?? 0,
+          id: user.id,
+          namespace: user.namespace,
+          socialLinks: user.meta?.socialLinks || null,
+          type: user.type || null,
+          userName: user.userName || null,
+        },
+      };
+
+      log('getUserInfo: returning user profile with %d agents', result.agents.length);
+      return result;
+    } catch (error) {
+      log('getUserInfo: error fetching user info: %O', error);
+      return undefined;
+    }
   };
 }

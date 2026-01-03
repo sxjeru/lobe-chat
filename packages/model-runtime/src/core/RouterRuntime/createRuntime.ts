@@ -124,7 +124,7 @@ export interface CreateRouterRuntimeOptions<T extends Record<string, any> = any>
 export const createRouterRuntime = ({
   id,
   routers,
-  apiKey: DEFAULT_API_LEY,
+  apiKey: DEFAULT_API_KEY,
   models: modelsOption,
   ...params
 }: CreateRouterRuntimeOptions) => {
@@ -137,11 +137,11 @@ export const createRouterRuntime = ({
     constructor(options: ClientOptions & Record<string, any> = {}) {
       this._options = {
         ...options,
-        apiKey: options.apiKey?.trim() || DEFAULT_API_LEY,
+        apiKey: options.apiKey?.trim() || DEFAULT_API_KEY,
         baseURL: options.baseURL?.trim(),
       };
 
-      // 保存配置但不创建 runtimes
+      // Save configuration without creating runtimes
       this._routers = routers;
       this._params = params;
       this._id = id;
@@ -263,13 +263,11 @@ export const createRouterRuntime = ({
 
     async embeddings(payload: EmbeddingsPayload, options?: EmbeddingsOptions) {
       const runtime = await this.getRuntimeByModel(payload.model);
-
       return runtime.embeddings!(payload, options);
     }
 
     async textToSpeech(payload: TextToSpeechPayload, options?: EmbeddingsOptions) {
       const runtime = await this.getRuntimeByModel(payload.model);
-
       return runtime.textToSpeech!(payload, options);
     }
   };

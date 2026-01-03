@@ -1,33 +1,32 @@
-import { isDesktop } from '@lobechat/const';
 import { getModelPropertyWithFallback, resolveImageSinglePrice } from '@lobechat/model-runtime';
-import { uniqBy } from 'lodash-es';
+import { uniqBy } from 'es-toolkit/compat';
 import {
-  AIImageModelCard,
-  EnabledAiModel,
-  LobeDefaultAiModelListItem,
-  ModelAbilities,
-  ModelParamsSchema,
-  Pricing,
+  type AIImageModelCard,
+  type EnabledAiModel,
+  type LobeDefaultAiModelListItem,
+  type ModelAbilities,
+  type ModelParamsSchema,
+  type Pricing,
 } from 'model-bank';
-import { SWRResponse, mutate } from 'swr';
-import { StateCreator } from 'zustand/vanilla';
+import type { SWRResponse } from 'swr';
+import { type StateCreator } from 'zustand/vanilla';
 
-import { useClientDataSWR } from '@/libs/swr';
+import { mutate, useClientDataSWR } from '@/libs/swr';
 import { aiProviderService } from '@/services/aiProvider';
-import { AiInfraStore } from '@/store/aiInfra/store';
+import { type AiInfraStore } from '@/store/aiInfra/store';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 import {
-  AiProviderDetailItem,
-  AiProviderListItem,
-  AiProviderRuntimeState,
-  AiProviderSortMap,
+  type AiProviderDetailItem,
+  type AiProviderListItem,
+  type AiProviderRuntimeState,
+  type AiProviderSortMap,
   AiProviderSourceEnum,
-  CreateAiProviderParams,
-  EnabledProvider,
-  EnabledProviderWithModels,
-  UpdateAiProviderConfigParams,
-  UpdateAiProviderParams,
+  type CreateAiProviderParams,
+  type EnabledProvider,
+  type EnabledProviderWithModels,
+  type UpdateAiProviderConfigParams,
+  type UpdateAiProviderParams,
 } from '@/types/aiProvider';
 
 export type ProviderModelListItem = {
@@ -194,6 +193,7 @@ export interface AiProviderAction {
    */
   useFetchAiProviderRuntimeState: (
     isLoginOnInit: boolean | undefined,
+    isSyncActive?: boolean,
   ) => SWRResponse<AiProviderRuntimeStateWithBuiltinModels | undefined>;
 }
 
@@ -319,19 +319,19 @@ export const createAiProviderSlice: StateCreator<
     ),
 
   useFetchAiProviderRuntimeState: (isLogin) => {
-    const isAuthLoaded = authSelectors.isLoaded(useUserStore.getState());
+    const isAuthLoaded = useUserStore(authSelectors.isLoaded);
     // Only fetch when auth is loaded and login status is explicitly defined (true or false)
     // Prevents unnecessary requests when login state is null/undefined
     const shouldFetch = isAuthLoaded && isLogin !== null && isLogin !== undefined;
+
     return useClientDataSWR<AiProviderRuntimeStateWithBuiltinModels | undefined>(
       shouldFetch ? [AiProviderSwrKey.fetchAiProviderRuntimeState, isLogin] : null,
       async ([, isLogin]) => {
         const [{ LOBE_DEFAULT_MODEL_LIST: builtinAiModelList }, { DEFAULT_MODEL_PROVIDER_LIST }] =
-          await Promise.all([import('model-bank'), import('@/config/modelProviders')]);
+          await Promise.all([import('model-bank'), import('model-bank/modelProviders')]);
 
         if (isLogin) {
           const data = await aiProviderService.getAiProviderRuntimeState();
-
           // Build model lists with proper async handling
           const [enabledChatModelList, enabledImageModelList] = await Promise.all([
             buildChatProviderModelLists(data.enabledChatAiProviders, data.enabledAiModels),
@@ -383,7 +383,6 @@ export const createAiProviderSlice: StateCreator<
         };
       },
       {
-        focusThrottleInterval: isDesktop ? 100 : undefined,
         onSuccess: (data) => {
           if (!data) return;
 

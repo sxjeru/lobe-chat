@@ -1,8 +1,8 @@
 import { DEFAULT_FILE_EMBEDDING_MODEL_ITEM } from '@lobechat/const';
 import {
-  ChatSemanticSearchChunk,
-  FileSearchResult,
-  ProviderConfig,
+  type ChatSemanticSearchChunk,
+  type FileSearchResult,
+  type ProviderConfig,
   SemanticSearchSchema,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
@@ -10,6 +10,7 @@ import { inArray } from 'drizzle-orm';
 import pMap from 'p-map';
 import { z } from 'zod';
 
+import { checkBudgetsUsage } from '@/business/server/trpc-middlewares/lambda';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { ChunkModel } from '@/database/models/chunk';
 import { DocumentModel } from '@/database/models/document';
@@ -162,7 +163,12 @@ export const chunkRouter = router({
           }
 
           // 2. Find existing parsed document
-          let document = await ctx.documentModel.findByFileId(fileId);
+          let document:
+            | {
+                content: string | null;
+                metadata: Record<string, any> | null;
+              }
+            | undefined = await ctx.documentModel.findByFileId(fileId);
 
           // 3. If not exists, parse the file
           if (!document) {
@@ -229,6 +235,7 @@ export const chunkRouter = router({
         query: z.string(),
       }),
     )
+    .use(checkBudgetsUsage)
     .mutation(async ({ ctx, input }) => {
       const { model, provider } =
         getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
