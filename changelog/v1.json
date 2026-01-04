@@ -1,5 +1,17 @@
 [
   {
+    "children": {},
+    "date": "2026-01-04",
+    "version": "2.0.0-next.210"
+  },
+  {
+    "children": {
+      "fixes": ["Use configured embedding provider instead of hardcoded OpenAI."]
+    },
+    "date": "2026-01-04",
+    "version": "2.0.0-next.209"
+  },
+  {
     "children": {
       "fixes": ["Auto jump to group."]
     },
