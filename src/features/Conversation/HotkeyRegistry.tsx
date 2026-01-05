@@ -34,7 +34,8 @@ const HotkeyRegistry = memo(() => {
   // Get the last message (any type) for delete operations
   const getLastMessageId = () => {
     if (displayMessages.length === 0) return null;
-    return displayMessages.at(-1).id;
+    const lastMessage = displayMessages.at(-1);
+    return lastMessage?.id ?? null;
   };
 
   // Alt+R: Regenerate last assistant message

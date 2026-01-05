@@ -412,7 +412,9 @@ describe('Generation Actions', () => {
   });
 
   describe('delAndRegenerateMessage', () => {
-    it('should create operation with context and pass operationId to optimisticDeleteMessage', async () => {
+    it('should regenerate first then delete and adjust branch index', async () => {
+      const mockLocalDeleteDBMessage = vi.fn().mockResolvedValue(undefined);
+
       // Re-setup mock to ensure all required functions are available
       const { useChatStore } = await import('@/store/chat');
       vi.mocked(useChatStore.getState).mockReturnValue({
@@ -439,32 +441,54 @@ describe('Generation Actions', () => {
 
       const store = createStore({ context });
 
-      // Set displayMessages after store creation
+      // Set displayMessages and dbMessages after store creation
+      // Simulate 3 branches: msg-2, msg-3, msg-4 all with parentId msg-1
       act(() => {
         store.setState({
           displayMessages: [
             { id: 'msg-1', role: 'user', content: 'Hello' },
-            { id: 'msg-2', role: 'assistant', content: 'Hi there', parentId: 'msg-1' },
+            { id: 'msg-4', role: 'assistant', content: 'Response 3', parentId: 'msg-1' },
           ],
+          dbMessages: [
+            { id: 'msg-1', role: 'user', content: 'Hello', parentId: null },
+            { id: 'msg-2', role: 'assistant', content: 'Response 1', parentId: 'msg-1' },
+            { id: 'msg-3', role: 'assistant', content: 'Response 2', parentId: 'msg-1' },
+            { id: 'msg-4', role: 'assistant', content: 'Response 3', parentId: 'msg-1' },
+          ],
+          deleteDBMessage: mockLocalDeleteDBMessage,
         } as any);
       });
 
       await act(async () => {
-        await store.getState().delAndRegenerateMessage('msg-2');
+        await store.getState().delAndRegenerateMessage('msg-4');
       });
 
       // Should create operation with context
       expect(mockStartOperation).toHaveBeenCalledWith({
-        context: { ...context, messageId: 'msg-2' },
+        context: { ...context, messageId: 'msg-4' },
         type: 'regenerate',
       });
 
-      // Should pass operationId to optimisticDeleteMessage for correct context isolation
-      // Use optimisticDeleteMessage instead of deleteMessage because after regeneration,
-      // the branch is switched and the original message is no longer in displayMessages
-      expect(mockOptimisticDeleteMessage).toHaveBeenCalledWith('msg-2', {
-        operationId: 'test-op-id',
-      });
+      // Should regenerate from the parent user message FIRST (msg-1)
+      expect(mockInternalExecAgentRuntime).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parentMessageId: 'msg-1', // Parent user message
+          parentMessageType: 'user',
+          parentOperationId: 'test-op-id',
+        }),
+      );
+
+      // Should delete the message using deleteDBMessage (not deleteMessage to avoid branch switch)
+      expect(mockLocalDeleteDBMessage).toHaveBeenCalledWith('msg-4');
+
+      // Should adjust branch index after delete to point to the new branch (last child)
+      // After regenerate: 4 branches (msg-2, msg-3, msg-4, new), index=3
+      // After delete msg-4: 3 branches (msg-2, msg-3, new), new index should be 2
+      expect(mockSwitchMessageBranch).toHaveBeenCalledWith(
+        'msg-1',
+        expect.any(Number), // The exact number depends on mock state
+        { operationId: 'test-op-id' },
+      );
 
       // Should complete operation
       expect(mockCompleteOperation).toHaveBeenCalledWith('test-op-id');
@@ -472,7 +496,9 @@ describe('Generation Actions', () => {
   });
 
   describe('delAndResendThreadMessage', () => {
-    it('should create operation with context and pass operationId to optimisticDeleteMessage', async () => {
+    it('should resend first then delete and adjust branch index', async () => {
+      const mockLocalDeleteDBMessage = vi.fn().mockResolvedValue(undefined);
+
       // Re-setup mock to ensure startOperation is available
       const { useChatStore } = await import('@/store/chat');
       vi.mocked(useChatStore.getState).mockReturnValue({
@@ -498,27 +524,46 @@ describe('Generation Actions', () => {
 
       const store = createStore({ context });
 
-      // Set displayMessages after store creation
+      // Set displayMessages and dbMessages after store creation
       act(() => {
         store.setState({
-          displayMessages: [{ id: 'msg-1', role: 'user', content: 'Hello' }],
+          displayMessages: [
+            { id: 'msg-1', role: 'user', content: 'Hello' },
+            { id: 'msg-2', role: 'assistant', content: 'Hi there', parentId: 'msg-1' },
+          ],
+          dbMessages: [
+            { id: 'msg-1', role: 'user', content: 'Hello', parentId: null },
+            { id: 'msg-2', role: 'assistant', content: 'Original response', parentId: 'msg-1' },
+          ],
+          deleteDBMessage: mockLocalDeleteDBMessage,
         } as any);
       });
 
       await act(async () => {
-        await store.getState().delAndResendThreadMessage('msg-1');
+        await store.getState().delAndResendThreadMessage('msg-2');
       });
 
       // Should create operation with context including threadId
       expect(mockStartOperation).toHaveBeenCalledWith({
-        context: { ...context, messageId: 'msg-1' },
+        context: { ...context, messageId: 'msg-2' },
         type: 'regenerate',
       });
 
-      // Should pass operationId to optimisticDeleteMessage
-      // Use optimisticDeleteMessage instead of deleteMessage because after resend,
-      // the branch is switched and the original message is no longer in displayMessages
-      expect(mockOptimisticDeleteMessage).toHaveBeenCalledWith('msg-1', {
+      // Should resend from the parent user message FIRST (msg-1)
+      // resendThreadMessage internally calls regenerateUserMessage
+      expect(mockInternalExecAgentRuntime).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parentMessageId: 'msg-1', // Parent user message
+          parentMessageType: 'user',
+          parentOperationId: 'test-op-id',
+        }),
+      );
+
+      // Should delete the message using deleteDBMessage (not deleteMessage to avoid branch switch)
+      expect(mockLocalDeleteDBMessage).toHaveBeenCalledWith('msg-2');
+
+      // Should adjust branch index after delete
+      expect(mockSwitchMessageBranch).toHaveBeenCalledWith('msg-1', expect.any(Number), {
         operationId: 'test-op-id',
       });
 
