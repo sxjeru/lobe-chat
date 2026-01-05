@@ -216,8 +216,11 @@ export const generationSlice: StateCreator<
     });
 
     // Regenerate first, then delete
+    // Note: Use optimisticDeleteMessage instead of deleteMessage because after regeneration,
+    // the branch is switched and the original message is no longer in displayMessages.
+    // deleteMessage uses displayMessageSelectors which would fail to find the message.
     await get().regenerateAssistantMessage(messageId);
-    await chatStore.deleteMessage(messageId, { operationId });
+    await chatStore.optimisticDeleteMessage(messageId, { operationId });
     chatStore.completeOperation(operationId);
   },
 
@@ -232,8 +235,11 @@ export const generationSlice: StateCreator<
     });
 
     // Resend then delete
+    // Note: Use optimisticDeleteMessage instead of deleteMessage because after resend,
+    // the branch is switched and the original message is no longer in displayMessages.
+    // deleteMessage uses displayMessageSelectors which would fail to find the message.
     await get().resendThreadMessage(messageId);
-    await chatStore.deleteMessage(messageId, { operationId });
+    await chatStore.optimisticDeleteMessage(messageId, { operationId });
     chatStore.completeOperation(operationId);
   },
 

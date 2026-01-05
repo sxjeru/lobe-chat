@@ -13,6 +13,7 @@ const mockRegenerateUserMessage = vi.fn();
 const mockRegenerateAssistantMessage = vi.fn();
 const mockContinueGenerationMessage = vi.fn();
 const mockDeleteMessage = vi.fn();
+const mockOptimisticDeleteMessage = vi.fn();
 const mockSwitchMessageBranch = vi.fn();
 const mockStartOperation = vi.fn(() => ({ operationId: 'test-op-id' }));
 const mockCompleteOperation = vi.fn();
@@ -36,6 +37,7 @@ vi.mock('@/store/chat', () => ({
       regenerateAssistantMessage: mockRegenerateAssistantMessage,
       continueGenerationMessage: mockContinueGenerationMessage,
       deleteMessage: mockDeleteMessage,
+      optimisticDeleteMessage: mockOptimisticDeleteMessage,
       switchMessageBranch: mockSwitchMessageBranch,
       startOperation: mockStartOperation,
       completeOperation: mockCompleteOperation,
@@ -410,7 +412,7 @@ describe('Generation Actions', () => {
   });
 
   describe('delAndRegenerateMessage', () => {
-    it('should create operation with context and pass operationId to deleteMessage', async () => {
+    it('should create operation with context and pass operationId to optimisticDeleteMessage', async () => {
       // Re-setup mock to ensure all required functions are available
       const { useChatStore } = await import('@/store/chat');
       vi.mocked(useChatStore.getState).mockReturnValue({
@@ -420,6 +422,7 @@ describe('Generation Actions', () => {
         cancelOperations: mockCancelOperations,
         cancelOperation: mockCancelOperation,
         deleteMessage: mockDeleteMessage,
+        optimisticDeleteMessage: mockOptimisticDeleteMessage,
         switchMessageBranch: mockSwitchMessageBranch,
         startOperation: mockStartOperation,
         completeOperation: mockCompleteOperation,
@@ -456,8 +459,12 @@ describe('Generation Actions', () => {
         type: 'regenerate',
       });
 
-      // Should pass operationId to deleteMessage for correct context isolation
-      expect(mockDeleteMessage).toHaveBeenCalledWith('msg-2', { operationId: 'test-op-id' });
+      // Should pass operationId to optimisticDeleteMessage for correct context isolation
+      // Use optimisticDeleteMessage instead of deleteMessage because after regeneration,
+      // the branch is switched and the original message is no longer in displayMessages
+      expect(mockOptimisticDeleteMessage).toHaveBeenCalledWith('msg-2', {
+        operationId: 'test-op-id',
+      });
 
       // Should complete operation
       expect(mockCompleteOperation).toHaveBeenCalledWith('test-op-id');
@@ -465,7 +472,7 @@ describe('Generation Actions', () => {
   });
 
   describe('delAndResendThreadMessage', () => {
-    it('should create operation with context and pass operationId to deleteMessage', async () => {
+    it('should create operation with context and pass operationId to optimisticDeleteMessage', async () => {
       // Re-setup mock to ensure startOperation is available
       const { useChatStore } = await import('@/store/chat');
       vi.mocked(useChatStore.getState).mockReturnValue({
@@ -475,6 +482,7 @@ describe('Generation Actions', () => {
         cancelOperations: mockCancelOperations,
         cancelOperation: mockCancelOperation,
         deleteMessage: mockDeleteMessage,
+        optimisticDeleteMessage: mockOptimisticDeleteMessage,
         switchMessageBranch: mockSwitchMessageBranch,
         startOperation: mockStartOperation,
         completeOperation: mockCompleteOperation,
@@ -507,8 +515,12 @@ describe('Generation Actions', () => {
         type: 'regenerate',
       });
 
-      // Should pass operationId to deleteMessage
-      expect(mockDeleteMessage).toHaveBeenCalledWith('msg-1', { operationId: 'test-op-id' });
+      // Should pass operationId to optimisticDeleteMessage
+      // Use optimisticDeleteMessage instead of deleteMessage because after resend,
+      // the branch is switched and the original message is no longer in displayMessages
+      expect(mockOptimisticDeleteMessage).toHaveBeenCalledWith('msg-1', {
+        operationId: 'test-op-id',
+      });
 
       // Should complete operation
       expect(mockCompleteOperation).toHaveBeenCalledWith('test-op-id');
