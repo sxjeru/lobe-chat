@@ -266,16 +266,6 @@ export const createAiProviderSlice: StateCreator<
         false,
         'refreshAiProviderRuntimeState',
       );
-
-      // Also trigger SWR revalidation for cache consistency
-      await Promise.all([
-        mutate([AiProviderSwrKey.fetchAiProviderRuntimeState, true], undefined, {
-          revalidate: false,
-        }),
-        mutate([AiProviderSwrKey.fetchAiProviderRuntimeState, false], undefined, {
-          revalidate: false,
-        }),
-      ]);
     } catch (error) {
       console.error('[refreshAiProviderRuntimeState] Failed to refresh:', error);
     }
