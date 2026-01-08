@@ -115,7 +115,7 @@ const qwenChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
-      'deepseek-v3.2 引入稀疏注意力机制，旨在提升处理长文本时的训练与推理效率，价格低于 deepseek-v3.1。',
+      'deepseek-v3.2 introduces sparse attention mechanism, aiming to improve training and inference efficiency when processing long texts, priced lower than deepseek-v3.1.',
     displayName: 'DeepSeek V3.2',
     id: 'deepseek-v3.2',
     maxOutput: 65_536,

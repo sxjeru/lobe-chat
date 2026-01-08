@@ -150,7 +150,7 @@ export const openaiChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 400_000,
     description:
-      'GPT-5.1 Codex Max：OpenAI 最智能的编码模型，针对长期 agentic 编码任务优化，支持推理令牌。',
+      'GPT-5.1 Codex Max: OpenAI\'s most intelligent coding model, optimized for long-term agentic coding tasks, supports reasoning tokens.',
     displayName: 'GPT-5.1 Codex Max',
     id: 'gpt-5.1-codex-max',
     maxOutput: 128_000,
