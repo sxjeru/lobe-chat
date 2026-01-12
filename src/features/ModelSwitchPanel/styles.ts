@@ -36,7 +36,7 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 8px;
     align-items: center;
 
-    margin-block: 1px;
+    margin-block: 0;
     margin-inline: 4px;
     padding-block: 8px;
     padding-inline: 8px;

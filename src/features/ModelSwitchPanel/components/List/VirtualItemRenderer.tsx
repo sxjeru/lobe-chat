@@ -53,7 +53,7 @@ export const VirtualItemRenderer = memo<VirtualItemRendererProps>(
             horizontal
             justify="space-between"
             key={`header-${item.provider.id}`}
-            paddingBlock={'12px 4px'}
+            paddingBlock={8}
             paddingInline={'12px 8px'}
           >
             <ProviderItemRender
