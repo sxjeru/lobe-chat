@@ -4,7 +4,7 @@ import { Form as AntdForm } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { debounce } from 'es-toolkit/compat';
 import isEqual from 'fast-deep-equal';
-import type { ComponentType, CSSProperties } from 'react';
+import type { CSSProperties, ComponentType } from 'react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -446,7 +446,7 @@ const Controls = memo<ControlsProps>(({ setUpdating }) => {
       label: (
         <Flexbox align={'center'} className={styles.label} gap={8} horizontal>
           {t(meta.labelKey)}
-          <InfoTooltip title={t(meta.descKey)} />
+          <InfoTooltip title={t(meta.descKey)} zIndex={1200} />
         </Flexbox>
       ),
       name: PARAM_NAME_MAP[key],
@@ -475,7 +475,7 @@ const Controls = memo<ControlsProps>(({ setUpdating }) => {
     label: (
       <Flexbox align={'center'} className={styles.label} gap={8} horizontal>
         {t('settingModel.maxTokens.title')}
-        <InfoTooltip title={t('settingModel.maxTokens.desc')} />
+        <InfoTooltip title={t('settingModel.maxTokens.desc')} zIndex={1200} />
       </Flexbox>
     ),
     name: ['params', 'max_tokens'],
@@ -493,18 +493,18 @@ const Controls = memo<ControlsProps>(({ setUpdating }) => {
         mobile
           ? allItems.map((item) => ({ ...item, divider: false }))
           : allItems.map(({ tag, ...item }) => ({
-            ...item,
-            desc: <Tag size={'small'}>{tag}</Tag>,
-            divider: false,
-          }))
+              ...item,
+              desc: <Tag size={'small'}>{tag}</Tag>,
+              divider: false,
+            }))
       }
       itemsType={'flat'}
       onValuesChange={handleValuesChange}
       styles={{
         group: {
           '--lobe-flex-gap': '24px',
-          background: 'transparent',
-          paddingBottom: 12,
+          'background': 'transparent',
+          'paddingBottom': 12,
         } as CSSProperties,
         item: {
           paddingBlock: 0,
