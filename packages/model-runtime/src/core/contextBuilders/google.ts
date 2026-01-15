@@ -85,6 +85,9 @@ export const buildGooglePart = async (
               thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE,
             };
           }
+          if (validation.isTooLarge) {
+            throw new RangeError(validation.reason || 'External URL file too large');
+          }
           // If validation fails, fall back to base64 conversion
         }
 
@@ -132,6 +135,9 @@ export const buildGooglePart = async (
               },
               thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE,
             };
+          }
+          if (validation.isTooLarge) {
+            throw new RangeError(validation.reason || 'External URL file too large');
           }
         }
 
