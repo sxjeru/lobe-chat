@@ -36,7 +36,6 @@ export interface LobeAgentChatConfig {
   reasoningEffort?: 'low' | 'medium' | 'high';
   gpt5ReasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
   gpt5_1ReasoningEffort?: 'none' | 'low' | 'medium' | 'high';
-  codexMaxReasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
   gpt5_2ReasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh';
   gpt5_2ProReasoningEffort?: 'medium' | 'high' | 'xhigh';
   /**
