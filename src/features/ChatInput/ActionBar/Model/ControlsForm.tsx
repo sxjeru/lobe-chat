@@ -190,7 +190,7 @@ const ControlsForm = memo(() => {
     },
     {
       children: <ThinkingBudgetSlider />,
-      label: t('extendParams.reasoningBudgetToken.title'),
+      label: t('extendParams.thinkingBudget.title'),
       layout: 'vertical',
       minWidth: 460,
       name: 'thinkingBudget',
