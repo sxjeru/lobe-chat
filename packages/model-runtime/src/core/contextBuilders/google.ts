@@ -30,6 +30,30 @@ const isImageTypeSupported = (mimeType: string | null): boolean => {
  */
 export const GEMINI_MAGIC_THOUGHT_SIGNATURE = 'context_engineering_is_the_way_to_go';
 
+const getGeminiMajorVersion = (model?: string) => {
+  if (!model) return null;
+
+  // Examples:
+  // - gemini-3-flash-preview
+  // - gemini-2.5-flash
+  const match = model.match(/gemini-(\d+)(?:\.(\d+))?/i);
+  if (!match?.[1]) return null;
+
+  const major = Number.parseInt(match[1], 10);
+  return Number.isFinite(major) ? major : null;
+};
+
+/**
+ * External HTTP / Signed URLs support varies by model generation.
+ * In practice, Gemini 3+ supports `fileData.fileUri` for external URLs reliably,
+ * while earlier models often require `inlineData`.
+ */
+const supportsExternalUrlFileData = (model?: string) => {
+  const major = getGeminiMajorVersion(model);
+  if (major === null) return true;
+  return major >= 3;
+};
+
 /**
  * Convert OpenAI content part to Google Part format
  *
@@ -40,6 +64,7 @@ export const GEMINI_MAGIC_THOUGHT_SIGNATURE = 'context_engineering_is_the_way_to
  */
 export const buildGooglePart = async (
   content: UserMessageContentPart,
+  options?: { model?: string },
 ): Promise<Part | undefined> => {
   switch (content.type) {
     default: {
@@ -74,7 +99,7 @@ export const buildGooglePart = async (
 
         // Try to use External URL feature for public URLs to avoid re-uploading
         // This allows Google to fetch the file directly, reducing transfer costs
-        if (isPublicExternalUrl(url)) {
+        if (supportsExternalUrlFileData(options?.model) && isPublicExternalUrl(url)) {
           const validation = await validateExternalUrl(url);
           if (validation.isValid) {
             return {
@@ -125,7 +150,7 @@ export const buildGooglePart = async (
         // Try to use External URL feature for public URLs
         // Note: External URL currently doesn't support video types per Google docs,
         // but we check anyway in case Google adds support in the future
-        if (isPublicExternalUrl(url)) {
+        if (supportsExternalUrlFileData(options?.model) && isPublicExternalUrl(url)) {
           const validation = await validateExternalUrl(url);
           if (validation.isValid) {
             return {
@@ -163,6 +188,7 @@ export const buildGooglePart = async (
 export const buildGoogleMessage = async (
   message: OpenAIChatMessage,
   toolCallNameMap?: Map<string, string>,
+  options?: { model?: string },
 ): Promise<Content> => {
   const content = message.content as string | UserMessageContentPart[];
 
@@ -202,7 +228,7 @@ export const buildGoogleMessage = async (
     if (typeof content === 'string')
       return [{ text: content, thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE }];
 
-    const parts = await Promise.all(content.map(async (c) => await buildGooglePart(c)));
+    const parts = await Promise.all(content.map(async (c) => await buildGooglePart(c, options)));
     return parts.filter(Boolean) as Part[];
   };
 
@@ -215,7 +241,10 @@ export const buildGoogleMessage = async (
 /**
  * Convert messages from the OpenAI format to Google GenAI SDK format
  */
-export const buildGoogleMessages = async (messages: OpenAIChatMessage[]): Promise<Content[]> => {
+export const buildGoogleMessages = async (
+  messages: OpenAIChatMessage[],
+  options?: { model?: string },
+): Promise<Content[]> => {
   const toolCallNameMap = new Map<string, string>();
 
   // Build tool call id to name mapping
@@ -231,7 +260,7 @@ export const buildGoogleMessages = async (messages: OpenAIChatMessage[]): Promis
 
   const pools = messages
     .filter((message) => message.role !== 'function')
-    .map(async (msg) => await buildGoogleMessage(msg, toolCallNameMap));
+    .map(async (msg) => await buildGoogleMessage(msg, toolCallNameMap, options));
 
   const contents = await Promise.all(pools);
 
