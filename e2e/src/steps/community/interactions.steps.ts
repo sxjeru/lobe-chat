@@ -376,11 +376,11 @@ Then('the URL should contain the category parameter', async function (this: Cust
   console.log(`   📍 Selected category: ${this.testContext.selectedCategory}`);
 
   // Check if URL contains a category-related parameter
-  // The URL format is: /community/assistant?category=xxx
+  // The URL format is: /community/agent?category=xxx
   const hasCategory =
     currentUrl.includes('category=') ||
     currentUrl.includes('tag=') ||
-    // For path-based routing like /community/assistant/category-name
+    // For path-based routing like /community/agent/category-name
     /\/community\/assistant\/[^/?]+/.test(currentUrl);
 
   expect(
@@ -418,7 +418,7 @@ Then('the URL should contain the page parameter', async function (this: CustomWo
   if (this.testContext.usedInfiniteScroll) {
     console.log('   📍 Used infinite scroll, page parameter not expected');
     // Just verify we're still on the assistant page
-    expect(currentUrl.includes('/community/assistant')).toBeTruthy();
+    expect(currentUrl.includes('/community/agent')).toBeTruthy();
     return;
   }
 
@@ -446,8 +446,8 @@ Then('I should be navigated to the assistant detail page', async function (this:
 Then('I should see the assistant detail content', async function (this: CustomWorld) {
   await this.page.waitForLoadState('networkidle', { timeout: 30_000 });
 
-  // Look for detail page elements (e.g., title, description, etc.)
-  const detailContent = this.page.locator('[data-testid="detail-content"], main, article').first();
+  // Look for assistant detail page content
+  const detailContent = this.page.locator('[data-testid="assistant-detail-content"]');
   await expect(detailContent).toBeVisible({ timeout: 30_000 });
 });
 
@@ -561,8 +561,8 @@ Then('I should be navigated to the MCP detail page', async function (this: Custo
 Then('I should see the MCP detail content', async function (this: CustomWorld) {
   await this.page.waitForLoadState('networkidle', { timeout: 30_000 });
 
-  // Look for detail page elements
-  const detailContent = this.page.locator('[data-testid="detail-content"], main, article').first();
+  // Look for MCP detail page content
+  const detailContent = this.page.locator('[data-testid="mcp-detail-content"]');
   await expect(detailContent).toBeVisible({ timeout: 30_000 });
 });
 

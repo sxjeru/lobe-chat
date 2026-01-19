@@ -2,6 +2,225 @@
 
 # Changelog
 
+## [Version 2.0.0-next.312](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.311...v2.0.0-next.312)
+
+<sup>Released on **2026-01-19**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Change the /community/assistant to /agent routes.
+
+#### ✨ Features
+
+- **misc**: Improve the agentbuilder systemRole.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Change the /community/assistant to /agent routes, closes [#11606](https://github.com/lobehub/lobe-chat/issues/11606) ([7f004c5](https://github.com/lobehub/lobe-chat/commit/7f004c5))
+
+#### What's improved
+
+- **misc**: Improve the agentbuilder systemRole, closes [#11608](https://github.com/lobehub/lobe-chat/issues/11608) ([2f032d4](https://github.com/lobehub/lobe-chat/commit/2f032d4))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.311](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.310...v2.0.0-next.311)
+
+<sup>Released on **2026-01-19**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Refactor market sdk into market servers.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Refactor market sdk into market servers, closes [#11604](https://github.com/lobehub/lobe-chat/issues/11604) ([858cc20](https://github.com/lobehub/lobe-chat/commit/858cc20))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.310](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.309...v2.0.0-next.310)
+
+<sup>Released on **2026-01-19**</sup>
+
+#### 💄 Styles
+
+- **misc**: Update i18n.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Update i18n, closes [#11596](https://github.com/lobehub/lobe-chat/issues/11596) ([b02d26c](https://github.com/lobehub/lobe-chat/commit/b02d26c))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.309](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.308...v2.0.0-next.309)
+
+<sup>Released on **2026-01-18**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix group sub task execution.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix group sub task execution, closes [#11595](https://github.com/lobehub/lobe-chat/issues/11595) ([32be2b2](https://github.com/lobehub/lobe-chat/commit/32be2b2))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.308](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.307...v2.0.0-next.308)
+
+<sup>Released on **2026-01-18**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix group subagent task issue.
+
+#### 💄 Styles
+
+- **misc**: Update i18n.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix group subagent task issue, closes [#11589](https://github.com/lobehub/lobe-chat/issues/11589) ([9ad468b](https://github.com/lobehub/lobe-chat/commit/9ad468b))
+
+#### Styles
+
+- **misc**: Update i18n, closes [#11482](https://github.com/lobehub/lobe-chat/issues/11482) ([676611e](https://github.com/lobehub/lobe-chat/commit/676611e))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.307](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.306...v2.0.0-next.307)
+
+<sup>Released on **2026-01-18**</sup>
+
+#### 🐛 Bug Fixes
+
+- **upload**: Resolve file upload button unresponsive issue.
+- **misc**: Fixed the createGroupWithSupervisor function test, slove when use copy & install group from market, the member system Role is lost.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **upload**: Resolve file upload button unresponsive issue, closes [#11588](https://github.com/lobehub/lobe-chat/issues/11588) ([76fd478](https://github.com/lobehub/lobe-chat/commit/76fd478))
+- **misc**: Fixed the createGroupWithSupervisor function test, closes [#11590](https://github.com/lobehub/lobe-chat/issues/11590) ([83bb343](https://github.com/lobehub/lobe-chat/commit/83bb343))
+- **misc**: Slove when use copy & install group from market, the member system Role is lost, closes [#11585](https://github.com/lobehub/lobe-chat/issues/11585) ([9b73ad7](https://github.com/lobehub/lobe-chat/commit/9b73ad7))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.306](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.305...v2.0.0-next.306)
+
+<sup>Released on **2026-01-18**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix supervisor id issue.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix supervisor id issue, closes [#11584](https://github.com/lobehub/lobe-chat/issues/11584) ([c097584](https://github.com/lobehub/lobe-chat/commit/c097584))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.305](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.304...v2.0.0-next.305)
+
+<sup>Released on **2026-01-18**</sup>
+
+#### 🐛 Bug Fixes
+
+- **desktop**: Add auth required modal and improve error handling.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **desktop**: Add auth required modal and improve error handling, closes [#11574](https://github.com/lobehub/lobe-chat/issues/11574) ([4e5a516](https://github.com/lobehub/lobe-chat/commit/4e5a516))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.304](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.303...v2.0.0-next.304)
 
 <sup>Released on **2026-01-18**</sup>

@@ -1,6 +1,64 @@
 [
   {
     "children": {
+      "improvements": ["Change the /community/assistant to /agent routes."],
+      "features": ["Improve the agentbuilder systemRole."]
+    },
+    "date": "2026-01-19",
+    "version": "2.0.0-next.312"
+  },
+  {
+    "children": {
+      "improvements": ["Refactor market sdk into market servers."]
+    },
+    "date": "2026-01-19",
+    "version": "2.0.0-next.311"
+  },
+  {
+    "children": {
+      "improvements": ["Update i18n."]
+    },
+    "date": "2026-01-19",
+    "version": "2.0.0-next.310"
+  },
+  {
+    "children": {
+      "fixes": ["Fix group sub task execution."]
+    },
+    "date": "2026-01-18",
+    "version": "2.0.0-next.309"
+  },
+  {
+    "children": {
+      "fixes": ["Fix group subagent task issue."],
+      "improvements": ["Update i18n."]
+    },
+    "date": "2026-01-18",
+    "version": "2.0.0-next.308"
+  },
+  {
+    "children": {
+      "fixes": [
+        "Fixed the createGroupWithSupervisor function test, slove when use copy & install group from market, the member system Role is lost."
+      ]
+    },
+    "date": "2026-01-18",
+    "version": "2.0.0-next.307"
+  },
+  {
+    "children": {
+      "fixes": ["Fix supervisor id issue."]
+    },
+    "date": "2026-01-18",
+    "version": "2.0.0-next.306"
+  },
+  {
+    "children": {},
+    "date": "2026-01-18",
+    "version": "2.0.0-next.305"
+  },
+  {
+    "children": {
       "improvements": ["Improve auto scroll and loading hint."]
     },
     "date": "2026-01-18",
