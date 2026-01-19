@@ -61,7 +61,7 @@ interface DragState {
 const DragStateContext = createContext<{
   currentDrag: DragState | null;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setCurrentDrag: (state: DragState | null) => void;
+  setCurrentDrag: (_state: DragState | null) => void;
 }>({
   currentDrag: null,
   setCurrentDrag: () => {},
@@ -193,14 +193,16 @@ export const DndContextWrapper = memo<PropsWithChildren>(({ children }) => {
 
     document.addEventListener('dragstart', handleDragStart);
     document.addEventListener('drag', handleDrag);
-    document.addEventListener('drop', handleDrop);
+    // Use capture phase so drops still work even if some UI stops propagation
+    // (e.g., header dropdowns / menus).
+    document.addEventListener('drop', handleDrop, true);
     document.addEventListener('dragover', handleDragOver);
     document.addEventListener('dragend', handleDragEnd);
 
     return () => {
       document.removeEventListener('dragstart', handleDragStart);
       document.removeEventListener('drag', handleDrag);
-      document.removeEventListener('drop', handleDrop);
+      document.removeEventListener('drop', handleDrop, true);
       document.removeEventListener('dragover', handleDragOver);
       document.removeEventListener('dragend', handleDragEnd);
     };

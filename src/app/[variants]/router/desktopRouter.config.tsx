@@ -94,17 +94,17 @@ export const desktopRoutes: RouteConfig[] = [
                 children: [
                   {
                     element: dynamicElement(
-                      () => import('../(main)/community/(list)/assistant'),
-                      'Desktop > Discover > List > Assistant',
+                      () => import('../(main)/community/(list)/agent'),
+                      'Desktop > Discover > List > Agent',
                     ),
                     index: true,
                   },
                 ],
                 element: dynamicElement(
-                  () => import('../(main)/community/(list)/assistant/_layout'),
-                  'Desktop > Discover > List > Assistant > Layout',
+                  () => import('../(main)/community/(list)/agent/_layout'),
+                  'Desktop > Discover > List > Agent > Layout',
                 ),
-                path: 'assistant',
+                path: 'agent',
               },
               {
                 children: [
@@ -163,10 +163,17 @@ export const desktopRoutes: RouteConfig[] = [
             children: [
               {
                 element: dynamicElement(
-                  () => import('../(main)/community/(detail)/assistant'),
-                  'Desktop > Discover > Detail > Assistant',
+                  () => import('../(main)/community/(detail)/agent'),
+                  'Desktop > Discover > Detail > Agent',
                 ),
-                path: 'assistant/:slug',
+                path: 'agent/:slug',
+              },
+              {
+                element: dynamicElement(
+                  () => import('../(main)/community/(detail)/group_agent'),
+                  'Desktop > Discover > Detail > Group Agent',
+                ),
+                path: 'group_agent/:slug',
               },
               {
                 element: dynamicElement(
@@ -398,6 +405,21 @@ export const desktopRoutes: RouteConfig[] = [
   // Onboarding route (outside main layout)
 
   ...BusinessDesktopRoutesWithoutMainLayout,
+
+  // Share topic route (outside main layout)
+  {
+    children: [
+      {
+        element: dynamicElement(() => import('../share/t/[id]'), 'Desktop > Share > Topic'),
+        path: ':id',
+      },
+    ],
+    element: dynamicElement(
+      () => import('../share/t/[id]/_layout'),
+      'Desktop > Share > Topic > Layout',
+    ),
+    path: '/share/t',
+  },
 ];
 
 // Desktop onboarding route (SPA-only)

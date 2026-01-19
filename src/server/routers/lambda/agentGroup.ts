@@ -38,6 +38,45 @@ export const agentGroupRouter = router({
     }),
 
   /**
+   * Batch create virtual agents and add them to an existing group.
+   * This is more efficient than calling createAgentOnly multiple times.
+   */
+  batchCreateAgentsInGroup: agentGroupProcedure
+    .input(
+      z.object({
+        agents: z.array(
+          insertAgentSchema
+            .omit({
+              chatConfig: true,
+              openingMessage: true,
+              openingQuestions: true,
+              tts: true,
+              userId: true,
+            })
+            .partial(),
+        ),
+        groupId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Batch create virtual agents
+      const agentConfigs = input.agents.map((agent) => ({
+        ...agent,
+        plugins: agent.plugins as string[] | undefined,
+        tags: agent.tags as string[] | undefined,
+        virtual: true,
+      }));
+
+      const createdAgents = await ctx.agentModel.batchCreate(agentConfigs);
+      const agentIds = createdAgents.map((agent) => agent.id);
+
+      // Add all agents to the group
+      await ctx.chatGroupModel.addAgentsToGroup(input.groupId, agentIds);
+
+      return { agentIds, agents: createdAgents };
+    }),
+
+  /**
    * Check agents before removal to identify virtual agents that will be permanently deleted.
    * This allows the frontend to show a confirmation dialog.
    */
@@ -90,6 +129,19 @@ export const agentGroupRouter = router({
             })
             .partial(),
         ),
+        supervisorConfig: z
+          .object({
+            avatar: z.string().nullish(),
+            backgroundColor: z.string().nullish(),
+            description: z.string().nullish(),
+            model: z.string().nullish(),
+            params: z.any().nullish(),
+            provider: z.string().nullish(),
+            systemRole: z.string().nullish(),
+            tags: z.array(z.string()).nullish(),
+            title: z.string().nullish(),
+          })
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -105,6 +157,14 @@ export const agentGroupRouter = router({
       const memberAgentIds = createdAgents.map((agent) => agent.id);
 
       // 2. Create group with supervisor and member agents
+      // Filter out null/undefined values from supervisorConfig
+      const supervisorConfig = input.supervisorConfig
+        ? Object.fromEntries(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars, eqeqeq
+            Object.entries(input.supervisorConfig).filter(([_, v]) => v != null),
+          )
+        : undefined;
+
       const { group, supervisorAgentId } = await ctx.agentGroupRepo.createGroupWithSupervisor(
         {
           ...input.groupConfig,
@@ -113,6 +173,7 @@ export const agentGroupRouter = router({
           ),
         },
         memberAgentIds,
+        supervisorConfig as any,
       );
 
       return { agentIds: memberAgentIds, groupId: group.id, supervisorAgentId };

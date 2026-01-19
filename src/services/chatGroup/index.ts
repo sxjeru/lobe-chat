@@ -20,6 +20,18 @@ export interface GroupMemberConfig {
   title?: string;
 }
 
+export interface SupervisorConfig {
+  avatar?: string;
+  backgroundColor?: string;
+  description?: string;
+  model?: string;
+  params?: any;
+  provider?: string;
+  systemRole?: string;
+  tags?: string[];
+  title?: string;
+}
+
 class ChatGroupService {
   /**
    * Create a group with a supervisor agent.
@@ -42,6 +54,7 @@ class ChatGroupService {
   createGroupWithMembers = (
     groupConfig: Omit<NewChatGroup, 'userId'>,
     members: GroupMemberConfig[],
+    supervisorConfig?: SupervisorConfig,
   ): Promise<{ agentIds: string[]; groupId: string; supervisorAgentId: string }> => {
     return lambdaClient.group.createGroupWithMembers.mutate({
       groupConfig: {
@@ -49,6 +62,7 @@ class ChatGroupService {
         config: groupConfig.config as any,
       },
       members: members as Partial<AgentItem>[],
+      supervisorConfig,
     });
   };
 
@@ -83,6 +97,17 @@ class ChatGroupService {
     agentIds: string[],
   ): Promise<{ added: NewChatGroupAgent[]; existing: string[] }> => {
     return lambdaClient.group.addAgentsToGroup.mutate({ agentIds, groupId });
+  };
+
+  /**
+   * Batch create virtual agents and add them to an existing group.
+   * This is more efficient than calling createAgentOnly multiple times.
+   */
+  batchCreateAgentsInGroup = (groupId: string, agents: GroupMemberConfig[]) => {
+    return lambdaClient.group.batchCreateAgentsInGroup.mutate({
+      agents: agents as Partial<AgentItem>[],
+      groupId,
+    });
   };
 
   removeAgentsFromGroup = (groupId: string, agentIds: string[]) => {

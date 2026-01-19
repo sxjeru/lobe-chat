@@ -62,6 +62,8 @@ export default {
   'funds.packages.expiresIn': 'Expires in {{days}} days',
   'funds.packages.expiresToday': 'Expires today',
   'funds.packages.expiringSoon': 'Expiring soon',
+  'funds.packages.gift': 'Gift',
+  'funds.packages.giftedOn': 'Gifted on {{date}}',
   'funds.packages.noPackages': 'No credit packages',
   'funds.packages.purchaseFirst': 'Purchase your first credit package',
   'funds.packages.purchasedOn': 'Purchased on {{date}}',
@@ -326,7 +328,7 @@ export default {
   'referral.rules.backfill.expiredTip':
     'Backfill period has expired. Cannot backfill after 3 days of registration',
   'referral.rules.backfill.link': 'Backfill Invite Code',
-  'referral.rules.backfill.placeholder': 'Enter invite code',
+  'referral.rules.backfill.placeholder': 'Enter invite code or link',
   'referral.rules.backfill.submit': 'Confirm Binding',
   'referral.rules.backfill.success': 'Invite code bound successfully',
   'referral.rules.backfill.title': 'Backfill Invite Code',

@@ -493,10 +493,10 @@ const Controls = memo<ControlsProps>(({ setUpdating }) => {
         mobile
           ? allItems.map((item) => ({ ...item, divider: false }))
           : allItems.map(({ tag, ...item }) => ({
-              ...item,
-              desc: <Tag size={'small'}>{tag}</Tag>,
-              divider: false,
-            }))
+            ...item,
+            desc: <Tag size={'small'}>{tag}</Tag>,
+            divider: false,
+          }))
       }
       itemsType={'flat'}
       onValuesChange={handleValuesChange}
