@@ -2,6 +2,161 @@
 
 # Changelog
 
+## [Version 2.0.0-next.323](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.322...v2.0.0-next.323)
+
+<sup>Released on **2026-01-20**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Optimize lobehub models and default configuration.
+
+#### ✨ Features
+
+- **misc**: Add the agents and agents group fork feature.
+
+#### 🐛 Bug Fixes
+
+- **model-runtime**: Fix Qwen parallel tool calls arguments incorrectly merged.
+- **topic**: Correct topic item href route for agent and group pages.
+- **misc**: Fix Topic component causing stack overflow and freezing the app, simplify updater config logic, slove the nuqs error in commnuity agent group page.
+
+#### 💄 Styles
+
+- **misc**: Optimize profile settings skeleton screen.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Optimize lobehub models and default configuration, closes [#11621](https://github.com/lobehub/lobe-chat/issues/11621) ([5074fbe](https://github.com/lobehub/lobe-chat/commit/5074fbe))
+
+#### What's improved
+
+- **misc**: Add the agents and agents group fork feature, closes [#11652](https://github.com/lobehub/lobe-chat/issues/11652) ([b1c3b83](https://github.com/lobehub/lobe-chat/commit/b1c3b83))
+
+#### What's fixed
+
+- **model-runtime**: Fix Qwen parallel tool calls arguments incorrectly merged, closes [#11649](https://github.com/lobehub/lobe-chat/issues/11649) ([ddbe661](https://github.com/lobehub/lobe-chat/commit/ddbe661))
+- **topic**: Correct topic item href route for agent and group pages, closes [#11607](https://github.com/lobehub/lobe-chat/issues/11607) ([2fffe8b](https://github.com/lobehub/lobe-chat/commit/2fffe8b))
+- **misc**: Fix Topic component causing stack overflow and freezing the app, closes [#11609](https://github.com/lobehub/lobe-chat/issues/11609) ([600cb85](https://github.com/lobehub/lobe-chat/commit/600cb85))
+- **misc**: Simplify updater config logic, closes [#11636](https://github.com/lobehub/lobe-chat/issues/11636) ([5c645f0](https://github.com/lobehub/lobe-chat/commit/5c645f0))
+- **misc**: Slove the nuqs error in commnuity agent group page, closes [#11651](https://github.com/lobehub/lobe-chat/issues/11651) ([1c29bca](https://github.com/lobehub/lobe-chat/commit/1c29bca))
+
+#### Styles
+
+- **misc**: Optimize profile settings skeleton screen, closes [#11656](https://github.com/lobehub/lobe-chat/issues/11656) ([e61ae85](https://github.com/lobehub/lobe-chat/commit/e61ae85))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.322](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.321...v2.0.0-next.322)
+
+<sup>Released on **2026-01-20**</sup>
+
+#### 🐛 Bug Fixes
+
+- **memory-user-memory**: Should fallback to server configured provider & model.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **memory-user-memory**: Should fallback to server configured provider & model, closes [#11643](https://github.com/lobehub/lobe-chat/issues/11643) ([af446d9](https://github.com/lobehub/lobe-chat/commit/af446d9))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.321](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.320...v2.0.0-next.321)
+
+<sup>Released on **2026-01-20**</sup>
+
+#### ✨ Features
+
+- **memory-user-memory**: Support to configure preferred model.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **memory-user-memory**: Support to configure preferred model, closes [#11637](https://github.com/lobehub/lobe-chat/issues/11637) ([49374da](https://github.com/lobehub/lobe-chat/commit/49374da))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.320](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.319...v2.0.0-next.320)
+
+<sup>Released on **2026-01-20**</sup>
+
+#### 🐛 Bug Fixes
+
+- **ShareModal**: Wrap ShareMessageModal with Provider in context menu.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **ShareModal**: Wrap ShareMessageModal with Provider in context menu, closes [#11434](https://github.com/lobehub/lobe-chat/issues/11434) [#11382](https://github.com/lobehub/lobe-chat/issues/11382) ([0d30e5f](https://github.com/lobehub/lobe-chat/commit/0d30e5f))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.319](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.318...v2.0.0-next.319)
+
+<sup>Released on **2026-01-20**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Slove commnuity user avatarUrl is wrong, should update others in profile.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Slove commnuity user avatarUrl is wrong, should update others in profile, closes [#11634](https://github.com/lobehub/lobe-chat/issues/11634) ([04465c8](https://github.com/lobehub/lobe-chat/commit/04465c8))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.318](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.317...v2.0.0-next.318)
 
 <sup>Released on **2026-01-20**</sup>
