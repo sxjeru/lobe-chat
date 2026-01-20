@@ -17,7 +17,7 @@ import { useDelayedRender } from '../../hooks/useDelayedRender';
 import { useModelAndProvider } from '../../hooks/useModelAndProvider';
 import { usePanelHandlers } from '../../hooks/usePanelHandlers';
 import { styles } from '../../styles';
-import type { GroupMode } from '../../types';
+import type { GroupMode, VirtualItem } from '../../types';
 import { getVirtualItemKey, menuKey } from '../../utils';
 import { VirtualItemRenderer } from './VirtualItemRenderer';
 
@@ -112,16 +112,69 @@ export const List: FC<ListProps> = ({
     return Math.ceil(listHeight / ITEM_HEIGHT['model-item']);
   }, [panelHeight]);
 
-  const renderCount = useMemo(() => {
-    if (renderAll) return virtualItems.length;
-    if (activeIndex < 0) {
-      return Math.min(virtualItems.length, Math.max(INITIAL_RENDER_COUNT, viewItemCount));
+  const getItemHeight = useMemo(
+    () => (item: VirtualItem) => {
+      switch (item.type) {
+        case 'group-header': {
+          return ITEM_HEIGHT['group-header'];
+        }
+        case 'empty-model': {
+          return ITEM_HEIGHT['empty-model'];
+        }
+        case 'no-provider': {
+          return ITEM_HEIGHT['no-provider'];
+        }
+        default: {
+          return ITEM_HEIGHT['model-item'];
+        }
+      }
+    },
+    [],
+  );
+
+  const itemHeights = useMemo(() => virtualItems.map(getItemHeight), [getItemHeight, virtualItems]);
+
+  const prefixHeights = useMemo(() => {
+    const heights = [0];
+    for (const height of itemHeights) {
+      const last = heights.at(-1) ?? 0;
+      heights.push(last + height);
     }
-    return Math.min(
-      virtualItems.length,
-      Math.max(INITIAL_RENDER_COUNT, activeIndex + viewItemCount),
-    );
-  }, [activeIndex, renderAll, viewItemCount, virtualItems.length]);
+    return heights;
+  }, [itemHeights]);
+
+  const renderWindow = useMemo(() => {
+    const total = virtualItems.length;
+    if (renderAll || total === 0) {
+      return { end: total, paddingBottom: 0, paddingTop: 0, start: 0 };
+    }
+
+    const minWindow = Math.max(INITIAL_RENDER_COUNT, viewItemCount);
+    const windowSize = Math.min(total, Math.max(minWindow, viewItemCount * 2 + 1));
+
+    if (activeIndex < 0) {
+      const end = Math.min(total, windowSize);
+      return {
+        end,
+        paddingBottom: prefixHeights[total] - prefixHeights[end],
+        paddingTop: 0,
+        start: 0,
+      };
+    }
+
+    let start = Math.max(0, activeIndex - Math.floor(windowSize / 2));
+    let end = Math.min(total, start + windowSize);
+    if (end - start < windowSize) {
+      start = Math.max(0, end - windowSize);
+    }
+
+    return {
+      end,
+      paddingBottom: prefixHeights[total] - prefixHeights[end],
+      paddingTop: prefixHeights[start],
+      start,
+    };
+  }, [activeIndex, prefixHeights, renderAll, viewItemCount, virtualItems.length]);
 
   return (
     <Flexbox
@@ -134,16 +187,23 @@ export const List: FC<ListProps> = ({
       }}
     >
       <TooltipGroup>
-        {virtualItems.slice(0, renderCount).map((item) => (
-          <VirtualItemRenderer
-            activeKey={activeKey}
-            item={item}
-            key={getVirtualItemKey(item)}
-            newLabel={newLabel}
-            onClose={handleClose}
-            onModelChange={handleModelChange}
-          />
-        ))}
+        <div
+          style={{
+            paddingBottom: renderWindow.paddingBottom,
+            paddingTop: renderWindow.paddingTop,
+          }}
+        >
+          {virtualItems.slice(renderWindow.start, renderWindow.end).map((item) => (
+            <VirtualItemRenderer
+              activeKey={activeKey}
+              item={item}
+              key={getVirtualItemKey(item)}
+              newLabel={newLabel}
+              onClose={handleClose}
+              onModelChange={handleModelChange}
+            />
+          ))}
+        </div>
       </TooltipGroup>
     </Flexbox>
   );
