@@ -25,8 +25,10 @@ import {
   type DiscoverProviderItem,
   type DiscoverUserProfile,
   type IdentifiersResponse,
+  McpCategory,
   type McpListResponse,
   type McpQueryParams,
+  McpSorts,
   type ModelListResponse,
   type ModelQueryParams,
   ModelSorts,
@@ -48,17 +50,23 @@ import {
   MarketSDK,
   type UserInfoResponse,
 } from '@lobehub/market-sdk';
-import { type CallReportRequest, type InstallReportRequest } from '@lobehub/market-types';
+import {
+  AgentEventRequest,
+  type CallReportRequest,
+  type InstallReportRequest,
+  type PluginEventRequest,
+} from '@lobehub/market-types';
 import dayjs from 'dayjs';
 import debug from 'debug';
 import { cloneDeep, countBy, isString, merge, uniq, uniqBy } from 'es-toolkit/compat';
 import matter from 'gray-matter';
 import urlJoin from 'url-join';
 
-import { type TrustedClientUserInfo, generateTrustedClientToken } from '@/libs/trusted-client';
+import { type TrustedClientUserInfo } from '@/libs/trusted-client';
 import { normalizeLocale } from '@/locales/resources';
 import { AssistantStore } from '@/server/modules/AssistantStore';
 import { PluginStore } from '@/server/modules/PluginStore';
+import { MarketService } from '@/server/services/market';
 
 const log = debug('lobe-server:discover');
 
@@ -77,18 +85,14 @@ export class DiscoverService {
   constructor(options: DiscoverServiceOptions = {}) {
     const { accessToken, userInfo } = options;
 
-    // Generate trusted client token if user info is available
-    const trustedClientToken = userInfo ? generateTrustedClientToken(userInfo) : undefined;
+    // Use MarketService to initialize MarketSDK
+    const marketService = new MarketService({ accessToken, userInfo });
+    this.market = marketService.market;
 
-    this.market = new MarketSDK({
-      accessToken,
-      baseURL: process.env.NEXT_PUBLIC_MARKET_BASE_URL,
-      trustedClientToken,
-    });
     log(
-      'DiscoverService initialized with market baseURL: %s, hasTrustedToken: %s, userId: %s',
+      'DiscoverService initialized with market baseURL: %s, hasAuth: %s, userId: %s',
       process.env.NEXT_PUBLIC_MARKET_BASE_URL,
-      !!trustedClientToken,
+      !!(accessToken || userInfo),
       userInfo?.userId,
     );
   }
@@ -128,14 +132,12 @@ export class DiscoverService {
   }
 
   async fetchM2MToken(params: { clientId: string; clientSecret: string }) {
-    // 使用传入的客户端凭证创建新的 MarketSDK 实例
-    const tokenMarket = new MarketSDK({
-      baseURL: process.env.NEXT_PUBLIC_MARKET_BASE_URL,
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
+    // Use MarketService with M2M credentials
+    const marketService = new MarketService({
+      clientCredentials: params,
     });
 
-    const tokenInfo = await tokenMarket.fetchM2MToken();
+    const tokenInfo = await marketService.fetchM2MToken();
 
     return {
       accessToken: tokenInfo.accessToken,
@@ -149,7 +151,7 @@ export class DiscoverService {
     apiParams: Record<string, any>;
     identifier: string;
     toolName: string;
-    userAccessToken: string;
+    userAccessToken?: string;
   }) {
     log('callCloudMcpEndpoint: params=%O', {
       apiParams: params.apiParams,
@@ -159,7 +161,14 @@ export class DiscoverService {
     });
 
     try {
-      // Call cloud gateway with user access token in Authorization header
+      // Build headers - only include Authorization if userAccessToken is provided
+      // When userAccessToken is not provided, MarketSDK will use trustedClientToken for authentication
+      const headers: Record<string, string> = {};
+      if (params.userAccessToken) {
+        headers.Authorization = `Bearer ${params.userAccessToken}`;
+      }
+
+      // Call cloud gateway with optional user access token in Authorization header
       const result = await this.market.plugins.callCloudGateway(
         {
           apiParams: params.apiParams,
@@ -167,9 +176,7 @@ export class DiscoverService {
           toolName: params.toolName,
         },
         {
-          headers: {
-            Authorization: `Bearer ${params.userAccessToken}`,
-          },
+          headers,
         },
       );
 
@@ -706,6 +713,7 @@ export class DiscoverService {
       q,
       sort = AssistantSorts.CreatedAt,
       ownerId,
+      includeAgentGroup,
     } = rest;
 
     try {
@@ -728,9 +736,10 @@ export class DiscoverService {
         }
       }
 
-      // @ts-ignore
       const data = await this.market.agents.getAgentList({
         category,
+        // includeAgentGroup may not be in SDK type definition yet, using 'as any'
+        includeAgentGroup,
         locale: normalizedLocale,
         order,
         ownerId,
@@ -740,7 +749,7 @@ export class DiscoverService {
         sort: apiSort,
         status: 'published',
         visibility: 'public',
-      });
+      } as any);
 
       const transformedItems: DiscoverAssistantItem[] = (data.items || []).map((item: any) => {
         const normalizedAuthor = this.normalizeAuthorField(item.author);
@@ -761,6 +770,7 @@ export class DiscoverService {
           tags: item.tags || [],
           title: item.name || item.identifier,
           tokenUsage: item.tokenUsage || 0,
+          type: item.type,
           userName: normalizedAuthor.userName,
         };
       });
@@ -845,12 +855,16 @@ export class DiscoverService {
 
   getMcpList = async (params: McpQueryParams = {}): Promise<McpListResponse> => {
     log('getMcpList: params=%O', params);
-    const { locale } = params;
+    const { category, locale, sort } = params;
     const normalizedLocale = normalizeLocale(locale);
+    const isDiscoverCategory = category === McpCategory.Discover;
+
     const result = await this.market.plugins.getPluginList(
       {
         ...params,
+        category: isDiscoverCategory ? undefined : category,
         locale: normalizedLocale,
+        sort: isDiscoverCategory ? McpSorts.Recommended : sort,
       },
       {
         next: {
@@ -890,6 +904,20 @@ export class DiscoverService {
    */
   reportPluginInstallation = async (params: InstallReportRequest) => {
     await this.market.plugins.reportInstallation(params);
+  };
+
+  /**
+   * record Agent plugin event
+   */
+  createAgentEvent = async (params: AgentEventRequest) => {
+    await this.market.agents.createEvent(params);
+  };
+
+  /**
+   * record MCP plugin event
+   */
+  createPluginEvent = async (params: PluginEventRequest) => {
+    await this.market.plugins.createEvent(params);
   };
 
   /**
@@ -1704,14 +1732,18 @@ export class DiscoverService {
 
     try {
       // Call Market SDK to get user info
-      const response: UserInfoResponse = await this.market.user.getUserInfo(username, { locale });
+      const response = (await this.market.user.getUserInfo(username, {
+        locale,
+      })) as UserInfoResponse & {
+        agentGroups?: any[];
+      };
 
       if (!response?.user) {
         log('getUserInfo: user not found for username=%s', username);
         return undefined;
       }
 
-      const { user, agents } = response;
+      const { user, agents, agentGroups } = response;
 
       // Transform agents to DiscoverAssistantItem format
       const transformedAgents: DiscoverAssistantItem[] = (agents || []).map((agent: any) => ({
@@ -1732,7 +1764,27 @@ export class DiscoverService {
         tokenUsage: agent.tokenUsage || 0,
       }));
 
+      // Transform agentGroups to DiscoverGroupAgentItem format
+      const transformedAgentGroups = (agentGroups || []).map((group: any) => ({
+        author: user.displayName || user.userName || user.namespace || '',
+        avatar: group.avatar || '👥',
+        category: group.category as any,
+        createdAt: group.createdAt,
+        description: group.description || '',
+        homepage: `https://lobehub.com/discover/group_agent/${group.identifier}`,
+        identifier: group.identifier,
+        installCount: group.installCount || 0,
+        isFeatured: group.isFeatured || false,
+        isOfficial: group.isOfficial || false,
+        memberCount: 0, // Will be populated from memberAgents in detail view
+        schemaVersion: 1,
+        tags: group.tags || [],
+        title: group.name || group.identifier,
+        updatedAt: group.updatedAt,
+      }));
+
       const result: DiscoverUserProfile = {
+        agentGroups: transformedAgentGroups,
         agents: transformedAgents,
         user: {
           avatarUrl: user.avatarUrl || null,
@@ -1750,11 +1802,101 @@ export class DiscoverService {
         },
       };
 
-      log('getUserInfo: returning user profile with %d agents', result.agents.length);
+      log(
+        'getUserInfo: returning user profile with %d agents and %d groups',
+        result.agents.length,
+        result.agentGroups?.length || 0,
+      );
       return result;
     } catch (error) {
       log('getUserInfo: error fetching user info: %O', error);
       return undefined;
+    }
+  };
+
+  // ============================== Group Agent Market Methods ==============================
+
+  getGroupAgentCategories = async (params?: CategoryListQuery) => {
+    try {
+      // TODO: SDK method not yet available, using fallback
+      const response = await (this.market.agentGroups as any).getAgentGroupCategories?.(params);
+      return response || { items: [] };
+    } catch (error) {
+      log('getGroupAgentCategories: error: %O', error);
+      return { items: [] };
+    }
+  };
+
+  getGroupAgentDetail = async (params: {
+    identifier: string;
+    locale?: string;
+    version?: string;
+  }) => {
+    try {
+      const response = await this.market.agentGroups.getAgentGroupDetail(params.identifier, {
+        locale: params.locale,
+        version: params.version ? Number(params.version) : undefined,
+      });
+      return response;
+    } catch (error) {
+      log('getGroupAgentDetail: error: %O', error);
+      throw error;
+    }
+  };
+
+  getGroupAgentIdentifiers = async () => {
+    try {
+      // TODO: SDK method not yet available, using fallback
+      const response = await (this.market.agentGroups as any).getAgentGroupIdentifiers?.();
+      return response || { identifiers: [] };
+    } catch (error) {
+      log('getGroupAgentIdentifiers: error: %O', error);
+      return { identifiers: [] };
+    }
+  };
+
+  getGroupAgentList = async (params?: {
+    category?: string;
+    locale?: string;
+    order?: 'asc' | 'desc';
+    ownerId?: string;
+    page?: number;
+    pageSize?: number;
+    q?: string;
+    sort?: 'createdAt' | 'updatedAt' | 'name' | 'recommended';
+  }) => {
+    try {
+      const response = await this.market.agentGroups.getAgentGroupList({
+        ...params,
+        status: 'published' as any,
+        visibility: 'public' as any,
+      });
+      return response;
+    } catch (error) {
+      log('getGroupAgentList: error: %O', error);
+      return { currentPage: 1, items: [], totalCount: 0, totalPages: 1 };
+    }
+  };
+
+  createGroupAgentEvent = async (params: {
+    event: 'add' | 'chat' | 'click';
+    identifier: string;
+    source?: string;
+  }) => {
+    try {
+      // TODO: SDK method not yet available
+      await (this.market.agentGroups as any).createAgentGroupEvent?.(params);
+    } catch (error) {
+      log('createGroupAgentEvent: error: %O', error);
+    }
+  };
+
+  increaseGroupAgentInstallCount = async (identifier: string) => {
+    try {
+      // TODO: SDK method not yet available
+      await (this.market.agentGroups as any).increaseInstallCount?.(identifier);
+    } catch (error) {
+      log('increaseGroupAgentInstallCount: error: %O', error);
     }
   };
 }

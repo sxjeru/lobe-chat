@@ -89,16 +89,7 @@ const InputEditor = memo<{ defaultRows?: number }>(({ defaultRows = 2 }) => {
       !enableRichRender
         ? {
             enablePasteMarkdown: false,
-            markdownOption: {
-              bold: false,
-              code: false,
-              header: false,
-              italic: false,
-              quote: false,
-              strikethrough: false,
-              underline: false,
-              underlineStrikethrough: false,
-            },
+            markdownOption: false,
           }
         : {
             plugins: [
@@ -129,6 +120,7 @@ const InputEditor = memo<{ defaultRows?: number }>(({ defaultRows = 2 }) => {
       className={className}
       content={''}
       editor={editor}
+      pasteAsPlainText
       {...richRenderProps}
       mentionOption={
         enableMention

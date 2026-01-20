@@ -1,4 +1,5 @@
 import { useDebounce } from 'ahooks';
+import { useTheme as useNextThemesTheme } from 'next-themes';
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
@@ -37,7 +38,7 @@ export const useCommandMenu = () => {
   } = useCommandMenuContext();
 
   const navigate = useNavigate();
-  const switchThemeMode = useGlobalStore((s) => s.switchThemeMode);
+  const { setTheme } = useNextThemesTheme();
   const createAgent = useAgentStore((s) => s.createAgent);
   const refreshAgentList = useHomeStore((s) => s.refreshAgentList);
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
@@ -106,7 +107,7 @@ export const useCommandMenu = () => {
   };
 
   const handleThemeChange = (theme: ThemeMode) => {
-    switchThemeMode(theme);
+    setTheme(theme);
     closeCommandMenu();
   };
 
@@ -168,21 +169,11 @@ export const useCommandMenu = () => {
   const handleCreateAgentTeam = async () => {
     closeCommandMenu();
     openGroupWizard({
-      onCreateCustom: async (selectedAgents, hostConfig, enableSupervisor) => {
-        await createGroupWithMembers(selectedAgents, undefined, hostConfig, enableSupervisor);
+      onCreateCustom: async (selectedAgents) => {
+        await createGroupWithMembers(selectedAgents);
       },
-      onCreateFromTemplate: async (
-        templateId,
-        hostConfig,
-        enableSupervisor,
-        selectedMemberTitles,
-      ) => {
-        await createGroupFromTemplate(
-          templateId,
-          hostConfig,
-          enableSupervisor,
-          selectedMemberTitles,
-        );
+      onCreateFromTemplate: async (templateId, selectedMemberTitles) => {
+        await createGroupFromTemplate(templateId, selectedMemberTitles);
       },
     });
   };

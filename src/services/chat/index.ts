@@ -1,5 +1,5 @@
 import { AgentBuilderIdentifier } from '@lobechat/builtin-tool-agent-builder';
-import { KLAVIS_SERVER_TYPES } from '@lobechat/const';
+import { KLAVIS_SERVER_TYPES, LOBEHUB_SKILL_PROVIDERS } from '@lobechat/const';
 import type { OfficialToolItem } from '@lobechat/context-engine';
 import {
   type FetchSSEOptions,
@@ -24,8 +24,8 @@ import {
 import { merge } from 'es-toolkit/compat';
 import { ModelProvider } from 'model-bank';
 
-import { enableAuth } from '@/const/auth';
 import { DEFAULT_AGENT_CONFIG } from '@/const/settings';
+import { enableAuth } from '@/envs/auth';
 import { getSearchConfig } from '@/helpers/getSearchConfig';
 import { createAgentToolsEngine, createToolsEngine } from '@/helpers/toolEngineering';
 import { getAgentStoreState } from '@/store/agent';
@@ -41,6 +41,7 @@ import { getToolStoreState } from '@/store/tool';
 import {
   builtinToolSelectors,
   klavisStoreSelectors,
+  lobehubSkillStoreSelectors,
   pluginSelectors,
 } from '@/store/tool/selectors';
 import { getUserStoreState, useUserStore } from '@/store/user';
@@ -137,6 +138,7 @@ class ChatService {
       plugins: pluginIds,
     } = resolveAgentConfig({
       agentId: targetAgentId,
+      groupId, // Pass groupId for supervisor detection
       model: payload.model,
       plugins: enabledPlugins,
       provider: payload.provider,
@@ -217,6 +219,28 @@ class ChatService {
             installed: !!server,
             name: klavisType.label,
             type: 'klavis',
+          });
+        }
+      }
+
+      // Get LobehubSkill providers (if enabled)
+      const isLobehubSkillEnabled =
+        typeof window !== 'undefined' &&
+        window.global_serverConfigStore?.getState()?.serverConfig?.enableLobehubSkill;
+
+      if (isLobehubSkillEnabled) {
+        const allLobehubSkillServers = lobehubSkillStoreSelectors.getServers(toolState);
+
+        for (const provider of LOBEHUB_SKILL_PROVIDERS) {
+          const server = allLobehubSkillServers.find((s) => s.identifier === provider.id);
+
+          officialTools.push({
+            description: `LobeHub Skill Provider: ${provider.label}`,
+            enabled: enabledPlugins.includes(provider.id),
+            identifier: provider.id,
+            installed: !!server,
+            name: provider.label,
+            type: 'lobehub-skill',
           });
         }
       }
@@ -402,7 +426,7 @@ class ChatService {
       responseAnimation,
     ].reduce((acc, cur) => merge(acc, standardizeAnimationStyle(cur)), {});
 
-    return fetchSSE(API_ENDPOINTS.chat(sdkType), {
+    return fetchSSE(API_ENDPOINTS.chat(provider), {
       body: JSON.stringify(payload),
       fetcher: fetcher,
       headers,

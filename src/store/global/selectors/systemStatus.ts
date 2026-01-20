@@ -2,6 +2,8 @@ import { type GlobalState, INITIAL_STATUS } from '../initialState';
 
 export const systemStatus = (s: GlobalState) => s.status;
 
+const agentBuilderPanelWidth = (s: GlobalState) => s.status.agentBuilderPanelWidth || 360;
+
 const sessionGroupKeys = (s: GlobalState): string[] =>
   s.status.expandSessionGroupKeys || INITIAL_STATUS.expandSessionGroupKeys;
 
@@ -23,14 +25,21 @@ const showImagePanel = (s: GlobalState) => s.status.showImagePanel;
 const showImageTopicPanel = (s: GlobalState) => s.status.showImageTopicPanel;
 const hidePWAInstaller = (s: GlobalState) => s.status.hidePWAInstaller;
 const isShowCredit = (s: GlobalState) => s.status.isShowCredit;
-const themeMode = (s: GlobalState) => s.status.themeMode || 'auto';
 const language = (s: GlobalState) => s.status.language || 'auto';
+const modelSwitchPanelGroupMode = (s: GlobalState) =>
+  s.status.modelSwitchPanelGroupMode || 'byProvider';
+const modelSwitchPanelWidth = (s: GlobalState) => s.status.modelSwitchPanelWidth || 430;
+const pageAgentPanelWidth = (s: GlobalState) => s.status.pageAgentPanelWidth || 360;
 
 const showChatHeader = (s: GlobalState) => !s.status.zenMode;
 const inZenMode = (s: GlobalState) => s.status.zenMode;
-const leftPanelWidth = (s: GlobalState) => s.status.leftPanelWidth;
+const leftPanelWidth = (s: GlobalState): number => {
+  const width = s.status.leftPanelWidth;
+  return typeof width === 'string' ? Number.parseInt(width) : width;
+};
 const portalWidth = (s: GlobalState) => s.status.portalWidth || 400;
 const filePanelWidth = (s: GlobalState) => s.status.filePanelWidth;
+const groupAgentBuilderPanelWidth = (s: GlobalState) => s.status.groupAgentBuilderPanelWidth || 360;
 const imagePanelWidth = (s: GlobalState) => s.status.imagePanelWidth;
 const imageTopicPanelWidth = (s: GlobalState) => s.status.imageTopicPanelWidth;
 const wideScreen = (s: GlobalState) => !s.status.noWideScreen;
@@ -52,6 +61,7 @@ const tokenDisplayFormatShort = (s: GlobalState) =>
   s.status.tokenDisplayFormatShort !== undefined ? s.status.tokenDisplayFormatShort : true;
 
 export const systemStatusSelectors = {
+  agentBuilderPanelWidth,
   agentPageSize,
   chatInputHeight,
   disabledModelProvidersSortType,
@@ -59,6 +69,7 @@ export const systemStatusSelectors = {
   expandInputActionbar,
   filePanelWidth,
   getAgentSystemRoleExpanded,
+  groupAgentBuilderPanelWidth,
   hidePWAInstaller,
   imagePanelWidth,
   imageTopicPanelWidth,
@@ -69,6 +80,9 @@ export const systemStatusSelectors = {
   leftPanelWidth,
   mobileShowPortal,
   mobileShowTopic,
+  modelSwitchPanelGroupMode,
+  modelSwitchPanelWidth,
+  pageAgentPanelWidth,
   pagePageSize,
   portalWidth,
   sessionGroupKeys,
@@ -80,7 +94,6 @@ export const systemStatusSelectors = {
   showRightPanel,
   showSystemRole,
   systemStatus,
-  themeMode,
   tokenDisplayFormatShort,
   topicGroupKeys,
   topicPageSize,
