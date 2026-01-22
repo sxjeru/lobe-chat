@@ -2,6 +2,64 @@
 
 # Changelog
 
+## [Version 2.0.0-next.342](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.341...v2.0.0-next.342)
+
+<sup>Released on **2026-01-22**</sup>
+
+#### ♻ Code Refactoring
+
+- **userMemories**: Removed un-used code.
+
+#### 🐛 Bug Fixes
+
+- **copilot**: Pass correct scope when creating new session in PageEditor.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **userMemories**: Removed un-used code, closes [#11713](https://github.com/lobehub/lobe-chat/issues/11713) ([89750fc](https://github.com/lobehub/lobe-chat/commit/89750fc))
+
+#### What's fixed
+
+- **copilot**: Pass correct scope when creating new session in PageEditor, closes [#11714](https://github.com/lobehub/lobe-chat/issues/11714) ([0259270](https://github.com/lobehub/lobe-chat/commit/0259270))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.341](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.340...v2.0.0-next.341)
+
+<sup>Released on **2026-01-22**</sup>
+
+#### ✨ Features
+
+- **misc**: Add server version check for desktop app.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Add server version check for desktop app, closes [#11710](https://github.com/lobehub/lobe-chat/issues/11710) ([0cf2723](https://github.com/lobehub/lobe-chat/commit/0cf2723))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.340](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.339...v2.0.0-next.340)
 
 <sup>Released on **2026-01-22**</sup>
