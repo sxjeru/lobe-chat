@@ -2,6 +2,7 @@ import type { AssistantContentBlock, ChatToolPayloadWithResult } from '@lobechat
 import type { StateCreator } from 'zustand';
 
 import { MESSAGE_CANCEL_FLAT } from '@/const/index';
+import { messageService } from '@/services/message';
 import { useChatStore } from '@/store/chat';
 import { AI_RUNTIME_OPERATION_TYPES } from '@/store/chat/slices/operation/types';
 
@@ -227,7 +228,7 @@ export const generationSlice: StateCreator<
       type: 'regenerate',
     });
 
-    // Collect IDs to delete BEFORE regeneration (because displayMessage may change after branch switch)
+    // Collect IDs to delete
     const displayMessage = dataSelectors.getDisplayMessageById(messageId)(get());
     let idsToDelete = [messageId];
     if (displayMessage && displayMessage.role === 'assistantGroup' && displayMessage.children) {
@@ -243,28 +244,45 @@ export const generationSlice: StateCreator<
       idsToDelete = [messageId, ...childIds, ...toolResultIds];
     }
 
-    // Regenerate first, then delete
-    // This avoids the UI "jump" that happens with delete-first approach:
-    // - Delete first would switch to another branch, then regenerate switches back
-    // - Regenerate first switches to new branch, then we delete the old one
-    await get().regenerateUserMessage(parentId);
+    // Calculate the target branch index for the new message BEFORE deletion
+    // After delete: childrenCount will decrease by 1
+    // After regenerate: new branch will be created at (childrenCount - 1) position
+    // So we set activeBranchIndex to (childrenCount - 1) now, so after delete+regenerate it stays correct
+    const currentChildrenCount = dbMessages.filter((m) => m.parentId === parentId).length;
+    const targetBranchIndex = currentChildrenCount - 1; // After delete: childrenCount-1, regenerate adds 1, so index = childrenCount-1
 
-    // Delete using deleteDBMessage/deleteMessages to avoid activeBranchIndex adjustment
-    // The branch is already switched by regenerateUserMessage, so we just need to clean up
+    // Set activeBranchIndex to target BEFORE delete to avoid UI jump
+    // This makes the UI stay on the "slot" where new message will appear
+    get().internal_dispatchMessage({
+      id: parentId,
+      type: 'updateMessageMetadata',
+      value: { activeBranchIndex: targetBranchIndex },
+    });
+
+    // Delete first (optimistic update)
     if (idsToDelete.length > 1) {
-      await get().deleteMessages(idsToDelete);
+      get().internal_dispatchMessage({ ids: idsToDelete, type: 'deleteMessages' });
     } else {
-      await get().deleteDBMessage(messageId);
+      get().internal_dispatchMessage({ id: messageId, type: 'deleteMessage' });
     }
 
-    // After delete, adjust activeBranchIndex
-    // When we regenerate, the new branch index = old children count (e.g., 3 for 4th branch)
-    // After deleting one old branch, the new branch's actual index is now (old index - 1)
-    // So we need to switch to the correct index
-    const updatedDbMessages = get().dbMessages;
-    const newChildrenCount = updatedDbMessages.filter((m) => m.parentId === parentId).length;
-    // The new branch is now at index (newChildrenCount - 1), which is the last child
-    await chatStore.switchMessageBranch(parentId, newChildrenCount - 1, { operationId });
+    // Persist delete to database
+    if (idsToDelete.length > 1) {
+      await messageService.removeMessages(idsToDelete, context);
+    } else {
+      await messageService.removeMessage(messageId, context);
+    }
+
+    // Persist branch index
+    await messageService.updateMessageMetadata(
+      parentId,
+      { activeBranchIndex: targetBranchIndex },
+      context,
+    );
+
+    // Now regenerate - this will create new message at the same index position
+    await get().regenerateUserMessage(parentId);
+
     chatStore.completeOperation(operationId);
   },
 
@@ -288,7 +306,7 @@ export const generationSlice: StateCreator<
       type: 'regenerate',
     });
 
-    // Collect IDs to delete BEFORE resend (because displayMessage may change after branch switch)
+    // Collect IDs to delete
     const displayMessage = dataSelectors.getDisplayMessageById(messageId)(get());
     let idsToDelete = [messageId];
     if (displayMessage && displayMessage.role === 'assistantGroup' && displayMessage.children) {
@@ -304,21 +322,40 @@ export const generationSlice: StateCreator<
       idsToDelete = [messageId, ...childIds, ...toolResultIds];
     }
 
-    // Resend first, then delete (same approach as delAndRegenerateMessage)
-    // This avoids UI "jump" - resend switches to new branch, then we clean up old one
-    await get().resendThreadMessage(parentId);
+    // Calculate the target branch index for the new message BEFORE deletion
+    const currentChildrenCount = dbMessages.filter((m) => m.parentId === parentId).length;
+    const targetBranchIndex = currentChildrenCount - 1;
 
-    // Delete using deleteDBMessage/deleteMessages to avoid activeBranchIndex adjustment
+    // Set activeBranchIndex to target BEFORE delete to avoid UI jump
+    get().internal_dispatchMessage({
+      id: parentId,
+      type: 'updateMessageMetadata',
+      value: { activeBranchIndex: targetBranchIndex },
+    });
+
+    // Delete first (optimistic update)
     if (idsToDelete.length > 1) {
-      await get().deleteMessages(idsToDelete);
+      get().internal_dispatchMessage({ ids: idsToDelete, type: 'deleteMessages' });
     } else {
-      await get().deleteDBMessage(messageId);
+      get().internal_dispatchMessage({ id: messageId, type: 'deleteMessage' });
     }
 
-    // After delete, adjust activeBranchIndex (same as delAndRegenerateMessage)
-    const updatedDbMessages = get().dbMessages;
-    const newChildrenCount = updatedDbMessages.filter((m) => m.parentId === parentId).length;
-    await chatStore.switchMessageBranch(parentId, newChildrenCount - 1, { operationId });
+    // Persist delete to database
+    if (idsToDelete.length > 1) {
+      await messageService.removeMessages(idsToDelete, context);
+    } else {
+      await messageService.removeMessage(messageId, context);
+    }
+
+    // Persist branch index
+    await messageService.updateMessageMetadata(
+      parentId,
+      { activeBranchIndex: targetBranchIndex },
+      context,
+    );
+
+    // Now resend - this will create new message at the same index position
+    await get().resendThreadMessage(parentId);
 
     chatStore.completeOperation(operationId);
   },
@@ -387,10 +424,19 @@ export const generationSlice: StateCreator<
       // New branch index = current children count (since index is 0-based)
       const nextBranchIndex = childrenCount;
 
-      // Switch to a new branch (pass operationId for correct context in optimistic update)
-      await chatStore.switchMessageBranch(messageId, nextBranchIndex, {
-        operationId,
+      // Switch to a new branch locally to avoid ChatStore replaceMessages overwriting state
+      get().internal_dispatchMessage({
+        id: messageId,
+        type: 'updateMessageMetadata',
+        value: { activeBranchIndex: nextBranchIndex },
       });
+
+      // Persist branch switch directly via service
+      await messageService.updateMessageMetadata(
+        messageId,
+        { activeBranchIndex: nextBranchIndex },
+        context,
+      );
 
       // Execute agent runtime with full context from ConversationStore
       await chatStore.internal_execAgentRuntime({
