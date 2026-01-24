@@ -8,7 +8,7 @@ const nextConfig = defineConfig({
   webpack: (webpackConfig, context) => {
     const { dev } = context;
     if (!dev) {
-      webpackConfig.cache = false;
+      webpackConfig.cache = true;
     }
 
     return webpackConfig;
