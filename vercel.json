@@ -1,5 +1,4 @@
 {
   "buildCommand": "bun run build:vercel",
-  "bunVersion": "1.x",
-  "installCommand": "bun install"
+  "installCommand": "pnpm install"
 }
