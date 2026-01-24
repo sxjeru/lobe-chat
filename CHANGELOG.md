@@ -2,6 +2,81 @@
 
 # Changelog
 
+## [Version 2.0.0-next.369](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.368...v2.0.0-next.369)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### ✨ Features
+
+- **misc**: Add the agent/group profiles page the states and forked by tag.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Add the agent/group profiles page the states and forked by tag, closes [#11784](https://github.com/lobehub/lobe-chat/issues/11784) ([1458100](https://github.com/lobehub/lobe-chat/commit/1458100))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.368](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.367...v2.0.0-next.368)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### ✨ Features
+
+- **misc**: Optimize profile editor.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Optimize profile editor, closes [#11783](https://github.com/lobehub/lobe-chat/issues/11783) ([da95ad5](https://github.com/lobehub/lobe-chat/commit/da95ad5))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.367](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.366...v2.0.0-next.367)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Add cron pages enables change should reload the state.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Add cron pages enables change should reload the state, closes [#11775](https://github.com/lobehub/lobe-chat/issues/11775) ([12c193d](https://github.com/lobehub/lobe-chat/commit/12c193d))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.366](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.365...v2.0.0-next.366)
 
 <sup>Released on **2026-01-24**</sup>
