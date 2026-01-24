@@ -265,7 +265,6 @@ export const generationSlice: StateCreator<
     const newChildrenCount = updatedDbMessages.filter((m) => m.parentId === parentId).length;
     // The new branch is now at index (newChildrenCount - 1), which is the last child
     await chatStore.switchMessageBranch(parentId, newChildrenCount - 1, { operationId });
-
     chatStore.completeOperation(operationId);
   },
 

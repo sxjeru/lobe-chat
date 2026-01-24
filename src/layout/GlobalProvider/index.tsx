@@ -7,6 +7,7 @@ import { ReferralProvider } from '@/business/client/ReferralProvider';
 import { LobeAnalyticsProviderWrapper } from '@/components/Analytics/LobeAnalyticsProviderWrapper';
 import { DragUploadProvider } from '@/components/DragUploadZone/DragUploadProvider';
 import { getServerFeatureFlagsValue } from '@/config/featureFlags';
+import { isDesktop } from '@/const/version';
 import { appEnv } from '@/envs/app';
 import DevPanel from '@/features/DevPanel';
 import { getServerGlobalConfig } from '@/server/globalConfig';
@@ -14,11 +15,13 @@ import { ServerConfigStoreProvider } from '@/store/serverConfig/Provider';
 import { getAntdLocale } from '@/utils/locale';
 
 import AppTheme from './AppTheme';
+import { FaviconProvider } from './FaviconProvider';
 import { GroupWizardProvider } from './GroupWizardProvider';
 import ImportSettings from './ImportSettings';
 import Locale from './Locale';
 import NextThemeProvider from './NextThemeProvider';
 import QueryProvider from './Query';
+import ServerVersionOutdatedAlert from './ServerVersionOutdatedAlert';
 import StoreInitialization from './StoreInitialization';
 import StyleRegistry from './StyleRegistry';
 
@@ -65,17 +68,21 @@ const GlobalLayout = async ({
             >
               <QueryProvider>
                 <StoreInitialization />
-                <GroupWizardProvider>
-                  <DragUploadProvider>
-                    <LazyMotion features={domMax}>
-                      <TooltipGroup layoutAnimation={false}>
-                        <LobeAnalyticsProviderWrapper>{children}</LobeAnalyticsProviderWrapper>
-                      </TooltipGroup>
-                      <ModalHost />
-                      <ContextMenuHost />
-                    </LazyMotion>
-                  </DragUploadProvider>
-                </GroupWizardProvider>
+
+                {isDesktop && <ServerVersionOutdatedAlert />}
+                <FaviconProvider>
+                  <GroupWizardProvider>
+                    <DragUploadProvider>
+                      <LazyMotion features={domMax}>
+                        <TooltipGroup layoutAnimation={false}>
+                          <LobeAnalyticsProviderWrapper>{children}</LobeAnalyticsProviderWrapper>
+                        </TooltipGroup>
+                        <ModalHost />
+                        <ContextMenuHost />
+                      </LazyMotion>
+                    </DragUploadProvider>
+                  </GroupWizardProvider>
+                </FaviconProvider>
               </QueryProvider>
               <Suspense>
                 {ENABLE_BUSINESS_FEATURES ? <ReferralProvider /> : null}

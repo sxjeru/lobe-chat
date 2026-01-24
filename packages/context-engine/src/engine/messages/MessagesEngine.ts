@@ -7,8 +7,8 @@ import { ContextEngine } from '../../pipeline';
 import {
   AgentCouncilFlattenProcessor,
   GroupMessageFlattenProcessor,
-  GroupMessageSenderProcessor,
-  HistoryTruncateProcessor,
+  GroupOrchestrationFilterProcessor,
+  GroupRoleTransformProcessor,
   InputTemplateProcessor,
   MessageCleanupProcessor,
   MessageContentProcessor,
@@ -112,8 +112,6 @@ export class MessagesEngine {
       provider,
       systemRole,
       inputTemplate,
-      enableHistoryCount,
-      historyCount,
       historySummary,
       formatHistorySummary,
       knowledge,
@@ -145,21 +143,20 @@ export class MessagesEngine {
 
     return [
       // =============================================
-      // Phase 1: History Management
-      // =============================================
-
-      // 1. History truncation (MUST be first, before any message injection)
-      new HistoryTruncateProcessor({
-        enableHistoryCount,
-        historyCount,
-      }),
-
-      // =============================================
       // Phase 2: System Role Injection
       // =============================================
 
       // 2. System role injection (agent's system role)
       new SystemRoleInjector({ systemRole }),
+
+      // =============================================
+      // Phase 2.5: First User Message Context Injection
+      // These providers inject content before the first user message
+      // Order matters: first executed = first in content
+      // =============================================
+
+      // 4. User memory injection (conditionally added, injected first)
+      ...(isUserMemoryEnabled ? [new UserMemoryInjector(userMemory)] : []),
 
       // 3. Group context injection (agent identity and group info for multi-agent chat)
       new GroupContextInjector({
@@ -171,15 +168,6 @@ export class MessagesEngine {
         members: agentGroup?.members,
         systemPrompt: agentGroup?.systemPrompt,
       }),
-
-      // =============================================
-      // Phase 2.5: First User Message Context Injection
-      // These providers inject content before the first user message
-      // Order matters: first executed = first in content
-      // =============================================
-
-      // 4. User memory injection (conditionally added, injected first)
-      ...(isUserMemoryEnabled ? [new UserMemoryInjector(userMemory)] : []),
 
       // 4.5. GTD Plan injection (conditionally added, after user memory, before knowledge)
       ...(isGTDPlanEnabled ? [new GTDPlanInjector({ enabled: true, plan: gtd.plan })] : []),
@@ -274,11 +262,28 @@ export class MessagesEngine {
       // 15. Supervisor role restore (convert role=supervisor back to role=assistant for model)
       new SupervisorRoleRestoreProcessor(),
 
-      // 16. Group message sender identity injection (for multi-agent chat)
-      ...(isAgentGroupEnabled
+      // 15.5. Group orchestration filter (remove supervisor's orchestration messages like broadcast/speak)
+      // This must be BEFORE GroupRoleTransformProcessor so we filter based on original agentId/tools
+      ...(isAgentGroupEnabled && agentGroup.agentMap && agentGroup.currentAgentId
         ? [
-            new GroupMessageSenderProcessor({
+            new GroupOrchestrationFilterProcessor({
+              agentMap: Object.fromEntries(
+                Object.entries(agentGroup.agentMap).map(([id, info]) => [id, { role: info.role }]),
+              ),
+              currentAgentId: agentGroup.currentAgentId,
+              // Only enabled when current agent is NOT supervisor (supervisor needs to see orchestration history)
+              enabled: agentGroup.currentAgentRole !== 'supervisor',
+            }),
+          ]
+        : []),
+
+      // 16. Group role transform (convert other agents' messages to user role with speaker tags)
+      // This must be BEFORE ToolCallProcessor so other agents' tool messages are converted first
+      ...(isAgentGroupEnabled && agentGroup.currentAgentId
+        ? [
+            new GroupRoleTransformProcessor({
               agentMap: agentGroup.agentMap!,
+              currentAgentId: agentGroup.currentAgentId,
             }),
           ]
         : []),
