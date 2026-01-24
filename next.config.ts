@@ -5,14 +5,14 @@ const nextConfig = defineConfig({
     webpackBuildWorker: true,
     webpackMemoryOptimizations: false,
   },
-  webpack: (webpackConfig, context) => {
-    const { dev } = context;
-    if (!dev) {
-      webpackConfig.cache = true;
-    }
+  // webpack: (webpackConfig, context) => {
+  //   const { dev } = context;
+  //   if (!dev) {
+  //     webpackConfig.cache = false;
+  //   }
 
-    return webpackConfig;
-  },
+  //   return webpackConfig;
+  // },
 });
 
 export default nextConfig;
