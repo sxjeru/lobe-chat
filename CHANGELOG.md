@@ -2,6 +2,281 @@
 
 # Changelog
 
+## [Version 2.0.0-next.374](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.373...v2.0.0-next.374)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ✨ Features
+
+- **misc**: Update the discover page sort, add haveSkill、mostUsage params.
+
+#### 🐛 Bug Fixes
+
+- **deps**: Lock better-auth to 1.4.6 and better-call to 1.1.8.
+- **userMemories**: Should log out more errors for extraction.
+
+#### 💄 Styles
+
+- **misc**: Update share action bar.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Update the discover page sort, add haveSkill、mostUsage params, closes [#11807](https://github.com/lobehub/lobe-chat/issues/11807) ([01c641e](https://github.com/lobehub/lobe-chat/commit/01c641e))
+
+#### What's fixed
+
+- **deps**: Lock better-auth to 1.4.6 and better-call to 1.1.8, closes [#11809](https://github.com/lobehub/lobe-chat/issues/11809) ([b2409a5](https://github.com/lobehub/lobe-chat/commit/b2409a5))
+- **userMemories**: Should log out more errors for extraction, closes [#11810](https://github.com/lobehub/lobe-chat/issues/11810) ([e45c529](https://github.com/lobehub/lobe-chat/commit/e45c529))
+
+#### Styles
+
+- **misc**: Update share action bar, closes [#11811](https://github.com/lobehub/lobe-chat/issues/11811) ([0a856bc](https://github.com/lobehub/lobe-chat/commit/0a856bc))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.373](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.372...v2.0.0-next.373)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ♻ Code Refactoring
+
+- **memory-user-memory**: Simplify buildContext(...).
+
+#### ✨ Features
+
+- **database**: Added listMemories method.
+
+#### 🐛 Bug Fixes
+
+- **builtin-tool-memory**: Update identity tool should have type for enum.
+- **userMemories**: Added memory activity tools.
+- **misc**: Slove group member plugin is lost & not use the plugins.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **memory-user-memory**: Simplify buildContext(...), closes [#11808](https://github.com/lobehub/lobe-chat/issues/11808) ([d5a9913](https://github.com/lobehub/lobe-chat/commit/d5a9913))
+
+#### What's improved
+
+- **database**: Added listMemories method, closes [#11806](https://github.com/lobehub/lobe-chat/issues/11806) ([5929f7b](https://github.com/lobehub/lobe-chat/commit/5929f7b))
+
+#### What's fixed
+
+- **builtin-tool-memory**: Update identity tool should have type for enum, closes [#11803](https://github.com/lobehub/lobe-chat/issues/11803) ([aa63f18](https://github.com/lobehub/lobe-chat/commit/aa63f18))
+- **userMemories**: Added memory activity tools, closes [#11800](https://github.com/lobehub/lobe-chat/issues/11800) ([8ea08dd](https://github.com/lobehub/lobe-chat/commit/8ea08dd))
+- **misc**: Slove group member plugin is lost & not use the plugins, closes [#11802](https://github.com/lobehub/lobe-chat/issues/11802) ([e4ebd40](https://github.com/lobehub/lobe-chat/commit/e4ebd40))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.372](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.371...v2.0.0-next.372)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ✨ Features
+
+- **userMemories**: Memory activity list.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **userMemories**: Memory activity list, closes [#11785](https://github.com/lobehub/lobe-chat/issues/11785) ([a9f3a53](https://github.com/lobehub/lobe-chat/commit/a9f3a53))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.371](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.370...v2.0.0-next.371)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### 🐛 Bug Fixes
+
+- **builtin-tool-memory**: Missing activities for topK parameter.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **builtin-tool-memory**: Missing activities for topK parameter, closes [#11801](https://github.com/lobehub/lobe-chat/issues/11801) ([d6dee2a](https://github.com/lobehub/lobe-chat/commit/d6dee2a))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.370](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.369...v2.0.0-next.370)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ✨ Features
+
+- **userMemories**: Added user memory request, implemented workflow trigger.
+- **misc**: Support history context auto compress.
+
+#### 🐛 Bug Fixes
+
+- **desktop-onboarding**: Improve auth countdown and error UI.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **userMemories**: Added user memory request, implemented workflow trigger, closes [#11749](https://github.com/lobehub/lobe-chat/issues/11749) ([9df3b88](https://github.com/lobehub/lobe-chat/commit/9df3b88))
+- **misc**: Support history context auto compress, closes [#11790](https://github.com/lobehub/lobe-chat/issues/11790) ([09a00df](https://github.com/lobehub/lobe-chat/commit/09a00df))
+
+#### What's fixed
+
+- **desktop-onboarding**: Improve auth countdown and error UI, closes [#11788](https://github.com/lobehub/lobe-chat/issues/11788) ([c0ffd8f](https://github.com/lobehub/lobe-chat/commit/c0ffd8f))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.369](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.368...v2.0.0-next.369)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### ✨ Features
+
+- **misc**: Add the agent/group profiles page the states and forked by tag.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Add the agent/group profiles page the states and forked by tag, closes [#11784](https://github.com/lobehub/lobe-chat/issues/11784) ([1458100](https://github.com/lobehub/lobe-chat/commit/1458100))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.368](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.367...v2.0.0-next.368)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### ✨ Features
+
+- **misc**: Optimize profile editor.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **misc**: Optimize profile editor, closes [#11783](https://github.com/lobehub/lobe-chat/issues/11783) ([da95ad5](https://github.com/lobehub/lobe-chat/commit/da95ad5))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.367](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.366...v2.0.0-next.367)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Add cron pages enables change should reload the state.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Add cron pages enables change should reload the state, closes [#11775](https://github.com/lobehub/lobe-chat/issues/11775) ([12c193d](https://github.com/lobehub/lobe-chat/commit/12c193d))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.366](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.365...v2.0.0-next.366)
+
+<sup>Released on **2026-01-24**</sup>
+
+#### 🐛 Bug Fixes
+
+- **email**: Use || instead of ?? to handle empty string from Dockerfile.
+- **misc**: Prevent recently viewed items from shrinking.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **email**: Use || instead of ?? to handle empty string from Dockerfile, closes [#11778](https://github.com/lobehub/lobe-chat/issues/11778) [#11757](https://github.com/lobehub/lobe-chat/issues/11757) [#11757](https://github.com/lobehub/lobe-chat/issues/11757) [#11707](https://github.com/lobehub/lobe-chat/issues/11707) [#11757](https://github.com/lobehub/lobe-chat/issues/11757) [#11707](https://github.com/lobehub/lobe-chat/issues/11707) ([0e65517](https://github.com/lobehub/lobe-chat/commit/0e65517))
+- **misc**: Prevent recently viewed items from shrinking, closes [#11780](https://github.com/lobehub/lobe-chat/issues/11780) ([60ad7de](https://github.com/lobehub/lobe-chat/commit/60ad7de))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.365](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.364...v2.0.0-next.365)
 
 <sup>Released on **2026-01-24**</sup>

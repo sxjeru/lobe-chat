@@ -39,6 +39,7 @@ import {
 import { attributesCommon } from '@lobechat/observability-otel/node';
 import type {
   AiProviderRuntimeState,
+  ChatTopicMetadata,
   IdentityMemoryDetail,
   MemoryExtractionAgentCallTrace,
   MemoryExtractionTraceError,
@@ -50,6 +51,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { join } from 'pathe';
 import { z } from 'zod';
 
+import { AsyncTaskModel } from '@/database/models/asyncTask';
 import type { ListTopicsForMemoryExtractorCursor } from '@/database/models/topic';
 import { TopicModel } from '@/database/models/topic';
 import type { ListUsersForMemoryExtractorCursor } from '@/database/models/user';
@@ -65,6 +67,7 @@ import {
 } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { S3 } from '@/server/modules/S3';
+import { AsyncTaskError, AsyncTaskErrorType, AsyncTaskStatus } from '@/types/asyncTask';
 import type { GlobalMemoryLayer } from '@/types/serverConfig';
 import type { ProviderConfig } from '@/types/user/settings';
 import {
@@ -83,6 +86,7 @@ const SOURCE_ALIAS_MAP: Record<string, MemorySourceType> = {
 };
 
 const LAYER_ALIAS = new Set<LayersEnum>([
+  LayersEnum.Activity,
   LayersEnum.Context,
   LayersEnum.Experience,
   LayersEnum.Identity,
@@ -107,6 +111,7 @@ export interface TopicWorkflowCursor extends MemoryExtractionWorkflowCursor {
 }
 
 export interface MemoryExtractionNormalizedPayload {
+  asyncTaskId?: string;
   baseUrl: string;
   forceAll: boolean;
   forceTopics: boolean;
@@ -126,9 +131,11 @@ export interface MemoryExtractionNormalizedPayload {
   userCursor?: MemoryExtractionWorkflowCursor;
   userId?: string;
   userIds: string[];
+  userInitiated?: boolean;
 }
 
 export const memoryExtractionPayloadSchema = z.object({
+  asyncTaskId: z.string().uuid().optional(),
   baseUrl: z.string().url().optional(),
   forceAll: z.boolean().optional(),
   forceTopics: z.boolean().optional(),
@@ -155,6 +162,7 @@ export const memoryExtractionPayloadSchema = z.object({
     .optional(),
   userId: z.string().optional(),
   userIds: z.array(z.string()).optional(),
+  userInitiated: z.boolean().optional(),
 });
 
 export type MemoryExtractionPayloadInput = z.infer<typeof memoryExtractionPayloadSchema>;
@@ -188,6 +196,7 @@ export const normalizeMemoryExtractionPayload = (
   if (!baseUrl) throw new Error('Missing baseUrl for workflow trigger');
 
   return {
+    asyncTaskId: parsed.asyncTaskId,
     baseUrl,
     forceAll: parsed.forceAll ?? false,
     forceTopics: parsed.forceTopics ?? false,
@@ -205,6 +214,7 @@ export const normalizeMemoryExtractionPayload = (
     userIds: Array.from(
       new Set([...(parsed.userIds || []), ...(parsed.userId ? [parsed.userId] : [])]),
     ).filter(Boolean),
+    userInitiated: parsed.userInitiated ?? false,
   };
 };
 
@@ -223,6 +233,7 @@ type ProviderKeyVaultMap = Record<
 export const buildWorkflowPayloadInput = (
   payload: MemoryExtractionNormalizedPayload,
 ): MemoryExtractionPayloadInput => ({
+  asyncTaskId: payload.asyncTaskId,
   baseUrl: payload.baseUrl,
   forceAll: payload.forceAll,
   forceTopics: payload.forceTopics,
@@ -238,6 +249,7 @@ export const buildWorkflowPayloadInput = (
   userCursor: payload.userCursor,
   userId: payload.userId ?? payload.userIds[0],
   userIds: payload.userIds,
+  userInitiated: payload.userInitiated,
 });
 
 const normalizeProvider = (provider: string) => provider.toLowerCase();
@@ -329,12 +341,14 @@ const initRuntimeForAgent = async (agent: MemoryAgentConfig, keyVaults?: Provide
   });
 };
 
-const isTopicExtracted = (metadata: any): boolean => {
-  const extractStatus = metadata?.memory_user_memory_extract?.extract_status;
+const isTopicExtracted = (metadata?: ChatTopicMetadata | null): boolean => {
+  const extractStatus = metadata?.userMemoryExtractStatus;
   if (extractStatus) return extractStatus === 'completed';
 
-  const state = metadata?.memoryExtraction?.sources?.chat_topic;
-  return state?.status === 'completed' && !!state?.lastRunAt;
+  return (
+    metadata?.userMemoryExtractStatus === 'completed' &&
+    !!metadata?.userMemoryExtractRunState?.lastRunAt
+  );
 };
 
 type RuntimeBundle = {
@@ -344,6 +358,7 @@ type RuntimeBundle = {
 };
 
 export interface TopicExtractionJob {
+  asyncTaskId?: string;
   forceAll: boolean;
   forceTopics: boolean;
   from?: Date;
@@ -352,6 +367,7 @@ export interface TopicExtractionJob {
   to?: Date;
   topicId: string;
   userId: string;
+  userInitiated?: boolean;
 }
 
 export interface TopicPaginationJob {
@@ -563,6 +579,7 @@ export class MemoryExtractionExecutor {
           message: error instanceof Error ? error.message : 'Failed to generate embeddings',
         });
         span.recordException(error as Error);
+        console.error('[memory-extraction] failed to generate embeddings', error, 'model:', model);
 
         return texts.map(() => null);
       } finally {
@@ -631,7 +648,7 @@ export class MemoryExtractionExecutor {
         details: item.details ?? '',
         detailsEmbedding: detailsVector ?? undefined,
         memoryCategory: item.memoryCategory ?? null,
-        memoryLayer: (item.memoryLayer as LayersEnum) ?? LayersEnum.Activity,
+        memoryLayer: LayersEnum.Activity,
         memoryType: (item.memoryType as TypesEnum) ?? TypesEnum.Activity,
         summary: item.summary ?? '',
         summaryEmbedding: summaryVector ?? undefined,
@@ -1024,6 +1041,18 @@ export class MemoryExtractionExecutor {
     return res.map((item) => ({ ...item, layer: LayersEnum.Identity }));
   }
 
+  private async reportUserInitiatedProgress(job: TopicExtractionJob) {
+    if (!job.asyncTaskId || !job.userInitiated) return;
+
+    try {
+      const db = await this.db;
+      const asyncTaskModel = new AsyncTaskModel(db, job.userId);
+      await asyncTaskModel.incrementUserMemoryExtractionProgress(job.asyncTaskId);
+    } catch (error) {
+      console.error('[memory-extraction] failed to update async task progress', error);
+    }
+  }
+
   async extractTopic(job: TopicExtractionJob) {
     const attributes = {
       source: job.source,
@@ -1050,6 +1079,8 @@ export class MemoryExtractionExecutor {
       'Memory User Memory: Extract Chat Topic',
       { attributes },
       async (span) => {
+        const shouldReportProgress = job.userInitiated && !!job.asyncTaskId;
+        let topicProcessed = false;
         const startTime = Date.now();
         let extractionJob: MemoryExtractionJob | null = null;
         let extraction: MemoryExtractionResult | null = null;
@@ -1072,6 +1103,7 @@ export class MemoryExtractionExecutor {
               `[memory-extraction] topic ${job.topicId} not found for user ${job.userId}`,
             );
             span.setStatus({ code: SpanStatusCode.OK, message: 'topic_not_found' });
+            topicProcessed = true;
             return {
               extracted: false,
               layers: {},
@@ -1081,6 +1113,7 @@ export class MemoryExtractionExecutor {
           }
           if ((job.from && topic.createdAt < job.from) || (job.to && topic.createdAt > job.to)) {
             span.setStatus({ code: SpanStatusCode.OK, message: 'topic_out_of_range' });
+            topicProcessed = true;
             return {
               extracted: false,
               layers: {},
@@ -1090,6 +1123,7 @@ export class MemoryExtractionExecutor {
           }
           if (!job.forceAll && !job.forceTopics && isTopicExtracted(topic.metadata)) {
             span.setStatus({ code: SpanStatusCode.OK, message: 'already_extracted' });
+            topicProcessed = true;
             return {
               extracted: false,
               layers: {},
@@ -1153,7 +1187,7 @@ export class MemoryExtractionExecutor {
             topic: topic,
             topicId: topic.id,
           });
-          const topicContext = await topicContextProvider.buildContext(extractionJob);
+          const topicContext = await topicContextProvider.buildContext(extractionJob.userId);
 
           resultRecorder = new LobeChatTopicResultRecorder({
             currentMetadata: topic.metadata || {},
@@ -1175,8 +1209,10 @@ export class MemoryExtractionExecutor {
           const retrievedMemoryContextProvider = new RetrievalUserMemoryContextProvider({
             retrievedMemories,
           });
-          const retrievalMemoryContext =
-            await retrievedMemoryContextProvider.buildContext(extractionJob);
+          const retrievalMemoryContext = await retrievedMemoryContextProvider.buildContext(
+            extractionJob.userId,
+            extractionJob.sourceId,
+          );
 
           const retrievedMemoryIdentities = await this.listUserMemoryIdentities(
             extractionJob,
@@ -1187,7 +1223,10 @@ export class MemoryExtractionExecutor {
               retrievedIdentities: retrievedMemoryIdentities,
             });
           const retrievedIdentityContext =
-            await retrievedMemoryIdentitiesContextProvider.buildContext(extractionJob);
+            await retrievedMemoryIdentitiesContextProvider.buildContext(
+              extractionJob.userId,
+              extractionJob.sourceId,
+            );
           const trimmedRetrievedContexts = [
             topicContext.context,
             retrievalMemoryContext.context,
@@ -1292,6 +1331,7 @@ export class MemoryExtractionExecutor {
           if (!extraction) {
             this.recordJobMetrics(extractionJob, 'completed', Date.now() - startTime);
             span.setStatus({ code: SpanStatusCode.OK, message: 'no_extraction' });
+            topicProcessed = true;
             return {
               extracted: false,
               layers: {},
@@ -1318,6 +1358,7 @@ export class MemoryExtractionExecutor {
           span.setStatus({ code: SpanStatusCode.OK });
           span.setAttribute('memory.processed_memory_count', persistedRes.createdIds.length);
 
+          topicProcessed = true;
           return {
             extracted: true,
             layers: persistedRes.layers,
@@ -1336,12 +1377,38 @@ export class MemoryExtractionExecutor {
             message: error instanceof Error ? error.message : 'Extraction failed',
           });
           span.recordException(error as Error);
+          console.error(
+            '[memory-extraction] topic extraction failed',
+            error,
+            'topicId:',
+            job.topicId,
+            'userId:',
+            job.userId,
+          );
 
           if (tracePayload) {
             tracePayload.error = serializeError(error);
           }
+          if (job.asyncTaskId && job.userInitiated) {
+            try {
+              const asyncTaskModel = new AsyncTaskModel(await this.db, job.userId);
+              await asyncTaskModel.update(job.asyncTaskId, {
+                error: new AsyncTaskError(
+                  AsyncTaskErrorType.ServerError,
+                  error instanceof Error ? error.message : 'Extraction failed',
+                ),
+                status: AsyncTaskStatus.Error,
+              });
+            } catch (taskError) {
+              console.error('[memory-extraction] failed to update async task status', taskError);
+            }
+          }
           throw error;
         } finally {
+          if (shouldReportProgress && topicProcessed) {
+            await this.reportUserInitiatedProgress(job);
+          }
+
           if (observabilityS3 && tracePayload) {
             try {
               await this.uploadExtractionTrace(
@@ -1428,6 +1495,7 @@ export class MemoryExtractionExecutor {
         const topicIds = await this.filterTopicIdsForUser(userId, payload.topicIds);
         for (const topicId of topicIds) {
           const extracted = await this.extractTopic({
+            asyncTaskId: payload.asyncTaskId,
             forceAll: payload.forceAll,
             forceTopics: payload.forceTopics,
             from: payload.from,
@@ -1436,6 +1504,7 @@ export class MemoryExtractionExecutor {
             to: payload.to,
             topicId,
             userId,
+            userInitiated: payload.userInitiated,
           });
 
           results.push({ ...extracted, topicId, userId });
@@ -1632,6 +1701,18 @@ export class MemoryExtractionExecutor {
                 error instanceof Error ? error.message : 'Failed to persist extracted memories',
             });
             span.recordException(error as Error);
+            console.error(
+              '[memory-extraction] failed to persist memories',
+              error,
+              'layer:',
+              layer,
+              'source:',
+              job.source,
+              'sourceId:',
+              job.sourceId,
+              'userId:',
+              job.userId,
+            );
           } finally {
             span.end();
           }
@@ -1730,7 +1811,9 @@ export class MemoryExtractionExecutor {
     }
 
     if (errors.length) {
-      const detail = errors.map((error) => `${error.message}${error.cause ? `: ${error.cause}` : ''}`).join('; ');
+      const detail = errors
+        .map((error) => `${error.message}${error.cause ? `: ${error.cause}` : ''}`)
+        .join('; ');
       throw new AggregateError(errors, `Memory extraction encountered layer errors: ${detail}`);
     }
 
@@ -1937,7 +2020,7 @@ export class MemoryExtractionExecutor {
             userId: params.userId,
           };
 
-          const builtContext = await contextProvider.buildContext(extractionJob);
+          const builtContext = await contextProvider.buildContext(extractionJob.userId);
           const extractorContextLimit = this.privateConfig.agentLayerExtractor.contextLimit;
           const trimmedContext = this.trimTextToTokenLimit(
             builtContext.context,
@@ -2043,6 +2126,14 @@ export class MemoryExtractionExecutor {
             message: error instanceof Error ? error.message : 'Extraction failed',
           });
           span.recordException(error as Error);
+          console.error(
+            '[memory-extraction] benchmark extraction failed',
+            error,
+            'sourceId:',
+            params.sourceId,
+            'userId:',
+            params.userId,
+          );
           throw error;
         } finally {
           span.end();
