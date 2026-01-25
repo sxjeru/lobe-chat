@@ -1,6 +1,45 @@
 [
   {
     "children": {
+      "fixes": ["Broadcast tools calling and improve auto scroll."]
+    },
+    "date": "2026-01-25",
+    "version": "2.0.0-next.375"
+  },
+  {
+    "children": {
+      "features": ["Update the discover page sort, add haveSkill、mostUsage params."],
+      "improvements": ["Update share action bar."]
+    },
+    "date": "2026-01-25",
+    "version": "2.0.0-next.374"
+  },
+  {
+    "children": {
+      "fixes": ["Slove group member plugin is lost & not use the plugins."]
+    },
+    "date": "2026-01-25",
+    "version": "2.0.0-next.373"
+  },
+  {
+    "children": {},
+    "date": "2026-01-25",
+    "version": "2.0.0-next.372"
+  },
+  {
+    "children": {},
+    "date": "2026-01-25",
+    "version": "2.0.0-next.371"
+  },
+  {
+    "children": {
+      "features": ["Support history context auto compress."]
+    },
+    "date": "2026-01-25",
+    "version": "2.0.0-next.370"
+  },
+  {
+    "children": {
       "features": ["Add the agent/group profiles page the states and forked by tag."]
     },
     "date": "2026-01-24",
