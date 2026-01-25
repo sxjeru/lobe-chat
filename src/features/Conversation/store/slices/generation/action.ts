@@ -266,19 +266,26 @@ export const generationSlice: StateCreator<
       get().internal_dispatchMessage({ id: messageId, type: 'deleteMessage' });
     }
 
-    // Persist delete to database
+    // Persist delete + branch index in parallel to reduce latency
     if (idsToDelete.length > 1) {
-      await messageService.removeMessages(idsToDelete, context);
+      await Promise.all([
+        messageService.removeMessages(idsToDelete, context),
+        messageService.updateMessageMetadata(
+          parentId,
+          { activeBranchIndex: targetBranchIndex },
+          context,
+        ),
+      ]);
     } else {
-      await messageService.removeMessage(messageId, context);
+      await Promise.all([
+        messageService.removeMessage(messageId, context),
+        messageService.updateMessageMetadata(
+          parentId,
+          { activeBranchIndex: targetBranchIndex },
+          context,
+        ),
+      ]);
     }
-
-    // Persist branch index
-    await messageService.updateMessageMetadata(
-      parentId,
-      { activeBranchIndex: targetBranchIndex },
-      context,
-    );
 
     // Now regenerate - this will create new message at the same index position
     await get().regenerateUserMessage(parentId);
@@ -340,19 +347,26 @@ export const generationSlice: StateCreator<
       get().internal_dispatchMessage({ id: messageId, type: 'deleteMessage' });
     }
 
-    // Persist delete to database
+    // Persist delete + branch index in parallel to reduce latency
     if (idsToDelete.length > 1) {
-      await messageService.removeMessages(idsToDelete, context);
+      await Promise.all([
+        messageService.removeMessages(idsToDelete, context),
+        messageService.updateMessageMetadata(
+          parentId,
+          { activeBranchIndex: targetBranchIndex },
+          context,
+        ),
+      ]);
     } else {
-      await messageService.removeMessage(messageId, context);
+      await Promise.all([
+        messageService.removeMessage(messageId, context),
+        messageService.updateMessageMetadata(
+          parentId,
+          { activeBranchIndex: targetBranchIndex },
+          context,
+        ),
+      ]);
     }
-
-    // Persist branch index
-    await messageService.updateMessageMetadata(
-      parentId,
-      { activeBranchIndex: targetBranchIndex },
-      context,
-    );
 
     // Now resend - this will create new message at the same index position
     await get().resendThreadMessage(parentId);
