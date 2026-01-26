@@ -2,6 +2,176 @@
 
 # Changelog
 
+## [Version 2.0.0-next.380](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.379...v2.0.0-next.380)
+
+<sup>Released on **2026-01-26**</sup>
+
+#### 💄 Styles
+
+- **misc**: Update i18n.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Update i18n, closes [#11630](https://github.com/lobehub/lobe-chat/issues/11630) ([92a6b5c](https://github.com/lobehub/lobe-chat/commit/92a6b5c))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.379](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.378...v2.0.0-next.379)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ✨ Features
+
+- **utils**: Added `trimBasedOnBatchProbe` for truncating without compromising structured data.
+
+#### 🐛 Bug Fixes
+
+- **desktop**: Prevent duplicate IPC handler registration from dynamic imports.
+- **misc**: Fix update memory tools, resolve server version check issue for desktop app, slove the descktop use offical endpoint mcp not use stdio.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's improved
+
+- **utils**: Added `trimBasedOnBatchProbe` for truncating without compromising structured data, closes [#11836](https://github.com/lobehub/lobe-chat/issues/11836) ([6dac3d1](https://github.com/lobehub/lobe-chat/commit/6dac3d1))
+
+#### What's fixed
+
+- **desktop**: Prevent duplicate IPC handler registration from dynamic imports, closes [#11827](https://github.com/lobehub/lobe-chat/issues/11827) ([c3fd2dc](https://github.com/lobehub/lobe-chat/commit/c3fd2dc))
+- **misc**: Fix update memory tools, closes [#11831](https://github.com/lobehub/lobe-chat/issues/11831) ([cfc03dd](https://github.com/lobehub/lobe-chat/commit/cfc03dd))
+- **misc**: Resolve server version check issue for desktop app, closes [#11834](https://github.com/lobehub/lobe-chat/issues/11834) ([0bd2a59](https://github.com/lobehub/lobe-chat/commit/0bd2a59))
+- **misc**: Slove the descktop use offical endpoint mcp not use stdio, closes [#11813](https://github.com/lobehub/lobe-chat/issues/11813) ([370bf16](https://github.com/lobehub/lobe-chat/commit/370bf16))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.378](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.377...v2.0.0-next.378)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Improve popover trigger styles and component consistency.
+
+#### ✨ Features
+
+- **database**: Added user memory persona schema.
+
+#### 🐛 Bug Fixes
+
+- **misc**: Library cannot nav.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Improve popover trigger styles and component consistency, closes [#11832](https://github.com/lobehub/lobe-chat/issues/11832) ([f5c5d52](https://github.com/lobehub/lobe-chat/commit/f5c5d52))
+
+#### What's improved
+
+- **database**: Added user memory persona schema, closes [#11833](https://github.com/lobehub/lobe-chat/issues/11833) ([14adf99](https://github.com/lobehub/lobe-chat/commit/14adf99))
+
+#### What's fixed
+
+- **misc**: Library cannot nav, closes [#11828](https://github.com/lobehub/lobe-chat/issues/11828) ([d424a81](https://github.com/lobehub/lobe-chat/commit/d424a81))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.377](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.376...v2.0.0-next.377)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Show fallback title for custom assistant in chat messages, webhook user service compatibility for old nextauth users.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Show fallback title for custom assistant in chat messages, closes [#11820](https://github.com/lobehub/lobe-chat/issues/11820) ([0c96b5a](https://github.com/lobehub/lobe-chat/commit/0c96b5a))
+- **misc**: Webhook user service compatibility for old nextauth users, closes [#11826](https://github.com/lobehub/lobe-chat/issues/11826) ([a6bfaab](https://github.com/lobehub/lobe-chat/commit/a6bfaab))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.376](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.375...v2.0.0-next.376)
+
+<sup>Released on **2026-01-25**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Refactor search model implement.
+
+#### ✨ Features
+
+- **trpc**: Add response metadata and auth header handling.
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix add message and improve local system tool.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Refactor search model implement, closes [#11825](https://github.com/lobehub/lobe-chat/issues/11825) ([3cf0bfa](https://github.com/lobehub/lobe-chat/commit/3cf0bfa))
+
+#### What's improved
+
+- **trpc**: Add response metadata and auth header handling, closes [#11816](https://github.com/lobehub/lobe-chat/issues/11816) ([1276a87](https://github.com/lobehub/lobe-chat/commit/1276a87))
+
+#### What's fixed
+
+- **misc**: Fix add message and improve local system tool, closes [#11815](https://github.com/lobehub/lobe-chat/issues/11815) ([3b41009](https://github.com/lobehub/lobe-chat/commit/3b41009))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.375](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.374...v2.0.0-next.375)
 
 <sup>Released on **2026-01-25**</sup>
