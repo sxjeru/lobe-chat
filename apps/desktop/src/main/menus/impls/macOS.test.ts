@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
     setApplicationMenu: vi.fn(),
   },
   app: {
+    getAppPath: vi.fn(() => '/mock/app/path'),
     getName: vi.fn(() => 'LobeChat'),
     getPath: vi.fn((type: string) => {
       if (type === 'logs') return '/path/to/logs';
@@ -146,7 +147,7 @@ describe('MacOSMenu', () => {
     });
 
     it('should pass data to chat context menu', () => {
-      const data = { messageId: '123' };
+      const data = { selectionText: 'test selection', x: 100, y: 200 };
       macOSMenu.buildContextMenu('chat', data);
 
       expect(Menu.buildFromTemplate).toHaveBeenCalled();

@@ -1,4 +1,5 @@
 import type {
+  ActivityMemoryItemSchema,
   AddIdentityActionSchema,
   ContextMemoryItemSchema,
   ExperienceMemoryItemSchema,
@@ -74,7 +75,7 @@ class MemoryExecutor extends BaseExecutor<typeof MemoryApiName> {
       }
 
       return {
-        content: `🧠 Context memory saved: "${params.title}"`,
+        content: `Context memory "${params.title}" saved with memoryId: "${result.memoryId}" and contextId: "${result.contextId}"`,
         state: { contextId: result.contextId, memoryId: result.memoryId },
         success: true,
       };
@@ -82,6 +83,45 @@ class MemoryExecutor extends BaseExecutor<typeof MemoryApiName> {
       const err = error as Error;
       return {
         content: `addContextMemory with error detail: ${err.message}`,
+        error: {
+          body: error,
+          message: err.message,
+          type: 'PluginServerError',
+        },
+        success: false,
+      };
+    }
+  };
+
+  /**
+   * Add an activity memory
+   */
+  addActivityMemory = async (
+    params: z.infer<typeof ActivityMemoryItemSchema>,
+  ): Promise<BuiltinToolResult> => {
+    try {
+      const result = await userMemoryService.addActivityMemory(params);
+
+      if (!result.success) {
+        return {
+          error: {
+            message: result.message,
+            type: 'PluginServerError',
+          },
+          success: false,
+        };
+      }
+
+      return {
+        content: `Activity memory "${params.title}" saved with memoryId: "${result.memoryId}" and activityId: "${result.activityId}"`,
+        state: { activityId: result.activityId, memoryId: result.memoryId },
+        success: true,
+      };
+    } catch (error) {
+      const err = error as Error;
+
+      return {
+        content: `addActivityMemory with error detail: ${err.message}`,
         error: {
           body: error,
           message: err.message,
@@ -151,7 +191,7 @@ class MemoryExecutor extends BaseExecutor<typeof MemoryApiName> {
       }
 
       return {
-        content: `🧠 Identity memory saved: "${params.title}"`,
+        content: `Identity memory "${params.title}" saved with memoryId: "${result.memoryId}" and identityId: "${result.identityId}"`,
         state: { identityId: result.identityId, memoryId: result.memoryId },
         success: true,
       };
@@ -189,7 +229,7 @@ class MemoryExecutor extends BaseExecutor<typeof MemoryApiName> {
       }
 
       return {
-        content: `🧠 Preference memory saved: "${params.title}"`,
+        content: `Preference memory "${params.title}" saved with memoryId: "${result.memoryId}" and preferenceId: "${result.preferenceId}"`,
         state: { memoryId: result.memoryId, preferenceId: result.preferenceId },
         success: true,
       };

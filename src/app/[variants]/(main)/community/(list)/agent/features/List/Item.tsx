@@ -65,7 +65,7 @@ const AssistantItem = memo<DiscoverAssistantItem>(
     tokenUsage,
     pluginCount,
     knowledgeCount,
-    installCount,
+    forkCount,
     backgroundColor,
     userName,
     type,
@@ -139,6 +139,7 @@ const AssistantItem = memo<DiscoverAssistantItem>(
           horizontal
           justify={'space-between'}
           padding={16}
+          style={{ paddingRight: isGroupAgent ? 80 : 16 }}
           width={'100%'}
         >
           <Flexbox
@@ -201,7 +202,7 @@ const AssistantItem = memo<DiscoverAssistantItem>(
             {description}
           </Text>
           <TokenTag
-            installCount={installCount}
+            forkCount={forkCount}
             knowledgeCount={knowledgeCount}
             pluginCount={pluginCount}
             tokenUsage={tokenUsage}

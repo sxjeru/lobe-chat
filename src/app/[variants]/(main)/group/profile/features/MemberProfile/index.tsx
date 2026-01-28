@@ -4,7 +4,7 @@ import { Alert, Button, Flexbox, Icon } from '@lobehub/ui';
 import { Divider } from 'antd';
 import isEqual from 'fast-deep-equal';
 import { InfoIcon, PlayIcon } from 'lucide-react';
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import urlJoin from 'url-join';
 
@@ -28,14 +28,16 @@ const MemberProfile = memo(() => {
   const agentId = useGroupProfileStore((s) => s.activeTabId);
   const editor = useGroupProfileStore((s) => s.editor);
   const handleContentChange = useGroupProfileStore((s) => s.handleContentChange);
+  const agentBuilderContentUpdate = useGroupProfileStore((s) => s.agentBuilderContentUpdate);
+  const setAgentBuilderContent = useGroupProfileStore((s) => s.setAgentBuilderContent);
 
   // Get agent config by agentId
   const config = useAgentStore(agentByIdSelectors.getAgentConfigById(agentId), isEqual);
   const updateAgentConfigById = useAgentStore((s) => s.updateAgentConfigById);
 
   const groupId = useAgentGroupStore(agentGroupSelectors.activeGroupId);
-  const currentGroup = useAgentGroupStore(agentGroupSelectors.currentGroup);
-  const currentGroupAgents = useAgentGroupStore(agentGroupSelectors.currentGroupAgents);
+  const currentGroup = useAgentGroupStore(agentGroupSelectors.currentGroup, isEqual);
+  const currentGroupAgents = useAgentGroupStore(agentGroupSelectors.currentGroupAgents, isEqual);
   const router = useQueryRoute();
 
   // Check if the current agent is the supervisor
@@ -46,6 +48,15 @@ const MemberProfile = memo(() => {
     const agent = currentGroupAgents.find((a) => a.id === agentId);
     return agent ? !agent.isSupervisor && !agent.virtual : false;
   }, [currentGroupAgents, agentId]);
+
+  // Stabilize editorData object reference to prevent unnecessary re-renders
+  const editorData = useMemo(
+    () => ({
+      content: config?.systemRole,
+      editorData: config?.editorData,
+    }),
+    [config?.systemRole, config?.editorData],
+  );
 
   // Wrap updateAgentConfigById for saving editor content
   const updateContent = useCallback(
@@ -70,6 +81,18 @@ const MemberProfile = memo(() => {
     },
     [updateAgentConfigById, agentId],
   );
+
+  // Watch for agent builder content updates and apply them directly to the editor
+  useEffect(() => {
+    if (!editor || !agentBuilderContentUpdate) return;
+    if (agentBuilderContentUpdate.entityId !== agentId) return;
+
+    // Directly set the editor content
+    editor.setDocument('markdown', agentBuilderContentUpdate.content);
+
+    // Clear the update after processing to prevent re-applying
+    setAgentBuilderContent('', '');
+  }, [editor, agentBuilderContentUpdate, agentId, setAgentBuilderContent]);
 
   return (
     <>
@@ -105,6 +128,7 @@ const MemberProfile = memo(() => {
           style={{ marginBottom: 12 }}
         >
           <ModelSelect
+            initialWidth
             onChange={updateAgentConfig}
             value={{
               model: config?.model,
@@ -136,11 +160,8 @@ const MemberProfile = memo(() => {
       {/* Main Content: Prompt Editor */}
       <EditorCanvas
         editor={editor}
-        editorData={{
-          content: config?.systemRole,
-          editorData: config?.editorData,
-        }}
-        key={agentId}
+        editorData={editorData}
+        entityId={agentId}
         onContentChange={onContentChange}
         placeholder={
           isSupervisor

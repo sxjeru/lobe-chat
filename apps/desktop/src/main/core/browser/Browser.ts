@@ -120,9 +120,7 @@ export default class Browser {
     logger.info(`Creating new BrowserWindow instance: ${this.identifier}`);
     logger.debug(`[${this.identifier}] Resolved window state: ${JSON.stringify(resolvedState)}`);
 
-    // Calculate traffic light position to center vertically in title bar
-    // Traffic light buttons are approximately 12px tall
-    const trafficLightY = Math.round((TITLE_BAR_HEIGHT - 12) / 2);
+
 
     return new BrowserWindow({
       ...rest,
@@ -133,7 +131,7 @@ export default class Browser {
       height: resolvedState.height,
       show: false,
       title,
-      trafficLightPosition: isMac ? { x: 12, y: trafficLightY } : undefined,
+
       vibrancy: 'sidebar',
       visualEffectState: 'active',
       webPreferences: {
@@ -191,6 +189,7 @@ export default class Browser {
     this.setupCloseListener(browserWindow);
     this.setupFocusListener(browserWindow);
     this.setupWillPreventUnloadListener(browserWindow);
+    this.setupContextMenu(browserWindow);
   }
 
   private setupWillPreventUnloadListener(browserWindow: BrowserWindow): void {
@@ -233,6 +232,29 @@ export default class Browser {
     browserWindow.on('focus', () => {
       logger.debug(`[${this.identifier}] Window 'focus' event fired.`);
       this.broadcast('windowFocused');
+    });
+  }
+
+  /**
+   * Setup context menu with platform-specific features
+   * Delegates to MenuManager for consistent platform behavior
+   */
+  private setupContextMenu(browserWindow: BrowserWindow): void {
+    logger.debug(`[${this.identifier}] Setting up context menu.`);
+
+    browserWindow.webContents.on('context-menu', (_event, params) => {
+      const { x, y, selectionText, linkURL, srcURL, mediaType, isEditable } = params;
+
+      // Use the platform menu system with full context data
+      this.app.menuManager.showContextMenu('default', {
+        isEditable,
+        linkURL: linkURL || undefined,
+        mediaType: mediaType as any,
+        selectionText: selectionText || undefined,
+        srcURL: srcURL || undefined,
+        x,
+        y,
+      });
     });
   }
 

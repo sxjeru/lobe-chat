@@ -1,14 +1,16 @@
 import { useDebounce } from 'ahooks';
 import { useTheme as useNextThemesTheme } from 'next-themes';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 
 import { useCreateMenuItems } from '@/app/[variants]/(main)/home/_layout/hooks';
+import { isDesktop } from '@/const/version';
 import type { SearchResult } from '@/database/repositories/search';
 import { useCreateNewModal } from '@/features/LibraryModal';
 import { useGroupWizard } from '@/layout/GlobalProvider/GroupWizardProvider';
 import { lambdaClient } from '@/libs/trpc/client';
+import { electronSystemService } from '@/services/electron/system';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors/builtinAgentSelectors';
 import { useChatStore } from '@/store/chat';
@@ -35,6 +37,8 @@ export const useCommandMenu = () => {
     page,
     menuContext: context,
     pathname,
+    selectedAgent,
+    setSelectedAgent,
   } = useCommandMenuContext();
 
   const navigate = useNavigate();
@@ -92,48 +96,70 @@ export const useCommandMenu = () => {
     }
   }, [open]);
 
-  const closeCommandMenu = () => {
+  const closeCommandMenu = useCallback(() => {
     setOpen({ showCommandMenu: false });
-  };
+  }, [setOpen]);
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
-    closeCommandMenu();
-  };
+  const handleNavigate = useCallback(
+    (path: string) => {
+      navigate(path);
+      setOpen({ showCommandMenu: false });
+    },
+    [navigate, setOpen],
+  );
 
-  const handleExternalLink = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    closeCommandMenu();
-  };
+  const handleExternalLink = useCallback(
+    async (url: string) => {
+      if (isDesktop) {
+        await electronSystemService.openExternalLink(url);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      setOpen({ showCommandMenu: false });
+    },
+    [setOpen],
+  );
 
-  const handleThemeChange = (theme: ThemeMode) => {
-    setTheme(theme);
-    closeCommandMenu();
-  };
+  const handleThemeChange = useCallback(
+    (theme: ThemeMode) => {
+      setTheme(theme);
+      setOpen({ showCommandMenu: false });
+    },
+    [setTheme, setOpen],
+  );
 
-  const handleAskLobeAI = () => {
+  const handleAskLobeAI = useCallback(() => {
     // Navigate to inbox agent with the message query parameter
     if (inboxAgentId && search.trim()) {
       const message = encodeURIComponent(search.trim());
       navigate(`/agent/${inboxAgentId}?message=${message}`);
-      closeCommandMenu();
+      setOpen({ showCommandMenu: false });
     }
-  };
+  }, [inboxAgentId, search, navigate, setOpen]);
 
-  const handleAIPainting = () => {
+  const handleAIPainting = useCallback(() => {
     // Navigate to painting page with search as prompt
     if (search.trim()) {
       const prompt = encodeURIComponent(search.trim());
       navigate(`/image?prompt=${prompt}`);
-      closeCommandMenu();
+      setOpen({ showCommandMenu: false });
     }
-  };
+  }, [search, navigate, setOpen]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setPages((prev) => prev.slice(0, -1));
-  };
+  }, [setPages]);
 
-  const handleCreateSession = async () => {
+  const handleSendToSelectedAgent = useCallback(() => {
+    if (selectedAgent && search.trim()) {
+      const message = encodeURIComponent(search.trim());
+      navigate(`/agent/${selectedAgent.id}?message=${message}`);
+      setSelectedAgent(undefined);
+      setOpen({ showCommandMenu: false });
+    }
+  }, [selectedAgent, search, navigate, setSelectedAgent, setOpen]);
+
+  const handleCreateSession = useCallback(async () => {
     const result = await createAgent({});
     await refreshAgentList();
 
@@ -142,32 +168,32 @@ export const useCommandMenu = () => {
       navigate(`/agent/${result.agentId}`);
     }
 
-    closeCommandMenu();
-  };
+    setOpen({ showCommandMenu: false });
+  }, [createAgent, refreshAgentList, navigate, setOpen]);
 
-  const [openNewTopicOrSaveTopic] = useChatStore((s) => [s.openNewTopicOrSaveTopic]);
+  const openNewTopicOrSaveTopic = useChatStore((s) => s.openNewTopicOrSaveTopic);
 
-  const handleCreateTopic = async () => {
+  const handleCreateTopic = useCallback(() => {
     openNewTopicOrSaveTopic();
-    closeCommandMenu();
-  };
+    setOpen({ showCommandMenu: false });
+  }, [openNewTopicOrSaveTopic, setOpen]);
 
-  const handleCreateLibrary = async () => {
-    closeCommandMenu();
+  const handleCreateLibrary = useCallback(() => {
+    setOpen({ showCommandMenu: false });
     openCreateLibraryModal({
       onSuccess: (id) => {
         navigate(`/resource/library/${id}`);
       },
     });
-  };
+  }, [setOpen, openCreateLibraryModal, navigate]);
 
-  const handleCreatePage = async () => {
+  const handleCreatePage = useCallback(async () => {
     await createPage();
-    closeCommandMenu();
-  };
+    setOpen({ showCommandMenu: false });
+  }, [createPage, setOpen]);
 
-  const handleCreateAgentTeam = async () => {
-    closeCommandMenu();
+  const handleCreateAgentTeam = useCallback(() => {
+    setOpen({ showCommandMenu: false });
     openGroupWizard({
       onCreateCustom: async (selectedAgents) => {
         await createGroupWithMembers(selectedAgents);
@@ -176,7 +202,7 @@ export const useCommandMenu = () => {
         await createGroupFromTemplate(templateId, selectedMemberTitles);
       },
     });
-  };
+  }, [setOpen, openGroupWizard, createGroupWithMembers, createGroupFromTemplate]);
 
   return {
     closeCommandMenu,
@@ -190,6 +216,7 @@ export const useCommandMenu = () => {
     handleCreateTopic,
     handleExternalLink,
     handleNavigate,
+    handleSendToSelectedAgent,
     handleThemeChange,
     hasSearch,
     isSearching,
@@ -201,7 +228,9 @@ export const useCommandMenu = () => {
     search,
     searchQuery,
     searchResults: searchResults || ([] as SearchResult[]),
+    selectedAgent,
     setSearch,
+    setSelectedAgent,
     setTypeFilter,
     typeFilter,
   };

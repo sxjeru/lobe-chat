@@ -7,6 +7,7 @@ import {
   Button,
   Flexbox,
   Icon,
+  Tag,
   Text,
   Tooltip,
   TooltipGroup,
@@ -19,6 +20,7 @@ import {
   BookmarkIcon,
   CoinsIcon,
   DotIcon,
+  GitBranchIcon,
   HeartIcon,
 } from 'lucide-react';
 import qs from 'query-string';
@@ -34,6 +36,7 @@ import { formatIntergerNumber } from '@/utils/format';
 
 import { useCategory } from '../../../(list)/agent/features/Category/useCategory';
 import PublishedTime from '../../../../../../../components/PublishedTime';
+import AgentForkTag from './AgentForkTag';
 import { useDetailContext } from './DetailProvider';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -57,6 +60,7 @@ const Header = memo<{ mobile?: boolean }>(({ mobile: isMobile }) => {
     pluginCount,
     knowledgeCount,
     userName,
+    forkCount,
   } = useDetailContext();
   const { mobile = isMobile } = useResponsive();
   const { isAuthenticated, signIn, session } = useMarketAuth();
@@ -208,7 +212,7 @@ const Header = memo<{ mobile?: boolean }>(({ mobile: isMobile }) => {
               />
             </Tooltip>
           </Flexbox>
-          <Flexbox align={'center'} gap={4} horizontal>
+          <Flexbox align={'center'} gap={8} horizontal wrap={'wrap'}>
             {author && userName ? (
               <Link style={{ color: 'inherit' }} to={urlJoin('/community/user', userName)}>
                 {author}
@@ -222,6 +226,12 @@ const Header = memo<{ mobile?: boolean }>(({ mobile: isMobile }) => {
               date={createdAt as string}
               template={'MMM DD, YYYY'}
             />
+            <AgentForkTag />
+            {!!forkCount && forkCount > 0 && (
+              <Tag bordered={false} color="default" icon={<Icon icon={GitBranchIcon} />}>
+                {forkCount} {t('fork.forks')}
+              </Tag>
+            )}
           </Flexbox>
         </Flexbox>
       </Flexbox>

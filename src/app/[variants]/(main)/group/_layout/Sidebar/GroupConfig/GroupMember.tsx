@@ -1,9 +1,11 @@
 'use client';
 
 import { ActionIcon, Flexbox } from '@lobehub/ui';
+import { createStaticStyles } from 'antd-style';
 import { UserMinus } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 
 import { DEFAULT_AVATAR } from '@/const/meta';
 import NavItem from '@/features/NavPanel/components/NavItem';
@@ -20,6 +22,18 @@ import AddGroupMemberModal from '../AddGroupMemberModal';
 import AgentProfilePopup from './AgentProfilePopup';
 import GroupMemberItem from './GroupMemberItem';
 
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  memberTrigger: css`
+    border-radius: ${cssVar.borderRadius};
+    transition: background 0.2s ${cssVar.motionEaseOut};
+
+    &[data-popup-open],
+    &[data-active='true'] {
+      background: ${cssVar.colorFillTertiary};
+    }
+  `,
+}));
+
 interface GroupMemberProps {
   addModalOpen: boolean;
   groupId?: string;
@@ -32,6 +46,7 @@ interface GroupMemberProps {
 const GroupMember = memo<GroupMemberProps>(({ addModalOpen, onAddModalOpenChange, groupId }) => {
   const { t } = useTranslation('chat');
   const router = useQueryRoute();
+  const location = useLocation();
   const [nickname, username] = useUserStore((s) => [
     userProfileSelectors.nickName(s),
     userProfileSelectors.username(s),
@@ -41,11 +56,13 @@ const GroupMember = memo<GroupMemberProps>(({ addModalOpen, onAddModalOpenChange
   const toggleThread = useAgentGroupStore((s) => s.toggleThread);
   const pushPortalView = useChatStore((s) => s.pushPortalView);
 
-  // Get members from store (excluding supervisor)
   const groupMembers = useAgentGroupStore(agentGroupSelectors.getGroupMembers(groupId || ''));
 
-  // const [agentSettingsOpen, setAgentSettingsOpen] = useState(false);
-  // const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>();
+  const activeTab = useMemo(() => new URLSearchParams(location.search).get('tab'), [location.search]);
+  const isProfileRoute = useMemo(() => {
+    if (!groupId) return false;
+    return location.pathname === `/group/${groupId}/profile`;
+  }, [groupId, location.pathname]);
 
   const handleAddMembers = async (selectedAgents: string[]) => {
     if (!groupId) {
@@ -100,7 +117,11 @@ const GroupMember = memo<GroupMemberProps>(({ addModalOpen, onAddModalOpenChange
               key={item.id}
               onChat={() => handleMemberClick(item.id)}
             >
-              <div onDoubleClick={() => handleMemberDoubleClick(item.id)}>
+              <div
+                className={styles.memberTrigger}
+                data-active={isProfileRoute && activeTab === item.id ? 'true' : undefined}
+                onDoubleClick={() => handleMemberDoubleClick(item.id)}
+              >
                 <GroupMemberItem
                   actions={
                     <ActionIcon
