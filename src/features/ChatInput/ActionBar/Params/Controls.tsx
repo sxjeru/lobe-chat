@@ -1,6 +1,6 @@
 import { Form, type FormItemProps, SliderWithInput, Tag } from '@lobehub/ui';
 import { Checkbox, Flexbox } from '@lobehub/ui';
-import { Form as AntdForm } from 'antd';
+import { Form as AntdForm, Switch } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { debounce } from 'es-toolkit/compat';
 import isEqual from 'fast-deep-equal';
@@ -509,10 +509,10 @@ const Controls = memo<ControlsProps>(({ setUpdating }) => {
         mobile
           ? allItems.map((item) => ({ ...item, divider: false }))
           : allItems.map(({ tag, ...item }) => ({
-            ...item,
-            desc: <Tag size={'small'}>{tag}</Tag>,
-            divider: false,
-          }))
+              ...item,
+              desc: <Tag size={'small'}>{tag}</Tag>,
+              divider: false,
+            }))
       }
       itemsType={'flat'}
       onValuesChange={handleValuesChange}
