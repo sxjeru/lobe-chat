@@ -16,7 +16,6 @@ import { useDebounceFn } from 'ahooks';
 import { Form as AntdForm, Switch } from 'antd';
 import { createStaticStyles, cssVar, cx, responsive } from 'antd-style';
 import { Loader2Icon, LockIcon } from 'lucide-react';
-import Link from 'next/link';
 import { type ReactNode, memo, useCallback, useLayoutEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import urlJoin from 'url-join';
@@ -63,8 +62,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   form: css`
     .${prefixCls}-form-item-control:has(.${prefixCls}-input,.${prefixCls}-select) {
       flex: none;
-      width: min(70%, 800px);
-      min-width: min(70%, 800px) !important;
     }
     ${responsive.sm} {
       width: 100%;
@@ -261,7 +258,7 @@ const ProviderConfig = memo<ProviderConfigProps>(
                   <span key="0" />,
                   <span key="1" />,
                   <span key="2" />,
-                  <Link href={apiKeyUrl} key="3" target={'_blank'} />,
+                  <a href={apiKeyUrl} key="3" rel="noreferrer" target="_blank" />,
                 ]}
                 i18nKey="providerModels.config.apiKey.descWithUrl"
                 ns={'modelProvider'}
@@ -282,7 +279,13 @@ const ProviderConfig = memo<ProviderConfigProps>(
           <Trans
             components={[
               <span key="0" />,
-              <Link href={AES_GCM_URL} key="1" style={{ marginInline: 4 }} target={'_blank'} />,
+              <a
+                href={AES_GCM_URL}
+                key="1"
+                rel="noreferrer"
+                style={{ marginInline: 4 }}
+                target="_blank"
+              />,
             ]}
             i18nKey="providerModels.config.aesGcm"
             ns={'modelProvider'}
@@ -391,7 +394,6 @@ const ProviderConfig = memo<ProviderConfigProps>(
             ),
             desc: t('providerModels.config.checker.desc'),
             label: t('providerModels.config.checker.title'),
-            minWidth: undefined,
           }
         : undefined,
       showAceGcm && aceGcmItem,
@@ -437,15 +439,16 @@ const ProviderConfig = memo<ProviderConfigProps>(
             <>
               {title ?? <ProviderCombine provider={id} size={24} />}
               <Tooltip title={t('providerModels.config.helpDoc')}>
-                <Link
+                <a
                   href={urlJoin(BASE_PROVIDER_DOC_URL, id)}
                   onClick={(e) => e.stopPropagation()}
-                  target={'_blank'}
+                  rel="noreferrer"
+                  target="_blank"
                 >
                   <Center className={styles.help} height={20} width={20}>
                     ?
                   </Center>
-                </Link>
+                </a>
               </Tooltip>
             </>
           )}

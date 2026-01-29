@@ -3,7 +3,6 @@
 import { TITLE_BAR_HEIGHT } from '@lobechat/desktop-bridge';
 import { Flexbox } from '@lobehub/ui';
 import { cx } from 'antd-style';
-import dynamic from 'next/dynamic';
 import { type FC, Suspense, lazy } from 'react';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 import { Outlet } from 'react-router-dom';
@@ -13,6 +12,7 @@ import Loading from '@/components/Loading/BrandTextLoading';
 import { isDesktop } from '@/const/version';
 import { BANNER_HEIGHT } from '@/features/AlertBanner/CloudBanner';
 import DesktopNavigationBridge from '@/features/DesktopNavigationBridge';
+import AuthRequiredModal from '@/features/Electron/AuthRequiredModal';
 import TitleBar from '@/features/Electron/titlebar/TitleBar';
 import HotkeyHelperPanel from '@/features/HotkeyHelperPanel';
 import NavPanel from '@/features/NavPanel';
@@ -20,6 +20,7 @@ import { useFeedbackModal } from '@/hooks/useFeedbackModal';
 import { usePlatform } from '@/hooks/usePlatform';
 import { MarketAuthProvider } from '@/layout/AuthProvider/MarketAuth';
 import CmdkLazy from '@/layout/GlobalProvider/CmdkLazy';
+import dynamic from '@/libs/next/dynamic';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { HotkeyScopeEnum } from '@/types/hotkey';
 
@@ -45,6 +46,7 @@ const Layout: FC = () => {
         {isDesktop && <TitleBar />}
         {isDesktop && <DesktopAutoOidcOnFirstOpen />}
         {isDesktop && <DesktopNavigationBridge />}
+        {isDesktop && <AuthRequiredModal />}
         {showCloudPromotion && <CloudBanner />}
       </Suspense>
       <DndContextWrapper>
@@ -86,7 +88,5 @@ const Layout: FC = () => {
     </HotkeysProvider>
   );
 };
-
-Layout.displayName = 'DesktopMainLayout';
 
 export default Layout;

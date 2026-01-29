@@ -36,6 +36,7 @@ export interface RuntimeExecutorContext {
   stepIndex: number;
   streamManager: IStreamEventManager;
   toolExecutionService: ToolExecutionService;
+  topicId?: string;
   userId?: string;
 }
 
@@ -55,6 +56,8 @@ export const createRuntimeExecutors = (
     // Fallback to state's modelRuntimeConfig if not in payload
     const model = llmPayload.model || state.modelRuntimeConfig?.model;
     const provider = llmPayload.provider || state.modelRuntimeConfig?.provider;
+    // Fallback to state's tools if not in payload
+    const tools = llmPayload.tools || state.tools;
 
     if (!model || !provider) {
       throw new Error('Model and provider are required for call_llm instruction');
@@ -128,14 +131,14 @@ export const createRuntimeExecutors = (
       const chatPayload = {
         messages: llmPayload.messages,
         model,
-        tools: llmPayload.tools,
+        tools,
       };
 
       log(
         `${stagePrefix} calling model-runtime chat (model: %s, messages: %d, tools: %d)`,
         model,
         llmPayload.messages.length,
-        llmPayload.tools?.length ?? 0,
+        tools?.length ?? 0,
       );
 
       // Buffer: accumulate text and reasoning, send every 50ms
@@ -261,7 +264,12 @@ export const createRuntimeExecutors = (
             }
           },
           onToolsCalling: async ({ toolsCalling: raw }) => {
-            const payload = new ToolNameResolver().resolve(raw, state.toolManifestMap);
+            const resolved = new ToolNameResolver().resolve(raw, state.toolManifestMap);
+            // Add source field from toolSourceMap for routing tool execution
+            const payload = resolved.map((p) => ({
+              ...p,
+              source: state.toolSourceMap?.[p.identifier],
+            }));
             // log(`[${operationLogId}][toolsCalling]`, payload);
             toolsCalling = payload;
             tool_calls = raw;
@@ -463,10 +471,18 @@ export const createRuntimeExecutors = (
       const chatToolPayload: ChatToolPayload = payload.toolCalling;
 
       const toolName = `${chatToolPayload.identifier}/${chatToolPayload.apiName}`;
+
+      // Extract toolResultMaxLength from agent config
+      const agentConfig = state.metadata?.agentConfig;
+      const toolResultMaxLength = agentConfig?.chatConfig?.toolResultMaxLength;
+
       // Execute tool using ToolExecutionService
       log(`[${operationLogId}] Executing tool ${toolName} ...`);
       const executionResult = await toolExecutionService.executeTool(chatToolPayload, {
+        serverDB: ctx.serverDB,
         toolManifestMap: state.toolManifestMap,
+        toolResultMaxLength,
+        topicId: ctx.topicId,
         userId: ctx.userId,
       });
 
@@ -607,6 +623,177 @@ export const createRuntimeExecutors = (
       };
     }
   },
+
+  /**
+   * Batch tool execution with database sync
+   * Executes multiple tools concurrently and refreshes messages from database after completion
+   */
+  call_tools_batch: async (instruction, state) => {
+    const { payload } = instruction as Extract<AgentInstruction, { type: 'call_tools_batch' }>;
+    const { parentMessageId, toolsCalling } = payload;
+    const { operationId, stepIndex, streamManager, toolExecutionService } = ctx;
+    const events: AgentEvent[] = [];
+
+    const operationLogId = `${operationId}:${stepIndex}`;
+    log(
+      `[${operationLogId}][call_tools_batch] Starting batch execution for ${toolsCalling.length} tools`,
+    );
+
+    // Track all tool message IDs created during execution
+    const toolMessageIds: string[] = [];
+    const toolResults: any[] = [];
+
+    // Execute all tools concurrently
+    await Promise.all(
+      toolsCalling.map(async (chatToolPayload: ChatToolPayload) => {
+        const toolName = `${chatToolPayload.identifier}/${chatToolPayload.apiName}`;
+
+        // Publish tool execution start event
+        await streamManager.publishStreamEvent(operationId, {
+          data: { parentMessageId, toolCalling: chatToolPayload },
+          stepIndex,
+          type: 'tool_start',
+        });
+
+        try {
+          log(`[${operationLogId}] Executing tool ${toolName} ...`);
+          const executionResult = await toolExecutionService.executeTool(chatToolPayload, {
+            serverDB: ctx.serverDB,
+            toolManifestMap: state.toolManifestMap,
+            topicId: ctx.topicId,
+            userId: ctx.userId,
+          });
+
+          const executionTime = executionResult.executionTime;
+          const isSuccess = executionResult.success;
+          log(
+            `[${operationLogId}] Executed ${toolName} in ${executionTime}ms, success: ${isSuccess}`,
+          );
+
+          // Publish tool execution result event
+          await streamManager.publishStreamEvent(operationId, {
+            data: {
+              executionTime,
+              isSuccess,
+              payload: { parentMessageId, toolCalling: chatToolPayload },
+              phase: 'tool_execution',
+              result: executionResult,
+            },
+            stepIndex,
+            type: 'tool_end',
+          });
+
+          // Create tool message in database
+          try {
+            const toolMessage = await ctx.messageModel.create({
+              agentId: state.metadata!.agentId!,
+              content: executionResult.content,
+              parentId: parentMessageId,
+              plugin: chatToolPayload as any,
+              pluginError: executionResult.error,
+              pluginState: executionResult.state,
+              role: 'tool',
+              threadId: state.metadata?.threadId,
+              tool_call_id: chatToolPayload.id,
+              topicId: state.metadata?.topicId,
+            });
+            toolMessageIds.push(toolMessage.id);
+            log(`[${operationLogId}] Created tool message ${toolMessage.id} for ${toolName}`);
+          } catch (error) {
+            console.error(
+              `[${operationLogId}] Failed to create tool message for ${toolName}:`,
+              error,
+            );
+          }
+
+          // Collect tool result
+          toolResults.push({
+            data: executionResult,
+            executionTime,
+            isSuccess,
+            toolCall: chatToolPayload,
+            toolCallId: chatToolPayload.id,
+          });
+
+          events.push({ id: chatToolPayload.id, result: executionResult, type: 'tool_result' });
+
+          // Accumulate usage
+          const toolCost = TOOL_PRICING[toolName] || 0;
+          UsageCounter.accumulateTool({
+            cost: state.cost,
+            executionTime,
+            success: isSuccess,
+            toolCost,
+            toolName,
+            usage: state.usage,
+          });
+        } catch (error) {
+          console.error(`[${operationLogId}] Tool execution failed for ${toolName}:`, error);
+
+          // Publish error event
+          await streamManager.publishStreamEvent(operationId, {
+            data: {
+              error: (error as Error).message,
+              phase: 'tool_execution',
+            },
+            stepIndex,
+            type: 'error',
+          });
+
+          events.push({ error, type: 'error' });
+        }
+      }),
+    );
+
+    log(
+      `[${operationLogId}][call_tools_batch] All tools executed, created ${toolMessageIds.length} tool messages`,
+    );
+
+    // Refresh messages from database to ensure state is in sync
+    const newState = structuredClone(state);
+
+    // Query latest messages from database
+    const latestMessages = await ctx.messageModel.query({
+      topicId: state.metadata?.topicId,
+    });
+
+    // Convert DB messages to LLM format with id
+    newState.messages = latestMessages.map((msg: any) => ({
+      content: msg.content,
+      id: msg.id,
+      role: msg.role,
+      tool_call_id: msg.tool_call_id,
+      tool_calls: msg.tool_calls,
+    }));
+
+    log(
+      `[${operationLogId}][call_tools_batch] Refreshed ${newState.messages.length} messages from database`,
+    );
+
+    // Get the last tool message ID as parentMessageId for next LLM call
+    const lastToolMessageId = toolMessageIds.at(-1);
+
+    return {
+      events,
+      newState,
+      nextContext: {
+        payload: {
+          parentMessageId: lastToolMessageId ?? parentMessageId,
+          toolCount: toolsCalling.length,
+          toolResults,
+        },
+        phase: 'tools_batch_result',
+        session: {
+          eventCount: events.length,
+          messageCount: newState.messages.length,
+          sessionId: operationId,
+          status: 'running',
+          stepCount: state.stepCount + 1,
+        },
+      },
+    };
+  },
+
   /**
    * Complete runtime execution
    */

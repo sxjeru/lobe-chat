@@ -7,10 +7,6 @@
  * are handled by group-agent-builder tool. This tool focuses on orchestration.
  */
 export const GroupManagementApiName = {
-  // ==================== Agent Info ====================
-  /** Get detailed information about an agent */
-  getAgentInfo: 'getAgentInfo',
-
   // ==================== Communication Coordination ====================
   /** Let a specific agent speak (synchronous, immediate response) */
   speak: 'speak',
@@ -40,12 +36,6 @@ export const GroupManagementApiName = {
 
 export type GroupManagementApiNameType =
   (typeof GroupManagementApiName)[keyof typeof GroupManagementApiName];
-
-// ==================== Agent Info Params ====================
-
-export interface GetAgentInfoParams {
-  agentId: string;
-}
 
 // ==================== Communication Params ====================
 
@@ -83,6 +73,11 @@ export interface DelegateParams {
 export interface ExecuteTaskParams {
   agentId: string;
   /**
+   * Whether to run on the desktop client (for local file/shell access).
+   * MUST be true when task requires local-system tools. Default is false (server execution).
+   */
+  runInClient?: boolean;
+  /**
    * If true, the orchestration will end after the task completes,
    * without calling the supervisor again.
    * Use this when the task is the final action needed.
@@ -90,6 +85,8 @@ export interface ExecuteTaskParams {
   skipCallSupervisor?: boolean;
   task: string;
   timeout?: number;
+  /** Brief title describing what this task does (shown in UI) */
+  title: string;
 }
 
 export interface TaskItem {

@@ -17,6 +17,7 @@ import { shallow } from 'zustand/shallow';
 import RepoIcon from '@/components/LibIcon';
 import { clearTreeFolderCache } from '@/features/ResourceManager/components/LibraryHierarchy';
 import { PAGE_FILE_TYPE } from '@/features/ResourceManager/constants';
+import { useAppOrigin } from '@/hooks/useAppOrigin';
 import { documentService } from '@/services/document';
 import { useFileStore } from '@/store/file';
 import { useKnowledgeBaseStore } from '@/store/library';
@@ -53,6 +54,7 @@ export const useFileItemDropdown = ({
 }: UseFileItemDropdownParams): UseFileItemDropdownReturn => {
   const { t } = useTranslation(['components', 'common', 'knowledgeBase']);
   const { message, modal } = App.useApp();
+  const appOrigin = useAppOrigin();
 
   const { deleteResource, refreshFileList } = useFileStore(
     (s) => ({
@@ -75,7 +77,18 @@ export const useFileItemDropdown = ({
 
   const isInLibrary = !!libraryId;
   const isFolder = fileType === 'custom/folder';
-  const isPage = sourceType === 'document' || fileType === PAGE_FILE_TYPE;
+  // PDF and Office files should not be treated as pages
+  const lowerFilename = filename?.toLowerCase();
+  const isPDF = fileType?.toLowerCase() === 'pdf' || lowerFilename?.endsWith('.pdf');
+  const isOfficeFile =
+    lowerFilename?.endsWith('.xls') ||
+    lowerFilename?.endsWith('.xlsx') ||
+    lowerFilename?.endsWith('.doc') ||
+    lowerFilename?.endsWith('.docx') ||
+    lowerFilename?.endsWith('.ppt') ||
+    lowerFilename?.endsWith('.pptx') ||
+    lowerFilename?.endsWith('.odt');
+  const isPage = !isPDF && !isOfficeFile && (sourceType === 'document' || fileType === PAGE_FILE_TYPE);
 
   const menuItems = useCallback(() => {
     // Filter out current knowledge base and create submenu items
@@ -184,11 +197,10 @@ export const useFileItemDropdown = ({
             // For pages, use the route path instead of the storage URL
             let urlToCopy = url;
             if (isPage) {
-              const baseUrl = window.location.origin;
               if (libraryId) {
-                urlToCopy = `${baseUrl}/resource/library/${libraryId}?file=${id}`;
+                urlToCopy = `${appOrigin}/resource/library/${libraryId}?file=${id}`;
               } else {
-                urlToCopy = `${baseUrl}/resource?file=${id}`;
+                urlToCopy = `${appOrigin}/resource?file=${id}`;
               }
             }
 

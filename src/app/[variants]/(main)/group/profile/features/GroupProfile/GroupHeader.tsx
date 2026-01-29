@@ -21,7 +21,7 @@ import { globalGeneralSelectors } from '@/store/global/selectors';
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB limit for server actions
 
 const GroupHeader = memo(() => {
-  const { t } = useTranslation(['setting', 'common']);
+  const { t } = useTranslation('agentGroup');
   const locale = useGlobalStore(globalGeneralSelectors.currentLanguage);
 
   // Get group meta from agentGroup store
@@ -57,7 +57,7 @@ const GroupHeader = memo(() => {
   const handleAvatarUpload = useCallback(
     async (file: File) => {
       if (file.size > MAX_AVATAR_SIZE) {
-        message.error(t('settingAgent.avatar.sizeExceeded', { ns: 'setting' }));
+        message.error(t('avatar.sizeExceeded'));
         return;
       }
 
@@ -98,6 +98,7 @@ const GroupHeader = memo(() => {
         cursor: 'default',
       }}
     >
+      {/* Avatar Section */}
       <EmojiPicker
         allowDelete={!!groupMeta.avatar}
         allowUpload
@@ -120,7 +121,7 @@ const GroupHeader = memo(() => {
         customTabs={[
           {
             label: (
-              <Tooltip title={t('settingAgent.backgroundColor.title', { ns: 'setting' })}>
+              <Tooltip title={t('backgroundColor.title')}>
                 <Icon icon={PaletteIcon} size={{ size: 20, strokeWidth: 2.5 }} />
               </Tooltip>
             ),
@@ -159,21 +160,24 @@ const GroupHeader = memo(() => {
         size={72}
         value={groupMeta.avatar}
       />
-      <Input
-        onChange={(e) => {
-          setLocalTitle(e.target.value);
-          debouncedSaveTitle(e.target.value);
-        }}
-        placeholder={t('settingAgent.name.placeholder', { ns: 'setting' })}
-        style={{
-          fontSize: 36,
-          fontWeight: 600,
-          padding: 0,
-          width: '100%',
-        }}
-        value={localTitle}
-        variant={'borderless'}
-      />
+      {/* Title Section */}
+      <Flexbox flex={1} style={{ minWidth: 0 }}>
+        <Input
+          onChange={(e) => {
+            setLocalTitle(e.target.value);
+            debouncedSaveTitle(e.target.value);
+          }}
+          placeholder={t('name.placeholder')}
+          style={{
+            fontSize: 36,
+            fontWeight: 600,
+            padding: 0,
+            width: '100%',
+          }}
+          value={localTitle}
+          variant={'borderless'}
+        />
+      </Flexbox>
     </Flexbox>
   );
 });

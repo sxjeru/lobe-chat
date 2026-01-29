@@ -10,6 +10,7 @@ import urlJoin from 'url-join';
 
 import { MessageModel } from '@/database/models/message';
 import { type LobeChatDatabase } from '@/database/type';
+import { appEnv } from '@/envs/app';
 import {
   AgentRuntimeCoordinator,
   type AgentRuntimeCoordinatorOptions,
@@ -125,8 +126,7 @@ export class AgentRuntimeService {
    */
   private stepCallbacks: Map<string, StepLifecycleCallbacks> = new Map();
   private get baseURL() {
-    const baseUrl =
-      process.env.AGENT_RUNTIME_BASE_URL || process.env.APP_URL || 'http://localhost:3010';
+    const baseUrl = process.env.AGENT_RUNTIME_BASE_URL || appEnv.APP_URL || 'http://localhost:3010';
 
     return urlJoin(baseUrl, '/api/agent');
   }
@@ -152,7 +152,7 @@ export class AgentRuntimeService {
 
     // Initialize ToolExecutionService with dependencies
     const pluginGatewayService = new PluginGatewayService();
-    const builtinToolsExecutor = new BuiltinToolsExecutor();
+    const builtinToolsExecutor = new BuiltinToolsExecutor(db, userId);
 
     this.toolExecutionService = new ToolExecutionService({
       builtinToolsExecutor,
@@ -231,7 +231,9 @@ export class AgentRuntimeService {
       initialMessages = [],
       appContext,
       toolManifestMap,
+      toolSourceMap,
       stepCallbacks,
+      userInterventionConfig,
     } = params;
 
     try {
@@ -258,7 +260,10 @@ export class AgentRuntimeService {
         status: 'idle',
         stepCount: 0,
         toolManifestMap,
+        toolSourceMap,
         tools,
+        // User intervention config for headless mode in async tasks
+        userInterventionConfig,
       } as Partial<AgentState>;
 
       // Use coordinator to create operation, automatically sends initialization event
@@ -327,10 +332,7 @@ export class AgentRuntimeService {
       });
 
       // Get operation state and metadata
-      const [agentState, operationMetadata] = await Promise.all([
-        this.coordinator.loadAgentState(operationId),
-        this.coordinator.getOperationMetadata(operationId),
-      ]);
+      const agentState = await this.coordinator.loadAgentState(operationId);
 
       if (!agentState) {
         throw new Error(`Agent state not found for operation ${operationId}`);
@@ -351,8 +353,10 @@ export class AgentRuntimeService {
       }
 
       // Create Agent and Runtime instances
+      // Use agentState.metadata which contains the full app context (topicId, agentId, etc.)
+      // operationMetadata only contains basic fields (agentConfig, modelRuntimeConfig, userId)
       const { runtime } = await this.createAgentRuntime({
-        metadata: operationMetadata,
+        metadata: agentState?.metadata,
         operationId,
         stepIndex,
       });
@@ -835,6 +839,9 @@ export class AgentRuntimeService {
     // Create Durable Agent instance
     const agent = new GeneralChatAgent({
       agentConfig: metadata?.agentConfig,
+      compressionConfig: {
+        enabled: metadata?.agentConfig?.chatConfig?.enableContextCompression ?? true,
+      },
       modelRuntimeConfig: metadata?.modelRuntimeConfig,
       operationId,
       userId: metadata?.userId,
@@ -848,6 +855,7 @@ export class AgentRuntimeService {
       stepIndex,
       streamManager: this.streamManager,
       toolExecutionService: this.toolExecutionService,
+      topicId: metadata?.topicId,
       userId: metadata?.userId,
     };
 

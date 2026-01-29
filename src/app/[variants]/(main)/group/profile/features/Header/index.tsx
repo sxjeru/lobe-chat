@@ -1,20 +1,23 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { createStyles } from 'antd-style';
+import { createStaticStyles } from 'antd-style';
 import { Crown, Users } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import AddGroupMemberModal from '@/app/[variants]/(main)/group/_layout/Sidebar/AddGroupMemberModal';
+import ToggleLeftPanelButton from '@/features/NavPanel/ToggleLeftPanelButton';
 import { parseAsString, useQueryState } from '@/hooks/useQueryParam';
 import { useAgentGroupStore } from '@/store/agentGroup';
 import { agentGroupSelectors } from '@/store/agentGroup/selectors';
+import { useGlobalStore } from '@/store/global';
+import { systemStatusSelectors } from '@/store/global/selectors';
 
 import AgentBuilderToggle from './AgentBuilderToggle';
 import ChromeTabs, { type ChromeTabItem } from './ChromeTabs';
 
-const useStyles = createStyles(({ css, token }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   header: css`
     overflow: hidden;
     flex: none;
@@ -23,7 +26,7 @@ const useStyles = createStyles(({ css, token }) => ({
     height: 44px;
     padding-block: 8px;
     padding-inline: 12px;
-    border-block-end: 1px solid ${token.colorBorderSecondary};
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   tabsWrapper: css`
     scrollbar-width: none;
@@ -39,13 +42,13 @@ const useStyles = createStyles(({ css, token }) => ({
 
 const Header = memo(() => {
   const { t } = useTranslation('chat');
-  const { styles } = useStyles();
 
   const [showAddModal, setShowAddModal] = useState(false);
 
   const members = useAgentGroupStore(agentGroupSelectors.currentGroupAgents);
   const activeGroupId = useAgentGroupStore(agentGroupSelectors.activeGroupId);
   const addAgentsToGroup = useAgentGroupStore((s) => s.addAgentsToGroup);
+  const showLeftPanel = useGlobalStore(systemStatusSelectors.showLeftPanel);
 
   // Use URL query param for selected tab
   const [selectedTabId, setSelectedTabId] = useQueryState(
@@ -86,7 +89,8 @@ const Header = memo(() => {
 
   return (
     <>
-      <Flexbox align="center" className={styles.header} horizontal justify="space-between">
+      <Flexbox align="center" className={styles.header} gap={4} horizontal justify="space-between">
+        {!showLeftPanel && <ToggleLeftPanelButton />}
         <div className={styles.tabsWrapper}>
           <ChromeTabs
             activeId={selectedTabId}

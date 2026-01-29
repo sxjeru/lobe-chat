@@ -7,6 +7,7 @@ import MobileChatLayout from '@/app/[variants]/(mobile)/chat/_layout';
 import MobileMeHomeLayout from '@/app/[variants]/(mobile)/me/(home)/layout';
 import MobileMeProfileLayout from '@/app/[variants]/(mobile)/me/profile/layout';
 import MobileMeSettingsLayout from '@/app/[variants]/(mobile)/me/settings/layout';
+import MobileSettingsProviderLayout from '@/app/[variants]/(mobile)/settings/provider/_layout';
 import {
   BusinessMobileRoutesWithMainLayout,
   BusinessMobileRoutesWithoutMainLayout,
@@ -65,10 +66,10 @@ export const mobileRoutes: RouteConfig[] = [
                 children: [
                   {
                     element: dynamicElement(
-                      () => import('../../(main)/community/(list)/assistant'),
-                      'Mobile > Discover > List > Assistant',
+                      () => import('../../(main)/community/(list)/agent'),
+                      'Mobile > Discover > List > Agent',
                     ),
-                    path: 'assistant',
+                    path: 'agent',
                   },
                 ],
               },
@@ -113,12 +114,12 @@ export const mobileRoutes: RouteConfig[] = [
               {
                 element: dynamicElement(
                   () =>
-                    import('../../(main)/community/(detail)/assistant').then(
+                    import('../../(main)/community/(detail)/agent').then(
                       (m) => m.MobileDiscoverAssistantDetailPage,
                     ),
-                  'Mobile > Discover > Detail > Assistant',
+                  'Mobile > Discover > Detail > Agent',
                 ),
-                path: 'assistant/:slug',
+                path: 'agent/:slug',
               },
               {
                 element: dynamicElement(
@@ -173,6 +174,32 @@ export const mobileRoutes: RouteConfig[] = [
           {
             element: dynamicElement(() => import('../settings'), 'Mobile > Settings'),
             index: true,
+          },
+          // Provider routes with nested structure
+          {
+            children: [
+              {
+                element: redirectElement('/settings/provider/all'),
+                index: true,
+              },
+              {
+                element: dynamicElement(
+                  () => import('../../(main)/settings/provider').then((m) => m.ProviderDetailPage),
+                  'Mobile > Settings > Provider > Detail',
+                ),
+                path: ':providerId',
+              },
+            ],
+            element: <MobileSettingsProviderLayout />,
+            path: 'provider',
+          },
+          // Other settings tabs (common, agent, memory, tts, about, etc.)
+          {
+            element: dynamicElement(
+              () => import('../../(main)/settings'),
+              'Mobile > Settings > Tab',
+            ),
+            path: ':tab',
           },
         ],
         element: <MobileSettingsLayout />,

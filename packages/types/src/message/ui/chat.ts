@@ -64,6 +64,8 @@ interface UIMessageBranch {
  * Retrieved from the associated Thread via sourceMessageId
  */
 export interface TaskDetail {
+  /** Whether this task runs in client mode (local execution) */
+  clientMode?: boolean;
   /** Task completion time (ISO string) */
   completedAt?: string;
   /** Execution duration in milliseconds */
@@ -103,6 +105,11 @@ export interface UIChatMessage {
    */
   children?: AssistantContentBlock[];
   chunksList?: ChatFileChunk[];
+  /**
+   * All messages within a compression group (role: 'compressedGroup')
+   * Used for rendering expanded view with conversation-flow parsing
+   */
+  compressedMessages?: UIChatMessage[];
   content: string;
   createdAt: number;
   error?: ChatMessageError | null;
