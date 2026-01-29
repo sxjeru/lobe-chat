@@ -12,11 +12,11 @@ import { safeParseJSON } from '../../utils/safeParseJSON';
 import { isPublicExternalUrl, parseDataUri, validateExternalUrl } from '../../utils/uriParser';
 
 const GOOGLE_SUPPORTED_IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/jpg',
   'image/png',
-  'image/gif',
+  'image/jpeg',
   'image/webp',
+  'image/heic',
+  'image/heif',
 ]);
 
 const isImageTypeSupported = (mimeType: string | null): boolean => {
@@ -118,11 +118,12 @@ export const buildGooglePart = async (
 
         // Fallback: convert URL to base64 (for private/local URLs or failed validation)
         const { base64: urlBase64, mimeType: urlMimeType } = await imageUrlToBase64(url);
+        const resolvedMimeType = urlMimeType || mimeType;
 
-        if (!isImageTypeSupported(mimeType)) return undefined;
+        if (!isImageTypeSupported(resolvedMimeType)) return undefined;
 
         return {
-          inlineData: { data: urlBase64, mimeType: urlMimeType },
+          inlineData: { data: urlBase64, mimeType: resolvedMimeType || 'image/png' },
           thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE,
         };
       }
