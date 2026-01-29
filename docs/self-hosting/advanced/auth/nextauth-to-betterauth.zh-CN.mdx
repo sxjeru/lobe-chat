@@ -87,6 +87,11 @@ Better Auth 支持更多功能，以下是新增的环境变量：
 
 对于小型自托管部署，最简单的方法是让用户使用 SSO 账户重新登录。
 
+<Callout type={'tip'}>
+  **Casdoor 用户注意**：如果你使用 Casdoor 作为身份提供商，请先阅读
+  [email\_not\_found 错误](#email_not_found-错误) 部分，了解邮箱配置要求。
+</Callout>
+
 <Callout type={'warning'}>
   **限制**：此方法会丢失 SSO 连接数据。如需保留 SSO 连接，请使用 [完整迁移](#完整迁移)。
 
@@ -105,6 +110,8 @@ Better Auth 支持更多功能，以下是新增的环境变量：
 1. **更新环境变量**
 
    移除 NextAuth 变量并添加 Better Auth 变量：
+
+   <GenerateSecret envName="AUTH_SECRET" />
 
    ```bash
    # 移除这些
@@ -339,6 +346,10 @@ npx tsx scripts/nextauth-to-betterauth/verify.ts
 **原因 2：用户在身份提供商中未配置邮箱**
 
 对于 Casdoor、Logto 等身份提供商，用户可能没有配置邮箱。
+
+<Callout type={'warning'}>
+  **Casdoor 用户注意**：Casdoor 不要求用户必须配置邮箱，但 LobeChat 强依赖邮箱进行身份认证。如果因为大量用户没有邮箱而感觉迁移困难，建议暂时停留在 [v2.0.0-next.344](https://github.com/lobehub/lobe-chat/releases/tag/v2.0.0-next.344) 版本。后续官方计划提供用户端自助迁移功能，届时没有邮箱的用户登录时会被重定向到绑定邮箱页面。
+</Callout>
 
 解决方案：
 

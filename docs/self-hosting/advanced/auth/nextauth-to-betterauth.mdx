@@ -91,6 +91,12 @@ Better Auth supports additional features with these new environment variables:
 
 For small self-hosted deployments, the simplest approach is to let users re-login with their SSO accounts.
 
+<Callout type={'tip'}>
+  **Casdoor Users**: If you use Casdoor as your identity provider, please read
+  the [email\_not\_found Error](#email_not_found-error) section first to
+  understand email configuration requirements.
+</Callout>
+
 <Callout type={'warning'}>
   **Limitation**: This method loses SSO connection data. Use [Full Migration](#full-migration) to preserve SSO connections.
 
@@ -109,6 +115,8 @@ For small self-hosted deployments, the simplest approach is to let users re-logi
 1. **Update Environment Variables**
 
    Remove NextAuth variables and add Better Auth variables:
+
+   <GenerateSecret envName="AUTH_SECRET" />
 
    ```bash
    # Remove these
@@ -344,6 +352,10 @@ When configuring SSO connections (e.g., GitHub in Auth0), make sure to enable **
 **Cause 2: User email not configured in identity provider**
 
 For identity providers like Casdoor or Logto, users may not have an email configured.
+
+<Callout type={'warning'}>
+  **Note for Casdoor Users**: Casdoor does not require users to have an email configured, but LobeChat strongly depends on email for authentication. If you find migration difficult due to many users without email addresses, we recommend staying on [v2.0.0-next.344](https://github.com/lobehub/lobe-chat/releases/tag/v2.0.0-next.344) for now. We plan to provide a self-service migration feature in the future, where users without email will be redirected to a bind-email page when they log in.
+</Callout>
 
 Solution:
 
