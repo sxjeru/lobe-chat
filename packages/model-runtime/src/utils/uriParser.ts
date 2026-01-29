@@ -36,7 +36,6 @@ const GOOGLE_EXTERNAL_URL_SUPPORTED_TYPES = new Set([
   'text/plain',
   'text/xml',
   'text/csv',
-  'text/scv',
   'text/rtf',
   'text/javascript',
   // Application file types
