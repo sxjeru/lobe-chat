@@ -5,6 +5,10 @@ import type { App } from '@/core/App';
 
 import RemoteServerConfigCtr from '../RemoteServerConfigCtr';
 
+const { ipcMainHandleMock } = vi.hoisted(() => ({
+  ipcMainHandleMock: vi.fn(),
+}));
+
 // Mock logger
 vi.mock('@/utils/logger', () => ({
   createLogger: () => ({
@@ -17,6 +21,9 @@ vi.mock('@/utils/logger', () => ({
 
 // Mock electron
 vi.mock('electron', () => ({
+  ipcMain: {
+    handle: ipcMainHandleMock,
+  },
   safeStorage: {
     decryptString: vi.fn((buffer: Buffer) => buffer.toString()),
     encryptString: vi.fn((str: string) => Buffer.from(str)),
@@ -36,7 +43,12 @@ const mockStoreManager = {
   set: vi.fn(),
 };
 
+const mockBrowserManager = {
+  broadcastToAllWindows: vi.fn(),
+};
+
 const mockApp = {
+  browserManager: mockBrowserManager,
   storeManager: mockStoreManager,
 } as unknown as App;
 
@@ -45,9 +57,10 @@ describe('RemoteServerConfigCtr', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    ipcMainHandleMock.mockClear();
     mockStoreManager.get.mockReturnValue({
       active: false,
-      storageMode: 'local',
+      storageMode: 'cloud',
     });
     controller = new RemoteServerConfigCtr(mockApp);
   });
@@ -72,7 +85,7 @@ describe('RemoteServerConfigCtr', () => {
     it('should update configuration', async () => {
       const prevConfig: DataSyncConfig = {
         active: false,
-        storageMode: 'local',
+        storageMode: 'cloud',
       };
       mockStoreManager.get.mockReturnValue(prevConfig);
 
@@ -97,7 +110,10 @@ describe('RemoteServerConfigCtr', () => {
       const result = await controller.clearRemoteServerConfig();
 
       expect(result).toBe(true);
-      expect(mockStoreManager.set).toHaveBeenCalledWith('dataSyncConfig', { storageMode: 'local' });
+      expect(mockStoreManager.set).toHaveBeenCalledWith('dataSyncConfig', {
+        active: false,
+        storageMode: 'cloud',
+      });
       expect(mockStoreManager.delete).toHaveBeenCalledWith('encryptedTokens');
     });
   });
@@ -179,7 +195,7 @@ describe('RemoteServerConfigCtr', () => {
             refreshToken: Buffer.from('stored-refresh-token').toString('base64'),
           };
         }
-        return { active: false, storageMode: 'local' };
+        return { active: false, storageMode: 'cloud' };
       });
 
       // Create new controller to test loading from store
@@ -194,7 +210,7 @@ describe('RemoteServerConfigCtr', () => {
         if (key === 'encryptedTokens') {
           return null;
         }
-        return { active: false, storageMode: 'local' };
+        return { active: false, storageMode: 'cloud' };
       });
 
       const newController = new RemoteServerConfigCtr(mockApp);
@@ -227,7 +243,7 @@ describe('RemoteServerConfigCtr', () => {
             refreshToken: 'invalid-encrypted-token',
           };
         }
-        return { active: false, storageMode: 'local' };
+        return { active: false, storageMode: 'cloud' };
       });
 
       const newController = new RemoteServerConfigCtr(mockApp);
@@ -257,7 +273,7 @@ describe('RemoteServerConfigCtr', () => {
         if (key === 'encryptedTokens') {
           return null;
         }
-        return { active: false, storageMode: 'local' };
+        return { active: false, storageMode: 'cloud' };
       });
 
       const newController = new RemoteServerConfigCtr(mockApp);
@@ -401,7 +417,7 @@ describe('RemoteServerConfigCtr', () => {
     it('should return error when remote server is not active', async () => {
       mockStoreManager.get.mockImplementation((key) => {
         if (key === 'dataSyncConfig') {
-          return { active: false, storageMode: 'local' };
+          return { active: false, storageMode: 'cloud' };
         }
         return null;
       });
@@ -632,7 +648,7 @@ describe('RemoteServerConfigCtr', () => {
             refreshToken: 'stored-refresh',
           };
         }
-        return { active: false, storageMode: 'local' };
+        return { active: false, storageMode: 'cloud' };
       });
 
       const newController = new RemoteServerConfigCtr(mockApp);

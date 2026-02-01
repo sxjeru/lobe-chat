@@ -5,6 +5,7 @@ import { createLogger } from '@/utils/logger';
 
 import {
   AppBrowsersIdentifiers,
+  BrowsersIdentifiers,
   WindowTemplateIdentifiers,
   appBrowsers,
   windowTemplates,
@@ -29,7 +30,7 @@ export class BrowserManager {
   }
 
   getMainWindow() {
-    return this.retrieveByIdentifier('chat');
+    return this.retrieveByIdentifier(BrowsersIdentifiers.app);
   }
 
   showMainWindow() {
@@ -242,6 +243,21 @@ export class BrowserManager {
     } else {
       browser?.browserWindow.maximize();
     }
+  }
+
+  setWindowSize(identifier: string, size: { height?: number; width?: number }) {
+    const browser = this.browsers.get(identifier);
+    browser?.setWindowSize(size);
+  }
+
+  getWindowSize(identifier: string) {
+    const browser = this.browsers.get(identifier);
+    return browser?.browserWindow.getBounds();
+  }
+
+  setWindowMinimumSize(identifier: string, size: { height?: number; width?: number }) {
+    const browser = this.browsers.get(identifier);
+    browser?.setWindowMinimumSize(size);
   }
 
   getIdentifierByWebContents(webContents: WebContents): string | null {

@@ -1,12 +1,11 @@
 /* eslint-disable sort-keys-fix/sort-keys-fix */
-import type { ILobeAgentRuntimeErrorType } from '@lobechat/model-runtime';
+import type { ILobeAgentRuntimeErrorType } from './agentRuntime';
 
 export const ChatErrorType = {
   // ******* Business Error Semantics ******* //
 
   InvalidAccessCode: 'InvalidAccessCode', // is in valid password
-  InvalidClerkUser: 'InvalidClerkUser', // is not Clerk User
-  FreePlanLimit: 'FreePlanLimit', // is not Clerk User
+  FreePlanLimit: 'FreePlanLimit', // Free plan usage limit
   SubscriptionPlanLimit: 'SubscriptionPlanLimit', // Subscription user limit exceeded
   SubscriptionKeyMismatch: 'SubscriptionKeyMismatch', // Subscription key mismatch
 
@@ -22,6 +21,7 @@ export const ChatErrorType = {
   PluginFailToTransformArguments: 'PluginFailToTransformArguments',
   UnknownChatFetchError: 'UnknownChatFetchError',
   SystemTimeNotMatchError: 'SystemTimeNotMatchError',
+  ServerAgentRuntimeError: 'ServerAgentRuntimeError',
 
   // ******* Client Errors ******* //
   BadRequest: 400,

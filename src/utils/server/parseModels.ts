@@ -1,7 +1,7 @@
 import { getModelPropertyWithFallback } from '@lobechat/model-runtime';
 import { merge } from '@lobechat/utils';
 import { produce } from 'immer';
-import { AiFullModelCard, AiModelType } from 'model-bank';
+import { type AiFullModelCard, type AiModelType } from 'model-bank';
 
 /**
  * Parse model string to add or remove models.
@@ -26,7 +26,6 @@ export const parseModelString = async (
 
     if (withDeploymentName) {
       [id, deploymentName] = id.split('->');
-      // if (!deploymentName) deploymentName = id;
     }
 
     if (disable) {

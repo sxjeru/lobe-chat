@@ -67,6 +67,12 @@ vi.mock('@/store/tool/selectors', () => ({
   pluginSelectors: {
     installedPluginManifestList: () => [],
   },
+  klavisStoreSelectors: {
+    klavisAsLobeTools: () => [],
+  },
+  lobehubSkillStoreSelectors: {
+    lobehubSkillAsLobeTools: () => [],
+  },
 }));
 
 vi.mock('../isCanUseFC', () => ({

@@ -6,13 +6,13 @@ import { MESSAGE_CANCEL_FLAT } from '@/const/message';
 import { shareService } from '@/services/share';
 import { userService } from '@/services/user';
 import type { UserStore } from '@/store/user';
-import { LobeAgentSettings } from '@/types/session';
+import { type LobeAgentSettings } from '@/types/session';
 import {
-  SystemAgentItem,
-  UserGeneralConfig,
-  UserKeyVaults,
-  UserSettings,
-  UserSystemAgentConfigKey,
+  type SystemAgentItem,
+  type UserGeneralConfig,
+  type UserKeyVaults,
+  type UserSettings,
+  type UserSystemAgentConfigKey,
 } from '@/types/user/settings';
 import { difference } from '@/utils/difference';
 import { merge } from '@/utils/merge';
@@ -103,6 +103,17 @@ export const createSettingsSlice: StateCreator<
     if (isEqual(prevSetting, nextSettings)) return;
 
     const diffs = difference(nextSettings, defaultSettings);
+
+    // When user resets a field to default value, we need to explicitly include it in diffs
+    // to override the previously saved non-default value in the backend
+    const changedFields = difference(nextSettings, prevSetting);
+    for (const key of Object.keys(changedFields)) {
+      // Only handle fields that were previously set by user (exist in prevSetting)
+      if (key in prevSetting && !(key in diffs)) {
+        (diffs as any)[key] = (nextSettings as any)[key];
+      }
+    }
+
     set({ settings: diffs }, false, 'optimistic_updateSettings');
 
     const abortController = get().internal_createSignal();

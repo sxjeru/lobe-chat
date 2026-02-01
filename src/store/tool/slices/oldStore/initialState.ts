@@ -1,4 +1,4 @@
-import { DiscoverPluginItem } from '@/types/discover';
+import { type DiscoverPluginItem } from '@/types/discover';
 
 export type PluginInstallLoadingMap = Record<string, boolean | undefined>;
 
@@ -18,7 +18,7 @@ export enum PluginInstallStep {
 /* eslint-enable */
 
 export interface PluginInstallProgress {
-  // 错误信息
+  // Error message
   error?: string;
   // 0-100
   progress: number;

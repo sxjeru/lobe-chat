@@ -15,11 +15,13 @@ import {
   OpenLocalFileParams,
   OpenLocalFolderParams,
   RenameLocalFileResult,
+  ShowSaveDialogParams,
+  ShowSaveDialogResult,
   WriteLocalFileParams,
 } from '@lobechat/electron-client-ipc';
 import { SYSTEM_FILES_TO_IGNORE, loadFile } from '@lobechat/file-loaders';
 import { createPatch } from 'diff';
-import { shell } from 'electron';
+import { dialog, shell } from 'electron';
 import fg from 'fast-glob';
 import { Stats, constants } from 'node:fs';
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
@@ -30,19 +32,20 @@ import { FileResult, SearchOptions } from '@/types/fileSearch';
 import { makeSureDirExist } from '@/utils/file-system';
 import { createLogger } from '@/utils/logger';
 
-import { ControllerModule, ipcClientEvent } from './index';
+import { ControllerModule, IpcMethod } from './index';
 
 // Create logger
 const logger = createLogger('controllers:LocalFileCtr');
 
 export default class LocalFileCtr extends ControllerModule {
+  static override readonly groupName = 'localSystem';
   private get searchService() {
     return this.app.getService(FileSearchService);
   }
 
   // ==================== File Operation ====================
 
-  @ipcClientEvent('openLocalFile')
+  @IpcMethod()
   async handleOpenLocalFile({ path: filePath }: OpenLocalFileParams): Promise<{
     error?: string;
     success: boolean;
@@ -59,7 +62,7 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('openLocalFolder')
+  @IpcMethod()
   async handleOpenLocalFolder({ path: targetPath, isDirectory }: OpenLocalFolderParams): Promise<{
     error?: string;
     success: boolean;
@@ -77,7 +80,29 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('readLocalFiles')
+  @IpcMethod()
+  async handleShowSaveDialog({
+    defaultPath,
+    filters,
+    title,
+  }: ShowSaveDialogParams): Promise<ShowSaveDialogResult> {
+    logger.debug('Showing save dialog:', { defaultPath, filters, title });
+
+    const result = await dialog.showSaveDialog({
+      defaultPath,
+      filters,
+      title,
+    });
+
+    logger.debug('Save dialog result:', { canceled: result.canceled, filePath: result.filePath });
+
+    return {
+      canceled: result.canceled,
+      filePath: result.filePath,
+    };
+  }
+
+  @IpcMethod()
   async readFiles({ paths }: LocalReadFilesParams): Promise<LocalReadFileResult[]> {
     logger.debug('Starting batch file reading:', { count: paths.length });
 
@@ -94,7 +119,7 @@ export default class LocalFileCtr extends ControllerModule {
     return results;
   }
 
-  @ipcClientEvent('readLocalFile')
+  @IpcMethod()
   async readFile({
     path: filePath,
     loc,
@@ -192,9 +217,14 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('listLocalFiles')
-  async listLocalFiles({ path: dirPath }: ListLocalFileParams): Promise<FileResult[]> {
-    logger.debug('Listing directory contents:', { dirPath });
+  @IpcMethod()
+  async listLocalFiles({
+    path: dirPath,
+    sortBy = 'modifiedTime',
+    sortOrder = 'desc',
+    limit = 100,
+  }: ListLocalFileParams): Promise<{ files: FileResult[]; totalCount: number }> {
+    logger.debug('Listing directory contents:', { dirPath, limit, sortBy, sortOrder });
 
     const results: FileResult[] = [];
     try {
@@ -231,26 +261,55 @@ export default class LocalFileCtr extends ControllerModule {
         }
       }
 
-      // Sort entries: folders first, then by name
+      // Sort entries based on sortBy and sortOrder
       results.sort((a, b) => {
-        if (a.isDirectory !== b.isDirectory) {
-          return a.isDirectory ? -1 : 1; // Directories first
+        let comparison = 0;
+
+        switch (sortBy) {
+          case 'name': {
+            comparison = (a.name || '').localeCompare(b.name || '');
+            break;
+          }
+          case 'modifiedTime': {
+            comparison = a.modifiedTime.getTime() - b.modifiedTime.getTime();
+            break;
+          }
+          case 'createdTime': {
+            comparison = a.createdTime.getTime() - b.createdTime.getTime();
+            break;
+          }
+          case 'size': {
+            comparison = a.size - b.size;
+            break;
+          }
+          default: {
+            comparison = a.modifiedTime.getTime() - b.modifiedTime.getTime();
+          }
         }
-        // Add null/undefined checks for robustness if needed, though names should exist
-        return (a.name || '').localeCompare(b.name || ''); // Then sort by name
+
+        return sortOrder === 'desc' ? -comparison : comparison;
       });
 
-      logger.debug('Directory listing successful', { dirPath, resultCount: results.length });
-      return results;
+      const totalCount = results.length;
+
+      // Apply limit
+      const limitedResults = results.slice(0, limit);
+
+      logger.debug('Directory listing successful', {
+        dirPath,
+        resultCount: limitedResults.length,
+        totalCount,
+      });
+      return { files: limitedResults, totalCount };
     } catch (error) {
       logger.error(`Failed to list directory ${dirPath}:`, error);
       // Rethrow or return an empty array/error object depending on desired behavior
-      // For now, returning empty array on error listing directory itself
-      return [];
+      // For now, returning empty result on error listing directory itself
+      return { files: [], totalCount: 0 };
     }
   }
 
-  @ipcClientEvent('moveLocalFiles')
+  @IpcMethod()
   async handleMoveFiles({ items }: MoveLocalFilesParams): Promise<LocalMoveFilesResultItem[]> {
     logger.debug('Starting batch file move:', { itemsCount: items?.length });
 
@@ -355,7 +414,7 @@ export default class LocalFileCtr extends ControllerModule {
     return results;
   }
 
-  @ipcClientEvent('renameLocalFile')
+  @IpcMethod()
   async handleRenameFile({
     path: currentPath,
     newName,
@@ -440,7 +499,7 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('writeLocalFile')
+  @IpcMethod()
   async handleWriteFile({ path: filePath, content }: WriteLocalFileParams) {
     const logPrefix = `[Writing file ${filePath}]`;
     logger.debug(`${logPrefix} Starting to write file`, { contentLength: content?.length });
@@ -485,7 +544,7 @@ export default class LocalFileCtr extends ControllerModule {
   /**
    * Handle IPC event for local file search
    */
-  @ipcClientEvent('searchLocalFiles')
+  @IpcMethod()
   async handleLocalFilesSearch(params: LocalSearchFilesParams): Promise<FileResult[]> {
     logger.debug('Received file search request:', {
       directory: params.directory,
@@ -523,7 +582,7 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('grepContent')
+  @IpcMethod()
   async handleGrepContent(params: GrepContentParams): Promise<GrepContentResult> {
     const {
       pattern,
@@ -547,7 +606,13 @@ export default class LocalFileCtr extends ControllerModule {
         filesToSearch = [searchPath];
       } else {
         // Use glob pattern if provided, otherwise search all files
-        const globPattern = params.glob || '**/*';
+        // If glob doesn't contain directory separator and doesn't start with **,
+        // auto-prefix with **/ to make it recursive
+        let globPattern = params.glob || '**/*';
+        if (params.glob && !params.glob.includes('/') && !params.glob.startsWith('**')) {
+          globPattern = `**/${params.glob}`;
+        }
+
         filesToSearch = await fg(globPattern, {
           absolute: true,
           cwd: searchPath,
@@ -639,7 +704,7 @@ export default class LocalFileCtr extends ControllerModule {
     }
   }
 
-  @ipcClientEvent('globLocalFiles')
+  @IpcMethod()
   async handleGlobFiles({
     path: searchPath = process.cwd(),
     pattern,
@@ -680,7 +745,7 @@ export default class LocalFileCtr extends ControllerModule {
 
   // ==================== File Editing ====================
 
-  @ipcClientEvent('editLocalFile')
+  @IpcMethod()
   async handleEditFile({
     file_path: filePath,
     new_string,

@@ -61,6 +61,9 @@ export const unstructuredChunks = pgTable(
       t.clientId,
       t.userId,
     ),
+    userIdIdx: index('unstructured_chunks_user_id_idx').on(t.userId),
+    compositeIdIdx: index('unstructured_chunks_composite_id_idx').on(t.compositeId),
+    fileIdIdx: index('unstructured_chunks_file_id_idx').on(t.fileId),
   }),
 );
 
@@ -82,6 +85,7 @@ export const embeddings = pgTable(
     uniqueIndex('embeddings_client_id_user_id_unique').on(t.clientId, t.userId),
     // improve delete embeddings query
     index('embeddings_chunk_id_idx').on(t.chunkId),
+    index('embeddings_user_id_idx').on(t.userId),
   ],
 );
 
@@ -111,7 +115,12 @@ export const documentChunks = pgTable(
 
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.documentId, t.chunkId] })],
+  (t) => [
+    primaryKey({ columns: [t.documentId, t.chunkId] }),
+    index('document_chunks_document_id_idx').on(t.documentId),
+    index('document_chunks_chunk_id_idx').on(t.chunkId),
+    index('document_chunks_user_id_idx').on(t.userId),
+  ],
 );
 
 export type NewDocumentChunk = typeof documentChunks.$inferInsert;

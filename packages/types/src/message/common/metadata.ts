@@ -1,6 +1,8 @@
 /* eslint-disable sort-keys-fix/sort-keys-fix , typescript-sort-keys/interface */
 import { z } from 'zod';
 
+import { PageSelection, PageSelectionSchema } from './pageSelection';
+
 export interface ModelTokensUsage {
   // Input tokens breakdown
   /**
@@ -79,6 +81,8 @@ export const MessageMetadataSchema = ModelUsageSchema.merge(ModelPerformanceSche
   collapsed: z.boolean().optional(),
   inspectExpanded: z.boolean().optional(),
   isMultimodal: z.boolean().optional(),
+  isSupervisor: z.boolean().optional(),
+  pageSelections: z.array(PageSelectionSchema).optional(),
 });
 
 export interface ModelUsage extends ModelTokensUsage {
@@ -130,4 +134,25 @@ export interface MessageMetadata extends ModelUsage, ModelPerformance {
   isMultimodal?: boolean;
   // message content is multimodal, display content in the streaming, won't save to db
   tempDisplayContent?: string;
+  /**
+   * Flag indicating if message is from the Supervisor agent in group orchestration
+   * Used by conversation-flow to transform role to 'supervisor' for UI rendering
+   */
+  isSupervisor?: boolean;
+  /**
+   * Flag indicating if message is pinned (excluded from compression)
+   */
+  pinned?: boolean;
+  /**
+   * Task instruction (for role='task' messages)
+   * The instruction given by supervisor to the agent
+   * Thread's sourceMessageId links back to this message for status tracking
+   */
+  instruction?: string;
+  taskTitle?: string;
+  /**
+   * Page selections attached to user message
+   * Used for Ask AI functionality to persist selection context
+   */
+  pageSelections?: PageSelection[];
 }

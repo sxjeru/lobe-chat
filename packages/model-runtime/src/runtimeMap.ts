@@ -28,6 +28,7 @@ import { LobeInfiniAI } from './providers/infiniai';
 import { LobeInternLMAI } from './providers/internlm';
 import { LobeJinaAI } from './providers/jina';
 import { LobeLMStudioAI } from './providers/lmstudio';
+import { LobeHubAI } from './providers/lobehub';
 import { LobeMinimaxAI } from './providers/minimax';
 import { LobeMistralAI } from './providers/mistral';
 import { LobeModelScopeAI } from './providers/modelscope';
@@ -44,6 +45,7 @@ import { LobePerplexityAI } from './providers/perplexity';
 import { LobePPIOAI } from './providers/ppio';
 import { LobeQiniuAI } from './providers/qiniu';
 import { LobeQwenAI } from './providers/qwen';
+import { LobeReplicateAI } from './providers/replicate';
 import { LobeSambaNovaAI } from './providers/sambanova';
 import { LobeSearch1API } from './providers/search1api';
 import { LobeSenseNovaAI } from './providers/sensenova';
@@ -60,6 +62,7 @@ import { LobeVLLMAI } from './providers/vllm';
 import { LobeVolcengineAI } from './providers/volcengine';
 import { LobeWenxinAI } from './providers/wenxin';
 import { LobeXAI } from './providers/xai';
+import { LobeXiaomiMiMoAI } from './providers/xiaomimimo';
 import { LobeXinferenceAI } from './providers/xinference';
 import { LobeZenMuxAI } from './providers/zenmux';
 import { LobeZeroOneAI } from './providers/zeroone';
@@ -96,6 +99,7 @@ export const providerRuntimeMap = {
   internlm: LobeInternLMAI,
   jina: LobeJinaAI,
   lmstudio: LobeLMStudioAI,
+  lobehub: LobeHubAI,
   minimax: LobeMinimaxAI,
   mistral: LobeMistralAI,
   modelscope: LobeModelScopeAI,
@@ -112,6 +116,7 @@ export const providerRuntimeMap = {
   ppio: LobePPIOAI,
   qiniu: LobeQiniuAI,
   qwen: LobeQwenAI,
+  replicate: LobeReplicateAI,
   router: LobeNewAPIAI,
   sambanova: LobeSambaNovaAI,
   search1api: LobeSearch1API,
@@ -129,6 +134,7 @@ export const providerRuntimeMap = {
   volcengine: LobeVolcengineAI,
   wenxin: LobeWenxinAI,
   xai: LobeXAI,
+  xiaomimimo: LobeXiaomiMiMoAI,
   xinference: LobeXinferenceAI,
   zenmux: LobeZenMuxAI,
   zeroone: LobeZeroOneAI,
