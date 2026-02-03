@@ -2,6 +2,131 @@
 
 # Changelog
 
+### [Version 2.1.13](https://github.com/lobehub/lobe-chat/compare/v2.1.12...v2.1.13)
+
+<sup>Released on **2026-02-03**</sup>
+
+#### 🐛 Bug Fixes
+
+- **docker**: Add librt.so.1 to fix PDF parsing.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **docker**: Add librt.so.1 to fix PDF parsing, closes [#12039](https://github.com/lobehub/lobe-chat/issues/12039) ([4a6be92](https://github.com/lobehub/lobe-chat/commit/4a6be92))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.12](https://github.com/lobehub/lobe-chat/compare/v2.1.11...v2.1.12)
+
+<sup>Released on **2026-02-03**</sup>
+
+#### 🐛 Bug Fixes
+
+- **changelog**: Normalize versionRange to valid semver.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **changelog**: Normalize versionRange to valid semver, closes [#12049](https://github.com/lobehub/lobe-chat/issues/12049) ([74b9bd0](https://github.com/lobehub/lobe-chat/commit/74b9bd0))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.11](https://github.com/lobehub/lobe-chat/compare/v2.1.10...v2.1.11)
+
+<sup>Released on **2026-02-02**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Hide password features when AUTH_DISABLE_EMAIL_PASSWORD is set.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Hide password features when AUTH_DISABLE_EMAIL_PASSWORD is set, closes [#12023](https://github.com/lobehub/lobe-chat/issues/12023) ([e2fd28e](https://github.com/lobehub/lobe-chat/commit/e2fd28e))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.10](https://github.com/lobehub/lobe-chat/compare/v2.1.9...v2.1.10)
+
+<sup>Released on **2026-02-02**</sup>
+
+#### 🐛 Bug Fixes
+
+- **auth**: Revert authority URL and tenant ID for Microsoft authentication..
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **auth**: Revert authority URL and tenant ID for Microsoft authentication., closes [#11930](https://github.com/lobehub/lobe-chat/issues/11930) ([98f93ef](https://github.com/lobehub/lobe-chat/commit/98f93ef))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.9](https://github.com/lobehub/lobe-chat/compare/v2.1.8...v2.1.9)
+
+<sup>Released on **2026-02-02**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Use oauth2.link for generic OIDC provider account linking.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Use oauth2.link for generic OIDC provider account linking, closes [#12024](https://github.com/lobehub/lobe-chat/issues/12024) ([c7a06a4](https://github.com/lobehub/lobe-chat/commit/c7a06a4))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ### [Version 2.1.8](https://github.com/lobehub/lobe-chat/compare/v2.1.7...v2.1.8)
 
 <sup>Released on **2026-02-01**</sup>
