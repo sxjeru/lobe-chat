@@ -21,6 +21,7 @@ RUN set -e && \
     cp /etc/proxychains4.conf /distroless/etc/proxychains4.conf && \
     cp /usr/lib/$(arch)-linux-gnu/libstdc++.so.6 /distroless/lib/libstdc++.so.6 && \
     cp /usr/lib/$(arch)-linux-gnu/libgcc_s.so.1 /distroless/lib/libgcc_s.so.1 && \
+    cp /usr/lib/$(arch)-linux-gnu/librt.so.1 /distroless/lib/librt.so.1 && \
     cp /usr/local/bin/node /distroless/bin/node && \
     cp /etc/ssl/certs/ca-certificates.crt /distroless/etc/ssl/certs/ca-certificates.crt && \
     rm -rf /tmp/* /var/lib/apt/lists/* /var/tmp/*
@@ -158,14 +159,12 @@ ENV HOSTNAME="0.0.0.0" \
     PORT="3210"
 
 # General Variables
-ENV ACCESS_CODE="" \
-    APP_URL="" \
+ENV APP_URL="" \
     API_KEY_SELECT_MODE="" \
     DEFAULT_AGENT_CONFIG="" \
     SYSTEM_AGENT="" \
     FEATURE_FLAGS="" \
-    PROXY_URL="" \
-    ENABLE_AUTH_PROTECTION=""
+    PROXY_URL=""
 
 # Database
 ENV KEY_VAULTS_SECRET="" \
@@ -176,6 +175,10 @@ ENV KEY_VAULTS_SECRET="" \
 ENV AUTH_SECRET="" \
     AUTH_SSO_PROVIDERS="" \
     AUTH_ALLOWED_EMAILS="" \
+    AUTH_TRUSTED_ORIGINS="" \
+    AUTH_DISABLE_EMAIL_PASSWORD="" \
+    AUTH_EMAIL_VERIFICATION="" \
+    AUTH_ENABLE_MAGIC_LINK="" \
     # Google
     AUTH_GOOGLE_ID="" \
     AUTH_GOOGLE_SECRET="" \
@@ -184,7 +187,9 @@ ENV AUTH_SECRET="" \
     AUTH_GITHUB_SECRET="" \
     # Microsoft
     AUTH_MICROSOFT_ID="" \
-    AUTH_MICROSOFT_SECRET=""
+    AUTH_MICROSOFT_SECRET="" \
+    AUTH_MICROSOFT_AUTHORITY_URL="" \
+    AUTH_MICROSOFT_TENANT_ID=""
 
 # Redis
 ENV REDIS_URL="" \
