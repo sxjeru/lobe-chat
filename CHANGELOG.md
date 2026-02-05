@@ -2,6 +2,131 @@
 
 # Changelog
 
+### [Version 2.1.18](https://github.com/lobehub/lobe-chat/compare/v2.1.17...v2.1.18)
+
+<sup>Released on **2026-02-04**</sup>
+
+#### 🐛 Bug Fixes
+
+- **model-runtime**: Fix moonshot interleaved thinking and circular dependency.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **model-runtime**: Fix moonshot interleaved thinking and circular dependency, closes [#12112](https://github.com/lobehub/lobe-chat/issues/12112) ([3f1a198](https://github.com/lobehub/lobe-chat/commit/3f1a198))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.17](https://github.com/lobehub/lobe-chat/compare/v2.1.16...v2.1.17)
+
+<sup>Released on **2026-02-04**</sup>
+
+#### ♻ Code Refactoring
+
+- **model-runtime**: Extract Anthropic factory and convert Moonshot to RouterRuntime.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **model-runtime**: Extract Anthropic factory and convert Moonshot to RouterRuntime, closes [#12109](https://github.com/lobehub/lobe-chat/issues/12109) ([71064fd](https://github.com/lobehub/lobe-chat/commit/71064fd))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.16](https://github.com/lobehub/lobe-chat/compare/v2.1.15...v2.1.16)
+
+<sup>Released on **2026-02-04**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Add the preview publish to market button preview check.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Add the preview publish to market button preview check, closes [#12105](https://github.com/lobehub/lobe-chat/issues/12105) ([28887c7](https://github.com/lobehub/lobe-chat/commit/28887c7))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.15](https://github.com/lobehub/lobe-chat/compare/v2.1.14...v2.1.15)
+
+<sup>Released on **2026-02-04**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fixed the agents list the show updateAt time error.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fixed the agents list the show updateAt time error, closes [#12103](https://github.com/lobehub/lobe-chat/issues/12103) ([3063cee](https://github.com/lobehub/lobe-chat/commit/3063cee))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+### [Version 2.1.14](https://github.com/lobehub/lobe-chat/compare/v2.1.13...v2.1.14)
+
+<sup>Released on **2026-02-04**</sup>
+
+#### 🐛 Bug Fixes
+
+- **misc**: Fix cannot uncompressed messages.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### What's fixed
+
+- **misc**: Fix cannot uncompressed messages, closes [#12086](https://github.com/lobehub/lobe-chat/issues/12086) ([ccfaec2](https://github.com/lobehub/lobe-chat/commit/ccfaec2))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ### [Version 2.1.13](https://github.com/lobehub/lobe-chat/compare/v2.1.12...v2.1.13)
 
 <sup>Released on **2026-02-03**</sup>
