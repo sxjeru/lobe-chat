@@ -5,6 +5,26 @@ import type { AIChatModelCard, AIImageModelCard } from '../types/aiModel';
 const stepfunChatModels: AIChatModelCard[] = [
   {
     abilities: {
+      functionCall: true,
+      reasoning: true,
+    },
+    contextWindowTokens: 256_000,
+    description:
+      'Stepfun’s flagship language reasoning model.This model has top-notch reasoning capabilities and fast and reliable execution capabilities.Able to decompose and plan complex tasks, call tools quickly and reliably to perform tasks, and be competent in various complex tasks such as logical reasoning, mathematics, software engineering, and in-depth research.',
+    displayName: 'Step 3.5 Flash',
+    enabled: true,
+    id: 'step-3.5-flash',
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput', rate: 0.7, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2.1, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
       reasoning: true,
       vision: true,
     },
@@ -135,7 +155,6 @@ const stepfunChatModels: AIChatModelCard[] = [
     description:
       'Built on the next-generation in-house MFA attention architecture, delivering Step-1-like results at much lower cost while achieving higher throughput and faster latency. Handles general tasks with strong coding ability.',
     displayName: 'Step 2 Mini',
-    enabled: true,
     id: 'step-2-mini',
     pricing: {
       currency: 'CNY',
@@ -246,7 +265,6 @@ const stepfunChatModels: AIChatModelCard[] = [
     description:
       'Strong image understanding with better visual performance than the Step-1V series.',
     displayName: 'Step 1o Vision 32K',
-    enabled: true,
     id: 'step-1o-vision-32k',
     pricing: {
       currency: 'CNY',
@@ -266,7 +284,6 @@ const stepfunChatModels: AIChatModelCard[] = [
     description:
       'Strong image understanding, outperforming 1o in math and coding. Smaller than 1o with faster output.',
     displayName: 'Step 1o Turbo Vision',
-    enabled: true,
     id: 'step-1o-turbo-vision',
     pricing: {
       currency: 'CNY',
