@@ -54,6 +54,27 @@ export const List: FC<ListProps> = ({
 
   const activeKey = menuKey(provider, model);
 
+  // Find the index of the currently active model in the list
+  const activeIndex = useMemo(() => {
+    if (!activeKey) return -1;
+    return listItems.findIndex((item) => {
+      switch (item.type) {
+        case 'provider-model-item': {
+          return menuKey(item.provider.id, item.model.id) === activeKey;
+        }
+        case 'model-item-single': {
+          return menuKey(item.data.providers[0].id, item.data.model.id) === activeKey;
+        }
+        case 'model-item-multiple': {
+          return item.data.providers.some((p) => menuKey(p.id, item.data.model.id) === activeKey);
+        }
+        default: {
+          return false;
+        }
+      }
+    });
+  }, [activeKey, listItems]);
+
   const handleScrollingStateChange = useCallback((scrolling: boolean) => {
     setIsScrolling(scrolling);
   }, []);
@@ -88,6 +109,7 @@ export const List: FC<ListProps> = ({
     >
       <TooltipGroup>
         <Virtuoso
+          initialTopMostItemIndex={activeIndex >= 0 ? { align: 'center', index: activeIndex } : 0}
           isScrolling={handleScrollingStateChange}
           itemContent={itemContent}
           overscan={200}
