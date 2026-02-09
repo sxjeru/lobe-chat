@@ -109,7 +109,11 @@ export const List: FC<ListProps> = ({
     >
       <TooltipGroup>
         <Virtuoso
-          initialTopMostItemIndex={activeIndex >= 0 ? { align: 'center', index: activeIndex } : 0}
+          initialTopMostItemIndex={
+            activeIndex >= 0 && listItems.length > 0
+              ? { align: 'center', index: activeIndex }
+              : undefined
+          }
           isScrolling={handleScrollingStateChange}
           itemContent={itemContent}
           overscan={200}
