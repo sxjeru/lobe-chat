@@ -398,6 +398,7 @@ export interface AiProviderModelListItem {
   pricing?: Pricing;
   releasedAt?: string;
   settings?: AiModelSettings;
+  sort?: number | null;
   source?: AiModelSourceType;
   type: AiModelType;
 }

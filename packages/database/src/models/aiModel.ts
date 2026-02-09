@@ -79,6 +79,7 @@ export class AiModelModel {
         pricing: aiModels.pricing,
         releasedAt: aiModels.releasedAt,
         settings: aiModels.settings,
+        sort: aiModels.sort,
         source: aiModels.source,
         type: aiModels.type,
       })
