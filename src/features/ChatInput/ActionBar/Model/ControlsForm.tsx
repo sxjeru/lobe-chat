@@ -1,5 +1,5 @@
+import { type FormItemProps } from '@lobehub/ui';
 import { Form } from '@lobehub/ui';
-import type { FormItemProps } from '@lobehub/ui';
 import { Form as AntdForm, Grid, Switch } from 'antd';
 import isEqual from 'fast-deep-equal';
 import { memo } from 'react';
@@ -12,6 +12,7 @@ import { aiModelSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useAgentId } from '../../hooks/useAgentId';
 import { useUpdateAgentConfig } from '../../hooks/useUpdateAgentConfig';
 import ContextCachingSwitch from './ContextCachingSwitch';
+import EffortSlider from './EffortSlider';
 import GPT5ReasoningEffortSlider from './GPT5ReasoningEffortSlider';
 import GPT51ReasoningEffortSlider from './GPT51ReasoningEffortSlider';
 import GPT52ProReasoningEffortSlider from './GPT52ProReasoningEffortSlider';
@@ -84,11 +85,11 @@ const ControlsForm = memo(() => {
           <Trans i18nKey={'extendParams.enableReasoning.desc'} ns={'chat'}>
             基于 Claude Thinking 机制限制（
             <a
+              rel="noreferrer nofollow"
+              target="_blank"
               href={
                 'https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking?utm_source=lobechat#why-thinking-blocks-must-be-preserved'
               }
-              rel="noreferrer nofollow"
-              target="_blank"
             >
               了解更多
             </a>
@@ -100,6 +101,18 @@ const ControlsForm = memo(() => {
       layout: isNarrow ? 'vertical' : 'horizontal',
       minWidth: undefined,
       name: 'enableReasoning',
+    },
+    {
+      children: <Switch />,
+      desc: isNarrow ? (
+        <span style={descNarrow}>{t('extendParams.enableAdaptiveThinking.desc')}</span>
+      ) : (
+        t('extendParams.enableAdaptiveThinking.desc')
+      ),
+      label: t('extendParams.enableAdaptiveThinking.title'),
+      layout: isNarrow ? 'vertical' : 'horizontal',
+      minWidth: undefined,
+      name: 'enableAdaptiveThinking',
     },
     (enableReasoning || modelExtendParams?.includes('reasoningBudgetToken')) && {
       children: <ReasoningTokenSlider />,
@@ -118,6 +131,21 @@ const ControlsForm = memo(() => {
       layout: 'horizontal',
       minWidth: undefined,
       name: 'reasoningEffort',
+      style: {
+        paddingBottom: 0,
+      },
+    },
+    {
+      children: <EffortSlider />,
+      desc: isNarrow ? (
+        <span style={descNarrow}>{t('extendParams.effort.desc')}</span>
+      ) : (
+        t('extendParams.effort.desc')
+      ),
+      label: t('extendParams.effort.title'),
+      layout: 'horizontal',
+      minWidth: undefined,
+      name: 'effort',
       style: {
         paddingBottom: 0,
       },
@@ -264,18 +292,18 @@ const ControlsForm = memo(() => {
     <Form
       form={form}
       initialValues={config}
+      itemsType={'flat'}
+      size={'small'}
+      style={{ fontSize: 12 }}
+      variant={'borderless'}
       items={
         (modelExtendParams || [])
           .map((item: any) => items.find((i) => i.name === item))
           .filter(Boolean) as FormItemProps[]
       }
-      itemsType={'flat'}
       onValuesChange={async (_, values) => {
         await updateAgentChatConfig(values);
       }}
-      size={'small'}
-      style={{ fontSize: 12 }}
-      variant={'borderless'}
     />
   );
 });

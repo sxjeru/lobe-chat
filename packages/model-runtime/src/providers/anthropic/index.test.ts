@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildDefaultAnthropicPayload } from '../../core/anthropicCompatibleFactory';
 import * as anthropicHelpers from '../../core/contextBuilders/anthropic';
-import { ChatCompletionTool, ChatStreamPayload } from '../../types/chat';
+import type { ChatCompletionTool, ChatStreamPayload } from '../../types/chat';
 import * as debugStreamModule from '../../utils/debugStream';
 import { LobeAnthropicAI } from './index';
 
@@ -13,7 +14,7 @@ const bizErrorType = 'ProviderBizError';
 const invalidErrorType = 'InvalidProviderAPIKey';
 
 // Mock the console.error to avoid polluting test output
-vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'error').mockImplementation(() => { });
 
 let instance: InstanceType<typeof LobeAnthropicAI>;
 
@@ -702,6 +703,35 @@ describe('LobeAnthropicAI', () => {
         });
       });
 
+      it('should correctly build payload with adaptive thinking and effort', async () => {
+        const payload: ChatStreamPayload = {
+          max_tokens: 16000,
+          messages: [{ content: 'Solve this problem', role: 'user' }],
+          model: 'claude-opus-4-6',
+          effort: 'high',
+          thinking: { type: 'adaptive', budget_tokens: 0 },
+        };
+
+        const result = await buildDefaultAnthropicPayload(payload);
+
+        expect(result).toEqual({
+          max_tokens: 16000,
+          messages: [
+            {
+              content: [
+                { cache_control: { type: 'ephemeral' }, text: 'Solve this problem', type: 'text' },
+              ],
+              role: 'user',
+            },
+          ],
+          model: 'claude-opus-4-6',
+          output_config: { effort: 'high' },
+          system: undefined,
+          thinking: { type: 'adaptive' },
+          tools: undefined,
+        });
+      });
+
       it('should respect max_tokens in thinking mode when provided', async () => {
         const payload: ChatStreamPayload = {
           max_tokens: 1000,
@@ -725,7 +755,7 @@ describe('LobeAnthropicAI', () => {
           ],
           model: 'claude-3-haiku-20240307',
           system: undefined,
-          thinking: { type: 'enabled', budget_tokens: 1024 },
+          thinking: { type: 'enabled', budget_tokens: 999 },
           tools: undefined,
         });
       });
@@ -815,7 +845,7 @@ describe('LobeAnthropicAI', () => {
         const payload: ChatStreamPayload = {
           messages: [{ content: 'Hello', role: 'user' }],
           model: 'claude-3-haiku-20240307',
-          temperature: 1.0,
+          temperature: 1,
         };
 
         const result = await buildDefaultAnthropicPayload(payload);

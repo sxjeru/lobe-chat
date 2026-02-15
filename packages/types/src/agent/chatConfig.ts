@@ -29,9 +29,14 @@ export interface LobeAgentChatConfig {
    */
   enableReasoning?: boolean;
   /**
+   * Whether to enable adaptive thinking (Claude Opus 4.6)
+   */
+  enableAdaptiveThinking?: boolean;
+  /**
    * Custom reasoning effort level
    */
   enableReasoningEffort?: boolean;
+  effort?: 'low' | 'medium' | 'high' | 'max';
   reasoningBudgetToken?: number;
   reasoningEffort?: 'low' | 'medium' | 'high';
   gpt5ReasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
@@ -94,6 +99,12 @@ export interface LobeAgentChatConfig {
    * @default 6000
    */
   toolResultMaxLength?: number;
+
+  /**
+   * Whether to auto-scroll during AI streaming output
+   * undefined = use global setting
+   */
+  enableAutoScrollOnStreaming?: boolean;
 }
 /* eslint-enable */
 
@@ -108,7 +119,10 @@ export const AgentChatConfigSchema = z.object({
   autoCreateTopicThreshold: z.number().default(2),
   compressionModelId: z.string().optional(),
   disableContextCaching: z.boolean().optional(),
+  effort: z.enum(['low', 'medium', 'high', 'max']).optional(),
+  enableAdaptiveThinking: z.boolean().optional(),
   enableAutoCreateTopic: z.boolean().optional(),
+  enableAutoScrollOnStreaming: z.boolean().optional(),
   enableCompressHistory: z.boolean().optional(),
   enableContextCompression: z.boolean().optional(),
   enableHistoryCount: z.boolean().optional(),

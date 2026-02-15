@@ -1,10 +1,11 @@
 import { Flexbox } from '@lobehub/ui';
-import { Popover, Select, Space, Switch, Tag, Typography, theme } from 'antd';
-import type { ExtendParamsType } from 'model-bank';
+import { Popover, Select, Space, Switch, Tag, theme, Typography } from 'antd';
+import { type ExtendParamsType } from 'model-bank';
+import { type ReactNode } from 'react';
 import { memo, useMemo } from 'react';
-import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
+import EffortSlider from '@/features/ChatInput/ActionBar/Model/EffortSlider';
 import GPT5ReasoningEffortSlider from '@/features/ChatInput/ActionBar/Model/GPT5ReasoningEffortSlider';
 import GPT51ReasoningEffortSlider from '@/features/ChatInput/ActionBar/Model/GPT51ReasoningEffortSlider';
 import GPT52ProReasoningEffortSlider from '@/features/ChatInput/ActionBar/Model/GPT52ProReasoningEffortSlider';
@@ -34,8 +35,16 @@ const EXTEND_PARAMS_OPTIONS: ExtendParamsOption[] = [
     key: 'enableReasoning',
   },
   {
+    hintKey: 'providerModels.item.modelConfig.extendParams.options.enableAdaptiveThinking.hint',
+    key: 'enableAdaptiveThinking',
+  },
+  {
     hintKey: 'providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken.hint',
     key: 'reasoningBudgetToken',
+  },
+  {
+    hintKey: 'providerModels.item.modelConfig.extendParams.options.effort.hint',
+    key: 'effort',
   },
   {
     hintKey: 'providerModels.item.modelConfig.extendParams.options.reasoningEffort.hint',
@@ -110,6 +119,12 @@ type PreviewMeta = {
 
 const PREVIEW_META: Partial<Record<ExtendParamsType, PreviewMeta>> = {
   disableContextCaching: { labelSuffix: ' (Claude)', previewWidth: 400 },
+  effort: { labelSuffix: ' (Opus 4.6)', previewWidth: 280, tag: 'output_config.effort' },
+  enableAdaptiveThinking: {
+    labelSuffix: ' (Opus 4.6)',
+    previewWidth: 300,
+    tag: 'thinking.type',
+  },
   enableReasoning: { previewWidth: 300, tag: 'thinking.type' },
   gpt5ReasoningEffort: { previewWidth: 300, tag: 'reasoning_effort' },
   gpt5_1ReasoningEffort: { labelSuffix: ' (GPT-5.1)', previewWidth: 300, tag: 'reasoning_effort' },
@@ -184,7 +199,7 @@ const PreviewContent = ({
             width: previewWidth,
           }}
         >
-          <Flexbox align={'center'} gap={8} horizontal>
+          <Flexbox horizontal align={'center'} gap={8}>
             <Typography.Text strong>{label}</Typography.Text>
             {parameterTag ? <Tag color={'cyan'}>{parameterTag}</Tag> : null}
           </Flexbox>
@@ -212,6 +227,8 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
   const previewControls = useMemo<Partial<Record<ExtendParamsType, ReactNode>>>(
     () => ({
       disableContextCaching: <Switch checked disabled />,
+      effort: <EffortSlider value="high" />,
+      enableAdaptiveThinking: <Switch checked disabled />,
       enableReasoning: <Switch checked disabled />,
       gpt5ReasoningEffort: <GPT5ReasoningEffortSlider value="medium" />,
       gpt5_1ReasoningEffort: <GPT51ReasoningEffortSlider value="none" />,
@@ -327,13 +344,18 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
       <Select
         allowClear
         mode={'multiple'}
-        onChange={(val) => handleChange(val as ExtendParamsType[])}
+        options={options}
+        placeholder={placeholder}
+        popupMatchSelectWidth={false}
+        style={{ width: '100%' }}
+        value={value}
         optionRender={(option) => {
           const def = definitionMap.get(option.value as ExtendParamsType);
           if (!def) return option.label;
 
           return (
             <Popover
+              placement={'right'}
               content={
                 <PreviewContent
                   desc={def.desc}
@@ -345,7 +367,6 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
                   previewWidth={def.previewWidth}
                 />
               }
-              placement={'right'}
             >
               <Flexbox gap={4}>
                 <Typography.Text>{def.label}</Typography.Text>
@@ -356,19 +377,17 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
             </Popover>
           );
         }}
-        options={options}
-        placeholder={placeholder}
-        popupMatchSelectWidth={false}
-        style={{ width: '100%' }}
-        value={value}
+        onChange={(val) => handleChange(val as ExtendParamsType[])}
       />
       {value && value.length > 0 && (
-        <Space size={[8, 8]} wrap>
+        <Space wrap size={[8, 8]}>
           {value.map((key) => {
             const def = definitionMap.get(key);
             if (!def) return null;
             return (
               <Popover
+                key={key}
+                placement={'top'}
                 content={
                   <PreviewContent
                     desc={def.desc}
@@ -380,8 +399,6 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
                     previewWidth={def.previewWidth}
                   />
                 }
-                key={key}
-                placement={'top'}
               >
                 <Tag bordered={false} color={'processing'}>
                   {def.label}
