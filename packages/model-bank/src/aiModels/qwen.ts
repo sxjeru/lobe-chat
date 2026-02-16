@@ -11,6 +11,55 @@ const qwenChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 262_144,
     description:
+      'Qwen3.5 397B A17B is a large-scale open model in the Qwen series, delivering excellent performance in complex reasoning, knowledge QA, and coding. It supports thinking mode for highly complex tasks.',
+    displayName: 'Qwen3.5 397B A17B',
+    id: 'qwen3.5-397b-a17b',
+    maxOutput: 65_536,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [
+        {
+          lookup: {
+            prices: {
+              '[0, 0.128]': 1.2,
+              '[0.128, 0.256]': 3,
+            },
+            pricingParams: ['textInputRange'],
+          },
+          name: 'textInput',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+        {
+          lookup: {
+            prices: {
+              '[0, 0.128]': 7.2,
+              '[0.128, 0.256]': 18,
+            },
+            pricingParams: ['textInputRange'],
+          },
+          name: 'textOutput',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2026-02-15',
+    settings: {
+      extendParams: ['enableReasoning', 'reasoningBudgetToken'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      vision: true,
+    },
+    contextWindowTokens: 262_144,
+    description:
       'Kimi K2.5 is the most capable Kimi model, delivering open-source SOTA in agent tasks, coding, and vision understanding. It supports multimodal inputs and both thinking and non-thinking modes.',
     displayName: 'Kimi K2.5',
     id: 'kimi-k2.5',
@@ -58,7 +107,7 @@ const qwenChatModels: AIChatModelCard[] = [
       vision: true,
     },
     config: {
-      deploymentName: 'qwen3-vl-plus-2025-12-19',
+      deploymentName: 'qwen3-vl-plus', // Supports context caching
     },
     contextWindowTokens: 262_144,
     description:
@@ -653,7 +702,6 @@ const qwenChatModels: AIChatModelCard[] = [
     description:
       'Qwen3 thinking-mode open-source model. Compared to the previous version (Qwen3-235B-A22B), it significantly improves logic, general ability, knowledge, and creativity, suitable for hard reasoning scenarios.',
     displayName: 'Qwen3 235B A22B Thinking 2507',
-    enabled: true,
     id: 'qwen3-235b-a22b-thinking-2507',
     maxOutput: 32_768,
     organization: 'Qwen',
@@ -678,7 +726,6 @@ const qwenChatModels: AIChatModelCard[] = [
     description:
       'Qwen3 non-thinking open-source model. Compared to the previous version (Qwen3-235B-A22B), it slightly improves subjective creativity and model safety.',
     displayName: 'Qwen3 235B A22B Instruct 2507',
-    enabled: true,
     id: 'qwen3-235b-a22b-instruct-2507',
     maxOutput: 32_768,
     organization: 'Qwen',
@@ -1020,7 +1067,7 @@ const qwenChatModels: AIChatModelCard[] = [
       search: true,
     },
     config: {
-      deploymentName: 'qwen-flash',
+      deploymentName: 'qwen-flash', // Supports context caching
     },
     contextWindowTokens: 1_000_000,
     description: 'Fastest and lowest-cost Qwen model, ideal for simple tasks.',
@@ -1107,15 +1154,83 @@ const qwenChatModels: AIChatModelCard[] = [
       functionCall: true,
       reasoning: true,
       search: true,
+      vision: true,
     },
     config: {
-      deploymentName: 'qwen-plus-2025-12-01',
+      deploymentName: 'qwen3.5-plus', // Supports context caching
+    },
+    contextWindowTokens: 1_000_000,
+    description:
+      'Qwen3.5 Plus supports text, image, and video input. Its performance on pure text tasks is comparable to Qwen3 Max, with better performance and lower cost. Its multimodal capabilities are significantly improved compared to the Qwen3 VL series.',
+    displayName: 'Qwen3.5 Plus',
+    enabled: true,
+    id: 'qwen3.5-plus',
+    maxOutput: 65_536,
+    organization: 'Qwen',
+    pricing: {
+      currency: 'CNY',
+      units: [
+        {
+          lookup: {
+            prices: {
+              '[0, 0.128]': 0.8 * 0.2,
+              '[0.128, 0.256]': 2 * 0.2,
+              '[0.256, infinity]': 4 * 0.2,
+            },
+            pricingParams: ['textInputRange'],
+          },
+          name: 'textInput_cacheRead',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+        {
+          lookup: {
+            prices: {
+              '[0, 0.128]': 0.8,
+              '[0.128, 0.256]': 2,
+              '[0.256, infinity]': 4,
+            },
+            pricingParams: ['textInputRange'],
+          },
+          name: 'textInput',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+        {
+          lookup: {
+            prices: {
+              '[0, 0.128]': 4.8,
+              '[0.128, 0.256]': 12,
+              '[0.256, infinity]': 24,
+            },
+            pricingParams: ['textInputRange'],
+          },
+          name: 'textOutput',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2026-02-15',
+    settings: {
+      extendParams: ['enableReasoning', 'reasoningBudgetToken'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
+    },
+    config: {
+      deploymentName: 'qwen-plus', // Supports context caching
     },
     contextWindowTokens: 1_000_000,
     description:
       'Enhanced ultra-large Qwen model supporting Chinese, English, and other languages.',
     displayName: 'Qwen Plus',
-    enabled: true,
     id: 'qwen-plus',
     maxOutput: 32_768,
     organization: 'Qwen',
