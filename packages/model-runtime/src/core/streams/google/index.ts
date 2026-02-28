@@ -96,7 +96,7 @@ const transformGoogleGenerativeAIStream = (
               name: value.name,
             },
             id: generateToolCallId(index, value.name),
-            index: index,
+            index,
             thoughtSignature: value.thoughtSignature,
             type: 'function',
           }),
@@ -233,19 +233,37 @@ const transformGoogleGenerativeAIStream = (
     }
 
     // return the grounding
-    const { groundingChunks, webSearchQueries } = candidate.groundingMetadata ?? {};
+    const { groundingChunks, imageSearchQueries, webSearchQueries } =
+      candidate.groundingMetadata ?? {};
     if (groundingChunks) {
+      const webChunks = groundingChunks.filter((chunk) => chunk.web);
+      const imageChunks = groundingChunks.filter((chunk) => chunk.image);
+
       return [
         { data: text, id: context.id, type: 'text' },
         {
           data: {
-            citations: groundingChunks?.map((chunk) => ({
-              // Google returns a uri processed by Google itself, so it cannot display the real favicon
-              // Need to use title as a replacement
-              favicon: chunk.web?.title,
-              title: chunk.web?.title,
-              url: chunk.web?.uri,
-            })),
+            citations: webChunks.length > 0
+              ? webChunks.map((chunk) => ({
+                  // Google returns a uri processed by Google itself, so it cannot display the real favicon
+                  // Need to use title as a replacement
+                  favicon: chunk.web?.title,
+                  title: chunk.web?.title,
+                  url: chunk.web?.uri,
+                }))
+              : undefined,
+            imageResults: imageChunks.length > 0
+              ? imageChunks.map((chunk) => ({
+                  domain: chunk.image?.domain,
+                  imageUri: chunk.image?.imageUri,
+                  sourceUri: chunk.image?.sourceUri,
+                  title: chunk.image?.title,
+                }))
+              : undefined,
+            imageSearchQueries:
+              imageSearchQueries && imageSearchQueries.length > 0
+                ? imageSearchQueries
+                : undefined,
             searchQueries: webSearchQueries,
           } as GroundingSearch,
           id: context.id,
@@ -328,7 +346,7 @@ export const GoogleGenerativeAIStream = (
   return rawStream
     .pipeThrough(
       createTokenSpeedCalculator(transformWithPayload, {
-        enableStreaming: enableStreaming,
+        enableStreaming,
         inputStartAt,
         streamStack,
       }),
