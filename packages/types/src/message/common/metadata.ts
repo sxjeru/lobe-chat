@@ -23,6 +23,10 @@ export interface ModelTokensUsage {
    * currently only pplx has citation_tokens
    */
   inputCitationTokens?: number;
+  /**
+   * tool use prompt tokens (Google AI / Vertex AI)
+   */
+  inputToolTokens?: number;
 
   // Output tokens breakdown
   outputTextTokens?: number;
@@ -50,6 +54,7 @@ export const ModelUsageSchema = z.object({
   inputImageTokens: z.number().optional(),
   inputAudioTokens: z.number().optional(),
   inputCitationTokens: z.number().optional(),
+  inputToolTokens: z.number().optional(),
 
   // Output tokens breakdown
   outputTextTokens: z.number().optional(),
