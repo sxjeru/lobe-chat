@@ -840,6 +840,7 @@ describe('GoogleGenerativeAIStream', () => {
 
           'id: chat_1',
           'event: grounding',
+          // eslint-disable-next-line no-useless-escape
           `data: {\"citations\":[{\"favicon\":\"npmjs.com\",\"title\":\"npmjs.com\",\"url\":\"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AbF9wXG1234545\"},{\"favicon\":\"google.dev\",\"title\":\"google.dev\",\"url\":\"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AbF9wXE9288334\"}],\"searchQueries\":[\"sdk latest version\"]}\n`,
           // stop
           'id: chat_1',
@@ -1041,6 +1042,80 @@ describe('GoogleGenerativeAIStream', () => {
         ].map((i) => i + '\n'),
       );
     });
+
+    it('should filter empty strings from searchQueries in groundingMetadata', async () => {
+      vi.spyOn(uuidModule, 'nanoid').mockReturnValueOnce('1');
+
+      const data = [
+        {
+          text: 'result',
+          candidates: [
+            {
+              content: { parts: [{ text: 'result' }], role: 'model' },
+              finishReason: 'STOP',
+              index: 0,
+              groundingMetadata: {
+                groundingChunks: [
+                  {
+                    web: {
+                      uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc',
+                      title: 'example.com',
+                    },
+                  },
+                ],
+                webSearchQueries: ['', '杭州天气', 'Hangzhou weather'],
+              },
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 3,
+            totalTokenCount: 8,
+            promptTokensDetails: [{ modality: 'TEXT', tokenCount: 5 }],
+          },
+          modelVersion: 'gemini-3.1-flash-image-preview',
+        },
+      ];
+
+      const mockGoogleStream = new ReadableStream({
+        start(controller) {
+          data.forEach((item) => controller.enqueue(item));
+          controller.close();
+        },
+      });
+
+      const protocolStream = GoogleGenerativeAIStream(mockGoogleStream);
+      const chunks = await decodeStreamChunks(protocolStream);
+
+      expect(chunks).toEqual(
+        [
+          'id: chat_1',
+          'event: text',
+          'data: "result"\n',
+
+          'id: chat_1',
+          'event: grounding',
+          `data: ${JSON.stringify({
+            citations: [
+              {
+                favicon: 'example.com',
+                title: 'example.com',
+                url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc',
+              },
+            ],
+            searchQueries: ['杭州天气', 'Hangzhou weather'],
+          })}\n`,
+
+          'id: chat_1',
+          'event: stop',
+          `data: "STOP"\n`,
+
+          'id: chat_1',
+          'event: usage',
+          `data: {"inputTextTokens":5,"outputImageTokens":0,"outputTextTokens":3,"totalInputTokens":5,"totalOutputTokens":3,"totalTokens":8}\n`,
+        ].map((i) => i + '\n'),
+      );
+    });
   });
 
   describe('Tool calls', () => {
@@ -1117,6 +1192,7 @@ describe('GoogleGenerativeAIStream', () => {
         [
           'id: chat_1',
           'event: tool_calls',
+          // eslint-disable-next-line no-useless-escape
           'data: [{"function":{"arguments":"{\\"query\\":\\"\\\\\\\"version\\\\\\":\\",\\"repo\\":\\"lobehub/lobe-chat\\",\\"path\\":\\"package.json\\"}","name":"grep____searchGitHub____mcp"},"id":"grep____searchGitHub____mcp_0_abcd1234","index":0,"thoughtSignature":"123","type":"function"}]\n',
 
           'id: chat_1',
