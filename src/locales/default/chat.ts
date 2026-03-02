@@ -261,6 +261,8 @@ export default {
   'rag.userQuery.actions.regenerate': 'Regenerate Query',
   'regenerate': 'Regenerate',
   'roleAndArchive': 'Agent Profile & History',
+  'search.grounding.imageSearchQueries': 'Image Search Keywords',
+  'search.grounding.imageTitle': 'Found {{count}} images',
   'search.grounding.searchQueries': 'Search Keywords',
   'search.grounding.title': 'Found {{count}} results',
   'search.mode.auto.desc': 'Search the web automatically when needed.',
