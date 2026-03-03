@@ -41,6 +41,7 @@ export default {
       }
 
       const body = (await request.clone().json()) as { userId: string };
+      if (!body.userId) return new Response('Missing userId', { status: 400 });
       const id = env.DEVICE_GATEWAY.idFromName(`user:${body.userId}`);
       const stub = env.DEVICE_GATEWAY.get(id);
       return stub.fetch(request);
