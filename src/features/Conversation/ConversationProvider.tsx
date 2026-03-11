@@ -9,6 +9,7 @@ import { memo, useMemo } from 'react';
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import AssistantTurnSettledWatcher from './AssistantTurnSettledWatcher';
+import HotkeyRegistry from './HotkeyRegistry';
 import { createStore, Provider } from './store';
 import StoreUpdater from './StoreUpdater';
 import {
@@ -105,6 +106,7 @@ export const ConversationProvider = memo<ConversationProviderProps>(
           onMessagesChange={onMessagesChange}
         />
         <AssistantTurnSettledWatcher />
+        <HotkeyRegistry />
         {children}
       </Provider>
     );
