@@ -8,6 +8,7 @@ import { memo, useMemo } from 'react';
 
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
+import HotkeyRegistry from './HotkeyRegistry';
 import { createStore, Provider } from './store';
 import StoreUpdater from './StoreUpdater';
 import {
@@ -103,6 +104,7 @@ export const ConversationProvider = memo<ConversationProviderProps>(
           skipFetch={skipFetch}
           onMessagesChange={onMessagesChange}
         />
+        <HotkeyRegistry />
         {children}
       </Provider>
     );
