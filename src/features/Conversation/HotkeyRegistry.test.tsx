@@ -9,7 +9,7 @@ import { useConversationHotkeyStore } from './hotkeyStore';
 
 const mockUseHotkeyById = vi.fn();
 
-const mockConversationStore = {
+let mockConversationStore = {
   delAndRegenerateMessage: vi.fn(),
   deleteMessage: vi.fn(),
   displayMessages: [
@@ -17,6 +17,7 @@ const mockConversationStore = {
     { id: 'assistant-1', parentId: 'user-1', role: 'assistant' },
   ],
   regenerateAssistantMessage: vi.fn(),
+  regenerateUserMessage: vi.fn(),
 };
 
 vi.mock('@/hooks/useHotkeys/useHotkeyById', () => ({
@@ -32,6 +33,16 @@ describe('HotkeyRegistry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useConversationHotkeyStore.setState({ activeConversationKey: undefined });
+    mockConversationStore = {
+      delAndRegenerateMessage: vi.fn(),
+      deleteMessage: vi.fn(),
+      displayMessages: [
+        { id: 'user-1', role: 'user' },
+        { id: 'assistant-1', parentId: 'user-1', role: 'assistant' },
+      ],
+      regenerateAssistantMessage: vi.fn(),
+      regenerateUserMessage: vi.fn(),
+    };
   });
 
   afterEach(() => {
@@ -71,6 +82,54 @@ describe('HotkeyRegistry', () => {
         enabled: false,
       });
     }
+  });
+
+  it('should fall back to regenerating the last user message when no assistant message exists', () => {
+    useConversationHotkeyStore.setState({ activeConversationKey: 'main' });
+    mockConversationStore = {
+      ...mockConversationStore,
+      displayMessages: [{ id: 'user-2', role: 'user' }],
+    };
+
+    render(<HotkeyRegistry conversationKey={'main'} />);
+
+    const regenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.RegenerateMessage,
+    );
+
+    expect(regenerateCall).toBeDefined();
+
+    const callback = regenerateCall?.[1];
+    expect(typeof callback).toBe('function');
+
+    callback();
+
+    expect(mockConversationStore.regenerateUserMessage).toHaveBeenCalledWith('user-2');
+    expect(mockConversationStore.regenerateAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it('should treat delete-and-regenerate as regenerate when the last message is a user message', () => {
+    useConversationHotkeyStore.setState({ activeConversationKey: 'main' });
+    mockConversationStore = {
+      ...mockConversationStore,
+      displayMessages: [{ id: 'user-3', role: 'user' }],
+    };
+
+    render(<HotkeyRegistry conversationKey={'main'} />);
+
+    const deleteAndRegenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteAndRegenerateMessage,
+    );
+
+    expect(deleteAndRegenerateCall).toBeDefined();
+
+    const callback = deleteAndRegenerateCall?.[1];
+    expect(typeof callback).toBe('function');
+
+    callback();
+
+    expect(mockConversationStore.regenerateUserMessage).toHaveBeenCalledWith('user-3');
+    expect(mockConversationStore.delAndRegenerateMessage).not.toHaveBeenCalled();
   });
 });
 
