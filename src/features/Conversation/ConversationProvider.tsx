@@ -10,6 +10,7 @@ import { useFetchAvailableAgents } from '@/hooks/useFetchAvailableAgents';
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import AssistantTurnSettledWatcher from './AssistantTurnSettledWatcher';
+import HotkeyRegistry from './HotkeyRegistry';
 import { createStore, Provider } from './store';
 import StoreUpdater from './StoreUpdater';
 import {
@@ -122,6 +123,7 @@ export const ConversationProvider = memo<ConversationProviderProps>(
         />
         <AssistantTurnSettledWatcher />
         <ConversationContextPrefetcher context={context} />
+        <HotkeyRegistry />
         {children}
       </Provider>
     );
