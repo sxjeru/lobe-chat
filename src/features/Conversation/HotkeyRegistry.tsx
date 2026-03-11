@@ -6,7 +6,12 @@ import { memo } from 'react';
 import { useHotkeyById } from '@/hooks/useHotkeys/useHotkeyById';
 import { HotkeyEnum } from '@/types/hotkey';
 
+import { useConversationHotkeyStore } from './hotkeyStore';
 import { useConversationStore } from './store';
+
+interface HotkeyRegistryProps {
+  conversationKey: string;
+}
 
 /**
  * Registers conversation-level hotkeys within the ConversationProvider context.
@@ -28,7 +33,7 @@ const getLastAssistantMessageId = (displayMessages: UIChatMessage[]) => {
 
 const getLastMessageId = (displayMessages: UIChatMessage[]) => displayMessages.at(-1)?.id;
 
-const HotkeyRegistry = memo(() => {
+const HotkeyRegistry = memo<HotkeyRegistryProps>(({ conversationKey }) => {
   const [deleteMessage, delAndRegenerateMessage, displayMessages, regenerateAssistantMessage] =
     useConversationStore((s) => [
       s.deleteMessage,
@@ -36,6 +41,7 @@ const HotkeyRegistry = memo(() => {
       s.displayMessages,
       s.regenerateAssistantMessage,
     ]);
+  const enabled = useConversationHotkeyStore((s) => s.activeConversationKey === conversationKey);
 
   useHotkeyById(
     HotkeyEnum.RegenerateMessage,
@@ -44,8 +50,8 @@ const HotkeyRegistry = memo(() => {
 
       if (id) void regenerateAssistantMessage(id);
     },
-    { enableOnContentEditable: true },
-    [displayMessages, regenerateAssistantMessage],
+    { enableOnContentEditable: true, enabled },
+    [displayMessages, enabled, regenerateAssistantMessage],
   );
 
   useHotkeyById(
@@ -55,8 +61,8 @@ const HotkeyRegistry = memo(() => {
 
       if (id) void deleteMessage(id);
     },
-    { enableOnContentEditable: true },
-    [deleteMessage, displayMessages],
+    { enableOnContentEditable: true, enabled },
+    [deleteMessage, displayMessages, enabled],
   );
 
   useHotkeyById(
@@ -66,8 +72,8 @@ const HotkeyRegistry = memo(() => {
 
       if (id) void delAndRegenerateMessage(id);
     },
-    { enableOnContentEditable: true },
-    [delAndRegenerateMessage, displayMessages],
+    { enableOnContentEditable: true, enabled },
+    [delAndRegenerateMessage, displayMessages, enabled],
   );
 
   return null;

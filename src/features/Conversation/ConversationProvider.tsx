@@ -9,6 +9,7 @@ import { memo, useMemo } from 'react';
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import AssistantTurnSettledWatcher from './AssistantTurnSettledWatcher';
+import ConversationHotkeyBoundary from './ConversationHotkeyBoundary';
 import HotkeyRegistry from './HotkeyRegistry';
 import { createStore, Provider } from './store';
 import StoreUpdater from './StoreUpdater';
@@ -95,19 +96,21 @@ export const ConversationProvider = memo<ConversationProviderProps>(
 
     return (
       <Provider createStore={() => createStore({ context, hooks, skipFetch })} key={contextKey}>
-        <StoreUpdater
-          actionsBar={actionsBar}
-          context={context}
-          hasInitMessages={hasInitMessages}
-          hooks={hooks}
-          messages={messages}
-          operationState={operationState}
-          skipFetch={skipFetch}
-          onMessagesChange={onMessagesChange}
-        />
-        <AssistantTurnSettledWatcher />
-        <HotkeyRegistry />
-        {children}
+        <ConversationHotkeyBoundary conversationKey={contextKey}>
+          <StoreUpdater
+            actionsBar={actionsBar}
+            context={context}
+            hasInitMessages={hasInitMessages}
+            hooks={hooks}
+            messages={messages}
+            operationState={operationState}
+            skipFetch={skipFetch}
+            onMessagesChange={onMessagesChange}
+          />
+          <AssistantTurnSettledWatcher />
+          <HotkeyRegistry conversationKey={contextKey} />
+          {children}
+        </ConversationHotkeyBoundary>
       </Provider>
     );
   },
