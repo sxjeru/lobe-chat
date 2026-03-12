@@ -1,16 +1,21 @@
 import { type MenuProps } from '@lobehub/ui';
-import { Button, Center, DropdownMenu, Icon } from '@lobehub/ui';
+import { Button, Center, DropdownMenu, Flexbox, Icon, Tooltip } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { Check, ChevronDown, Hand, ListChecks, Zap } from 'lucide-react';
-import { memo, useCallback, useMemo } from 'react';
+import { type LucideIcon } from 'lucide-react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useUserStore } from '@/store/user';
 import { toolInterventionSelectors } from '@/store/user/selectors';
-
-import { type ApprovalMode } from './index';
+import { type ApprovalMode } from '@/store/user/slices/settings/selectors';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
+  desc: css`
+    font-size: 12px;
+    line-height: 1.4;
+    color: ${cssVar.colorTextDescription};
+  `,
   icon: css`
     border: 1px solid ${cssVar.colorFillTertiary};
     border-radius: ${cssVar.borderRadius};
@@ -20,25 +25,31 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: ${cssVar.fontSizeSM};
     color: ${cssVar.colorTextSecondary};
   `,
-  modeDesc: css`
-    margin-block-start: 2px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: ${cssVar.colorTextDescription};
-  `,
-  modeItem: css`
-    min-width: 160px;
-  `,
-  modeLabel: css`
-    font-size: ${cssVar.fontSize};
+  title: css`
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.4;
     color: ${cssVar.colorText};
   `,
 }));
 
+const ModeItemLabel = memo<{ desc: string; icon: LucideIcon; title: string }>(
+  ({ desc, icon, title }) => (
+    <Flexbox horizontal align={'flex-start'} gap={12}>
+      <Center className={styles.icon} flex={'none'} height={32} width={32}>
+        <Icon icon={icon} />
+      </Center>
+      <Flexbox flex={1} style={{ minWidth: 120 }}>
+        <div className={styles.title}>{title}</div>
+        <div className={styles.desc}>{desc}</div>
+      </Flexbox>
+    </Flexbox>
+  ),
+);
+
 const ModeSelector = memo(() => {
   const { t } = useTranslation('chat');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const approvalMode = useUserStore(toolInterventionSelectors.approvalMode);
   const updateHumanIntervention = useUserStore((s) => s.updateHumanIntervention);
 
@@ -62,68 +73,71 @@ const ModeSelector = memo(() => {
     () => [
       {
         extra: approvalMode === 'auto-run' ? <Icon icon={Check} /> : undefined,
-        icon: (
-          <Center className={styles.icon} height={32} width={32}>
-            <Icon icon={Zap} />
-          </Center>
-        ),
         key: 'auto-run',
         label: (
-          <div className={styles.modeItem}>
-            <div className={styles.modeLabel}>{modeLabels['auto-run']}</div>
-            <div className={styles.modeDesc}>{t('tool.intervention.mode.autoRunDesc')}</div>
-          </div>
+          <ModeItemLabel
+            desc={t('tool.intervention.mode.autoRunDesc')}
+            icon={Zap}
+            title={modeLabels['auto-run']}
+          />
         ),
         onClick: () => handleModeChange('auto-run'),
       },
       {
         extra: approvalMode === 'allow-list' ? <Icon icon={Check} /> : undefined,
-        icon: (
-          <Center className={styles.icon} height={32} width={32}>
-            <Icon icon={ListChecks} />
-          </Center>
-        ),
         key: 'allow-list',
         label: (
-          <div className={styles.modeItem}>
-            <div className={styles.modeLabel}>{modeLabels['allow-list']}</div>
-            <div className={styles.modeDesc}>{t('tool.intervention.mode.allowListDesc')}</div>
-          </div>
+          <ModeItemLabel
+            desc={t('tool.intervention.mode.allowListDesc')}
+            icon={ListChecks}
+            title={modeLabels['allow-list']}
+          />
         ),
         onClick: () => handleModeChange('allow-list'),
       },
       {
         extra: approvalMode === 'manual' ? <Icon icon={Check} /> : undefined,
-        icon: (
-          <Center className={styles.icon} height={32} width={32}>
-            <Icon icon={Hand} />
-          </Center>
-        ),
         key: 'manual',
         label: (
-          <div className={styles.modeItem}>
-            <div className={styles.modeLabel}>{modeLabels.manual}</div>
-            <div className={styles.modeDesc}>{t('tool.intervention.mode.manualDesc')}</div>
-          </div>
+          <ModeItemLabel
+            desc={t('tool.intervention.mode.manualDesc')}
+            icon={Hand}
+            title={modeLabels.manual}
+          />
         ),
         onClick: () => handleModeChange('manual'),
       },
     ],
-    [approvalMode, modeLabels, handleModeChange, styles, t],
+    [approvalMode, modeLabels, handleModeChange, t],
+  );
+
+  const button = (
+    <Button
+      className={styles.modeButton}
+      color={'default'}
+      icon={ChevronDown}
+      iconPlacement="end"
+      size="small"
+      variant={'text'}
+    >
+      {modeLabels[approvalMode]}
+    </Button>
   );
 
   return (
-    <DropdownMenu items={menuItems} placement="bottomLeft">
-      <Button
-        className={styles.modeButton}
-        color={'default'}
-        icon={ChevronDown}
-        iconPlacement="end"
-        size="small"
-        variant={'text'}
-      >
-        {modeLabels[approvalMode]}
-      </Button>
+    <DropdownMenu
+      items={menuItems}
+      open={dropdownOpen}
+      placement="bottomLeft"
+      onOpenChange={setDropdownOpen}
+    >
+      <div>
+        {dropdownOpen ? (
+          button
+        ) : (
+          <Tooltip title={t('tool.intervention.approvalMode')}>{button}</Tooltip>
+        )}
+      </div>
     </DropdownMenu>
   );
 });
