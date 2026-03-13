@@ -62,8 +62,7 @@ const InputArea = () => {
     [],
   );
 
-  const hideStarterList =
-    inputActiveMode && ['agent', 'group', 'write'].includes(inputActiveMode);
+  const hideStarterList = inputActiveMode && ['agent', 'group', 'write'].includes(inputActiveMode);
   const showSuggestQuestions =
     !inputActiveMode || ['agent', 'group', 'write'].includes(inputActiveMode);
 
@@ -95,6 +94,7 @@ const InputArea = () => {
             agentId={inboxAgentId}
             allowExpand={false}
             leftActions={leftActions}
+            slashPlacement="bottom"
             chatInputEditorRef={(instance) => {
               if (!instance) return;
               useChatStore.setState({ mainInputEditor: instance });
