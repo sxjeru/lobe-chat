@@ -197,6 +197,7 @@ export class AiAgentService {
       discordContext,
       existingMessageIds = [],
       files,
+      instructions,
       stepCallbacks,
       stream,
       title,
@@ -258,6 +259,14 @@ export class AiAgentService {
           log('execAgent: merged builtin agent runtime plugins for slug=%s', agentSlug);
         }
       }
+    }
+
+    // 2.5. Append additional instructions to agent's systemRole
+    if (instructions) {
+      agentConfig.systemRole = agentConfig.systemRole
+        ? `${agentConfig.systemRole}\n\n${instructions}`
+        : instructions;
+      log('execAgent: appended additional instructions to systemRole');
     }
 
     // 3. Handle topic creation: if no topicId provided, create a new topic; otherwise reuse existing
@@ -363,11 +372,18 @@ export class AiAgentService {
       isModelSupportToolUse,
     };
 
+    // Dynamically inject topic-reference tool when prompt contains <refer_topic> tags
+    const hasTopicReference = /refer_topic/.test(prompt ?? '');
+    const agentPlugins = [
+      ...(agentConfig?.plugins ?? []),
+      ...(hasTopicReference ? ['lobe-topic-reference'] : []),
+    ];
+
     const toolsEngine = createServerAgentToolsEngine(toolsContext, {
       additionalManifests: [...lobehubSkillManifests, ...klavisManifests],
       agentConfig: {
         chatConfig: agentConfig.chatConfig ?? undefined,
-        plugins: agentConfig?.plugins ?? undefined,
+        plugins: agentPlugins,
       },
       deviceContext: gatewayConfigured
         ? { boundDeviceId, deviceOnline, gatewayConfigured: true }
@@ -387,9 +403,13 @@ export class AiAgentService {
     ];
     log('execAgent: agent configured plugins: %O', pluginIds);
 
+    // When skillActivateMode is 'manual', skip default tools to give user precise control
+    const isManualMode = agentConfig.chatConfig?.skillActivateMode === 'manual';
+
     const toolsResult = toolsEngine.generateToolsDetailed({
       model,
       provider,
+      skipDefaultTools: isManualMode,
       toolIds: pluginIds,
     });
 

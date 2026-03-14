@@ -112,7 +112,7 @@ const TopicItem = memo<TopicItemProps>(({ id, title, fav, active, threadId, meta
     }
   }, [id, activeAgentId, addTab, navigateToTopic]);
 
-  const dropdownMenu = useTopicItemDropdownMenu({
+  const { dropdownMenu } = useTopicItemDropdownMenu({
     fav,
     id,
     toggleEditing,
@@ -209,7 +209,7 @@ const TopicItem = memo<TopicItemProps>(({ id, title, fav, active, threadId, meta
             const provider = CHANNEL_PROVIDERS.find((p) => p.id === metadata.bot!.platform);
             if (provider) {
               const ProviderIcon = provider.icon;
-              return <ProviderIcon color={provider.color} size={16} />;
+              return <ProviderIcon color={cssVar.colorTextDescription} size={16} />;
             }
           }
           return (
