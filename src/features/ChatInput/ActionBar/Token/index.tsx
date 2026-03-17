@@ -21,15 +21,15 @@ const Token = memo<PropsWithChildren>(({ children }) => {
 });
 
 const useTokenRelatedConfigSubscription = (agentId: string) => {
-  const [historyCount, enableHistoryCount] = useAgentStore((s) => [
-    chatConfigByIdSelectors.getHistoryCountById(agentId)(s),
-    chatConfigByIdSelectors.getEnableHistoryCountById(agentId)(s),
-  ]);
-
-  useAgentStore((s) => [
-    chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
-    chatConfigByIdSelectors.getUseModelBuiltinSearchById(agentId)(s),
-  ]);
+  const [historyCount, enableHistoryCount] = useAgentStore(
+    (s) =>
+      [
+        chatConfigByIdSelectors.getHistoryCountById(agentId)(s),
+        chatConfigByIdSelectors.getEnableHistoryCountById(agentId)(s),
+        chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
+        chatConfigByIdSelectors.getUseModelBuiltinSearchById(agentId)(s),
+      ] as const,
+  );
 
   return { enableHistoryCount, historyCount };
 };
