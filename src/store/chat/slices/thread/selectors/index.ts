@@ -6,6 +6,7 @@ import { type ChatStoreState } from '@/store/chat';
 import { chatHelpers } from '@/store/chat/helpers';
 
 import { displayMessageSelectors } from '../../message/selectors';
+import { extractDisplayMessageContent } from '../../message/selectors/displayMessage';
 import { genParentMessages } from './util';
 
 // ============= Thread List Selectors ============= //
@@ -102,8 +103,8 @@ const portalAIChatsWithHistoryConfig = (s: ChatStoreState) => {
  * Portal display chats string - used for Token calculation
  */
 const portalDisplayChatsString = (s: ChatStoreState) => {
-  const messages = portalAIChats(s);
-  return messages.map((m) => m.content).join('');
+  const messages = portalAIChatsWithHistoryConfig(s);
+  return messages.map(extractDisplayMessageContent).join('');
 };
 
 export const threadSelectors = {

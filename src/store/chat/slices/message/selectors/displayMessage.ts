@@ -119,11 +119,22 @@ const mainAIChatsWithHistoryConfig = (s: ChatStoreState): UIChatMessage[] => {
 };
 
 /**
+ * Extract content from a message, handling assistantGroup messages with children
+ */
+export const extractDisplayMessageContent = (message: UIChatMessage): string => {
+  if (message.role === 'assistantGroup' && message.children) {
+    return message.children.map((child) => child.content || '').join('');
+  }
+
+  return message.content || '';
+};
+
+/**
  * Concatenated message string from AI chats with history config
  */
 const mainAIChatsMessageString = (s: ChatStoreState): string => {
   const chats = mainAIChatsWithHistoryConfig(s);
-  return chats.map((m) => m.content).join('');
+  return chats.map(extractDisplayMessageContent).join('');
 };
 
 /**
