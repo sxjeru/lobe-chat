@@ -93,7 +93,7 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
     shallow,
   );
 
-  const toolsString = useMemo(() => {
+  const { skillContextPrompt, toolContextString } = useMemo(() => {
     void agentToolsConfigSignal;
     void aiInfraSearchSignal;
     void globalMemoryEnabled;
@@ -132,7 +132,10 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
           })
         : '';
 
-    return skillContextPrompt + toolsSystemRole + schemaNumber;
+    return {
+      skillContextPrompt,
+      toolContextString: toolsSystemRole + schemaNumber,
+    };
   }, [
     agentToolsConfigSignal,
     aiInfraSearchSignal,
@@ -144,7 +147,7 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
     toolSkillStoreSignal,
   ]);
 
-  const toolsToken = useTokenCount(canUseTool ? toolsString : '');
+  const toolsToken = useTokenCount(skillContextPrompt + (canUseTool ? toolContextString : ''));
 
   // Chat usage token
   const inputTokenCount = useTokenCount(input);

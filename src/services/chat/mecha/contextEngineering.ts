@@ -459,9 +459,9 @@ export const contextEngineering = async ({
   const userMemoryConfig =
     enableUserMemories && userMemoryData
       ? {
-          enabled: enableUserMemories,
-          memories: userMemoryData,
-        }
+        enabled: enableUserMemories,
+        memories: userMemoryData,
+      }
       : undefined;
 
   // Build tool discovery config if lobe-activator is enabled
@@ -590,6 +590,16 @@ export const contextEngineering = async ({
     log('mentionedAgents injected: %d agents', initialContext!.mentionedAgents!.length);
   }
 
+  const enabledSkills = (() => {
+    if (!plugins) return undefined;
+
+    const skillEngine = createSkillEngine();
+
+    return skillActivateMode === 'manual'
+      ? skillEngine.getEnabledSkills(plugins)
+      : skillEngine.getAllSkills();
+  })();
+
   // Resolve topic references from messages containing <refer_topic> tags
   const topicReferences = await resolveTopicReferences(
     messages,
@@ -649,11 +659,7 @@ export const contextEngineering = async ({
     // - auto (default): expose all installed skills for autonomous activation
     // - manual: expose only explicitly enabled skills
     skillsConfig: {
-      enabledSkills: plugins
-        ? skillActivateMode === 'manual'
-          ? createSkillEngine().getEnabledSkills(plugins)
-          : createSkillEngine().getAllSkills()
-        : undefined,
+      enabledSkills,
     },
 
     // Tool Discovery configuration

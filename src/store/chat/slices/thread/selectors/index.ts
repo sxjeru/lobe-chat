@@ -6,7 +6,6 @@ import { type ChatStoreState } from '@/store/chat';
 import { chatHelpers } from '@/store/chat/helpers';
 
 import { displayMessageSelectors } from '../../message/selectors';
-import { extractDisplayMessageContent } from '../../message/selectors/displayMessage';
 import { genParentMessages } from './util';
 
 // ============= Thread List Selectors ============= //
@@ -44,7 +43,7 @@ const hasThreadBySourceMsgId = (id: string) => (s: ChatStoreState) => {
 };
 
 // ============= Thread Messages Selectors ============= //
-// These are kept for Token calculation and AI title summarization
+// These are kept for AI title summarization and workflow
 // Thread Chat component now uses dbMessagesMap directly
 
 /**
@@ -99,14 +98,6 @@ const portalAIChatsWithHistoryConfig = (s: ChatStoreState) => {
   });
 };
 
-/**
- * Portal display chats string - used for Token calculation
- */
-const portalDisplayChatsString = (s: ChatStoreState) => {
-  const messages = portalAIChatsWithHistoryConfig(s);
-  return messages.map(extractDisplayMessageContent).join('');
-};
-
 export const threadSelectors = {
   currentPortalThread,
   currentTopicThreads,
@@ -115,7 +106,6 @@ export const threadSelectors = {
   hasThreadBySourceMsgId,
   portalAIChats,
   portalAIChatsWithHistoryConfig,
-  portalDisplayChatsString,
 };
 
 // Re-export utility function for use in action.ts
