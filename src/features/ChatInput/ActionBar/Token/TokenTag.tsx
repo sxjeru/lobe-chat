@@ -1,21 +1,21 @@
 import { ToolNameResolver } from '@lobechat/context-engine';
-import { pluginPrompts } from '@lobechat/prompts';
+import { pluginPrompts, skillsPrompts } from '@lobechat/prompts';
 import { Center, Flexbox, Tooltip } from '@lobehub/ui';
 import { TokenTag } from '@lobehub/ui/chat';
 import { cssVar } from 'antd-style';
 import numeral from 'numeral';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { createAgentToolsEngine } from '@/helpers/toolEngineering';
 import { useModelContextWindowTokens } from '@/hooks/useModelContextWindowTokens';
 import { useModelSupportToolUse } from '@/hooks/useModelSupportToolUse';
 import { useTokenCount } from '@/hooks/useTokenCount';
+import { createSkillEngine } from '@/services/chat/mecha/skillEngineering';
 import { useAgentStore } from '@/store/agent';
-import { agentByIdSelectors } from '@/store/agent/selectors';
+import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
-import { useToolStore } from '@/store/tool';
 import { pluginHelpers } from '@/store/tool/helpers';
 import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/selectors';
@@ -50,16 +50,28 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
 
   // Tool usage token
   const canUseTool = useModelSupportToolUse(model, provider);
-  const pluginIds = useAgentStore((s) => agentByIdSelectors.getAgentPluginsById(agentId)(s));
+  const [pluginIds, skillActivateMode] = useAgentStore((s) => [
+    agentByIdSelectors.getAgentPluginsById(agentId)(s),
+    chatConfigByIdSelectors.getSkillActivateModeById(agentId)(s),
+  ]);
+  const isManualMode = skillActivateMode === 'manual';
 
-  const toolsString = useToolStore(() => {
+  const toolsString = useMemo(() => {
     const toolsEngine = createAgentToolsEngine({ model, provider });
+    const skillEngine = createSkillEngine();
 
     const { tools, enabledManifests } = toolsEngine.generateToolsDetailed({
       model,
       provider,
+      skipDefaultTools: isManualMode,
       toolIds: pluginIds,
     });
+
+    const enabledSkills = isManualMode
+      ? skillEngine.getEnabledSkills(pluginIds)
+      : skillEngine.getAllSkills();
+    const skillContextPrompt = enabledSkills.length > 0 ? skillsPrompts(enabledSkills) : '';
+
     const schemaNumber = tools?.map((i) => JSON.stringify(i)).join('') || '';
 
     // Generate plugin system roles from enabledManifests
@@ -78,8 +90,8 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
           })
         : '';
 
-    return toolsSystemRole + schemaNumber;
-  });
+    return skillContextPrompt + toolsSystemRole + schemaNumber;
+  }, [isManualMode, model, pluginIds, provider]);
 
   const toolsToken = useTokenCount(canUseTool ? toolsString : '');
 
