@@ -1,3 +1,4 @@
+import { getHistorySlicedMessages } from '@lobechat/context-engine';
 import { type PropsWithChildren } from 'react';
 import { memo, useMemo } from 'react';
 
@@ -6,13 +7,14 @@ import dynamic from '@/libs/next/dynamic';
 import { useAgentStore } from '@/store/agent';
 import { chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
-import { chatHelpers } from '@/store/chat/helpers';
 import { displayMessageSelectors, threadSelectors } from '@/store/chat/selectors';
 import { extractDisplayMessageContent } from '@/store/chat/slices/message/selectors/displayMessage';
 
 import { useAgentId } from '../../hooks/useAgentId';
+import { useChatInputStore } from '../../store';
 
 const LargeTokenContent = dynamic(() => import('./TokenTag'), { ssr: false });
+const RUNTIME_HISTORY_COUNT_BUFFER = 2;
 
 const Token = memo<PropsWithChildren>(({ children }) => {
   const showTag = useModelHasContextWindowToken();
@@ -38,17 +40,19 @@ export const MainToken = memo(() => {
   const agentId = useAgentId();
   const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
   const allChats = useChatStore(displayMessageSelectors.mainAIChats);
+  const hasPendingInput = !!useChatInputStore((s) => s.markdownContent.trim());
+  const effectiveHistoryCount =
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - (hasPendingInput ? 1 : 0);
 
   const total = useMemo(
     () =>
-      chatHelpers
-        .getSlicedMessages(allChats, {
-          enableHistoryCount,
-          historyCount,
-        })
+      getHistorySlicedMessages(allChats, {
+        enableHistoryCount,
+        historyCount: effectiveHistoryCount,
+      })
         .map(extractDisplayMessageContent)
         .join(''),
-    [allChats, enableHistoryCount, historyCount],
+    [allChats, effectiveHistoryCount, enableHistoryCount],
   );
 
   return (
@@ -62,17 +66,19 @@ export const PortalToken = memo(() => {
   const agentId = useAgentId();
   const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
   const allPortalChats = useChatStore(threadSelectors.portalAIChats);
+  const hasPendingInput = !!useChatInputStore((s) => s.markdownContent.trim());
+  const effectiveHistoryCount =
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - (hasPendingInput ? 1 : 0);
 
   const total = useMemo(
     () =>
-      chatHelpers
-        .getSlicedMessages(allPortalChats, {
-          enableHistoryCount,
-          historyCount,
-        })
+      getHistorySlicedMessages(allPortalChats, {
+        enableHistoryCount,
+        historyCount: effectiveHistoryCount,
+      })
         .map(extractDisplayMessageContent)
         .join(''),
-    [allPortalChats, enableHistoryCount, historyCount],
+    [allPortalChats, effectiveHistoryCount, enableHistoryCount],
   );
 
   return (

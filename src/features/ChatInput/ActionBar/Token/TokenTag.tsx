@@ -21,6 +21,7 @@ import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 
 import { useAgentId } from '../../hooks/useAgentId';
+import { useChatInputStore } from '../../store';
 import ActionPopover from '../components/ActionPopover';
 import TokenProgress from './TokenProgress';
 
@@ -32,10 +33,10 @@ interface TokenTagProps {
 const Token = memo<TokenTagProps>(({ total: messageString }) => {
   const { t } = useTranslation(['chat', 'components']);
 
-  const [input, historySummary] = useChatStore((s) => [
-    s.inputMessage,
-    topicSelectors.currentActiveTopicSummary(s)?.content || '',
-  ]);
+  const input = useChatInputStore((s) => s.markdownContent);
+  const historySummary = useChatStore(
+    (s) => topicSelectors.currentActiveTopicSummary(s)?.content || '',
+  );
 
   const agentId = useAgentId();
   const [systemRole, model, provider] = useAgentStore((s) => {
