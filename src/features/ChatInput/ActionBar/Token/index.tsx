@@ -11,10 +11,10 @@ import { displayMessageSelectors, threadSelectors } from '@/store/chat/selectors
 import { extractDisplayMessageContent } from '@/store/chat/slices/message/selectors/displayMessage';
 
 import { useAgentId } from '../../hooks/useAgentId';
-import { useChatInputStore } from '../../store';
 
 const LargeTokenContent = dynamic(() => import('./TokenTag'), { ssr: false });
-const RUNTIME_HISTORY_COUNT_BUFFER = 2;
+const RUNTIME_HISTORY_COUNT_BUFFER = 1;
+const RESERVED_PENDING_INPUT_SLOT = 1;
 
 const Token = memo<PropsWithChildren>(({ children }) => {
   const showTag = useModelHasContextWindowToken();
@@ -40,9 +40,8 @@ export const MainToken = memo(() => {
   const agentId = useAgentId();
   const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
   const allChats = useChatStore(displayMessageSelectors.mainAIChats);
-  const hasPendingInput = !!useChatInputStore((s) => s.markdownContent.trim());
   const effectiveHistoryCount =
-    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - (hasPendingInput ? 1 : 0);
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - RESERVED_PENDING_INPUT_SLOT;
 
   const total = useMemo(
     () =>
@@ -66,9 +65,8 @@ export const PortalToken = memo(() => {
   const agentId = useAgentId();
   const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
   const allPortalChats = useChatStore(threadSelectors.portalAIChats);
-  const hasPendingInput = !!useChatInputStore((s) => s.markdownContent.trim());
   const effectiveHistoryCount =
-    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - (hasPendingInput ? 1 : 0);
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - RESERVED_PENDING_INPUT_SLOT;
 
   const total = useMemo(
     () =>

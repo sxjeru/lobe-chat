@@ -1,3 +1,8 @@
+import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
+import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
+import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
+import { MemoryManifest } from '@lobechat/builtin-tool-memory';
+import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { ToolNameResolver } from '@lobechat/context-engine';
 import { pluginPrompts, skillsPrompts } from '@lobechat/prompts';
 import { Center, Flexbox, Tooltip } from '@lobehub/ui';
@@ -10,7 +15,6 @@ import { shallow } from 'zustand/shallow';
 
 import { createAgentToolsEngine } from '@/helpers/toolEngineering';
 import { useModelContextWindowTokens } from '@/hooks/useModelContextWindowTokens';
-import { useModelSupportToolUse } from '@/hooks/useModelSupportToolUse';
 import { useTokenCount } from '@/hooks/useTokenCount';
 import { createSkillEngine } from '@/services/chat/mecha/skillEngineering';
 import { useAgentStore } from '@/store/agent';
@@ -18,6 +22,7 @@ import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selec
 import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
+import { parseSelectedToolsFromEditorData } from '@/store/chat/slices/aiChat/actions/commandBus/parseCommands';
 import { useToolStore } from '@/store/tool';
 import { pluginHelpers } from '@/store/tool/helpers';
 import { useUserStore } from '@/store/user';
@@ -37,6 +42,7 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
   const { t } = useTranslation(['chat', 'components']);
 
   const input = useChatInputStore((s) => s.markdownContent);
+  const inputEditorData = useChatInputStore((s) => s.getJSONState());
   const historySummary = useChatStore(
     (s) => topicSelectors.currentActiveTopicSummary(s)?.content || '',
   );
@@ -57,11 +63,43 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
   );
 
   // Tool usage token
-  const canUseTool = useModelSupportToolUse(model, provider);
-  const [pluginIds, skillActivateMode] = useAgentStore((s) => [
+  const [
+    pluginIds,
+    skillActivateMode,
+    isSearchEnabled,
+    isMemoryToolEnabled,
+    runtimeMode,
+    knowledgeBases,
+  ] = useAgentStore((s) => [
     agentByIdSelectors.getAgentPluginsById(agentId)(s),
     chatConfigByIdSelectors.getSkillActivateModeById(agentId)(s),
+    chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
+    chatConfigByIdSelectors.isMemoryToolEnabledById(agentId)(s),
+    chatConfigByIdSelectors.getRuntimeModeById(agentId)(s),
+    agentByIdSelectors.getAgentKnowledgeBasesById(agentId)(s),
   ]);
+  const isManualMode = skillActivateMode === 'manual';
+  const selectedToolIds = useMemo(
+    () => parseSelectedToolsFromEditorData(inputEditorData).map((tool) => tool.identifier),
+    [inputEditorData],
+  );
+  const manualConfigToolIds = useMemo(
+    () =>
+      isManualMode
+        ? [
+            ...(isSearchEnabled ? [WebBrowsingManifest.identifier] : []),
+            ...(isMemoryToolEnabled ? [MemoryManifest.identifier] : []),
+            ...(runtimeMode === 'local' ? [LocalSystemManifest.identifier] : []),
+            ...(runtimeMode === 'cloud' ? [CloudSandboxManifest.identifier] : []),
+            ...(knowledgeBases.some((kb) => kb.enabled) ? [KnowledgeBaseManifest.identifier] : []),
+          ]
+        : [],
+    [isManualMode, isMemoryToolEnabled, isSearchEnabled, knowledgeBases, runtimeMode],
+  );
+  const effectiveToolIds = useMemo(
+    () => [...new Set([...pluginIds, ...selectedToolIds, ...manualConfigToolIds])],
+    [manualConfigToolIds, pluginIds, selectedToolIds],
+  );
   const agentToolsConfigSignal = useAgentStore(
     (s) => [
       chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
@@ -80,7 +118,6 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
     ],
     shallow,
   );
-  const isManualMode = skillActivateMode === 'manual';
   const toolSkillStoreSignal = useToolStore(
     (s) => [
       s.installedPlugins,
@@ -106,7 +143,7 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
       model,
       provider,
       skipDefaultTools: isManualMode,
-      toolIds: pluginIds,
+      toolIds: effectiveToolIds,
     });
 
     const enabledSkills = isManualMode
@@ -142,12 +179,13 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
     globalMemoryEnabled,
     isManualMode,
     model,
+    effectiveToolIds,
     pluginIds,
     provider,
     toolSkillStoreSignal,
   ]);
 
-  const toolsToken = useTokenCount(skillContextPrompt + (canUseTool ? toolContextString : ''));
+  const toolsToken = useTokenCount(skillContextPrompt + toolContextString);
 
   // Chat usage token
   const inputTokenCount = useTokenCount(input);

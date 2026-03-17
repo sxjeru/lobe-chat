@@ -6,8 +6,12 @@ import {
   type Usage,
 } from '@lobechat/agent-runtime';
 import { AgentRuntime, computeStepContext, GeneralChatAgent } from '@lobechat/agent-runtime';
+import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
+import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
+import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
+import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { PageAgentIdentifier } from '@lobechat/builtin-tool-page-agent';
-import { manualModeExcludeToolIds } from '@lobechat/builtin-tools';
+import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { dynamicInterventionAudits } from '@lobechat/builtin-tools/dynamicInterventionAudits';
 import { isDesktop } from '@lobechat/const';
 import { type ToolsEngine } from '@lobechat/context-engine';
@@ -172,16 +176,31 @@ export class StreamingExecutorActionImpl {
       { model: agentConfigData.model, provider: agentConfigData.provider! },
       effectivePluginIds,
     );
-    // When skillActivateMode is 'manual', exclude only discovery tools (lobe-activator, lobe-skill-store)
-    // so that externally enabled tools (sandbox, web browsing, etc.) remain available
+    // When skillActivateMode is 'manual', skip all default tools,
+    // then explicitly include tools derived from chatConfig/runtime settings.
     const isManualMode = agentConfig.chatConfig?.skillActivateMode === 'manual';
+    const runtimeMode =
+      agentConfig.chatConfig?.runtimeEnv?.runtimeMode?.[isDesktop ? 'desktop' : 'web'] ??
+      (isDesktop ? 'local' : 'none');
+    const hasEnabledKnowledgeBases =
+      agentConfigData.knowledgeBases?.some((kb: { enabled?: boolean }) => kb.enabled) ?? false;
+
+    const manualConfigToolIds = isManualMode
+      ? [
+          ...(agentConfig.chatConfig?.searchMode !== 'off' ? [WebBrowsingManifest.identifier] : []),
+          ...(agentConfig.chatConfig?.memory?.enabled ? [MemoryManifest.identifier] : []),
+          ...(runtimeMode === 'local' ? [LocalSystemManifest.identifier] : []),
+          ...(runtimeMode === 'cloud' ? [CloudSandboxManifest.identifier] : []),
+          ...(hasEnabledKnowledgeBases ? [KnowledgeBaseManifest.identifier] : []),
+        ]
+      : [];
+    const effectiveToolIds = [...new Set([...(mergedToolIds || []), ...manualConfigToolIds])];
 
     const toolsDetailed = toolsEngine.generateToolsDetailed({
-      excludeDefaultToolIds: isManualMode ? manualModeExcludeToolIds : undefined,
       model: agentConfigData.model,
       provider: agentConfigData.provider!,
-      skipDefaultTools: disableTools,
-      toolIds: mergedToolIds,
+      skipDefaultTools: disableTools || isManualMode,
+      toolIds: effectiveToolIds,
     });
 
     const enabledToolIds = toolsDetailed.enabledToolIds;
