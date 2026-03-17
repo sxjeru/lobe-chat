@@ -119,10 +119,10 @@ const mainAIChatsWithHistoryConfig = (s: ChatStoreState): UIChatMessage[] => {
 };
 
 /**
- * Extract content from a message, handling assistantGroup messages with children
+ * Extract content from a message, handling assistantGroup/supervisor messages with children
  */
 export const extractDisplayMessageContent = (message: UIChatMessage): string => {
-  if (message.role === 'assistantGroup' && message.children) {
+  if ((message.role === 'assistantGroup' || message.role === 'supervisor') && message.children) {
     return message.children.map((child) => child.content || '').join('');
   }
 

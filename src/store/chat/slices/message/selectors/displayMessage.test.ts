@@ -266,6 +266,36 @@ describe('displayMessageSelectors', () => {
         'User messageFirst assistant responseSecond assistant response',
       );
     });
+
+    it('should extract content from supervisor children instead of top-level content', () => {
+      const messagesWithSupervisor = [
+        {
+          id: 'msg1',
+          content: 'User message',
+          role: 'user',
+        },
+        {
+          id: 'supervisor-1',
+          content: '',
+          role: 'supervisor',
+          children: [
+            { id: 'child-1', content: 'Supervisor summary' },
+            { id: 'child-2', content: 'Supervisor conclusion' },
+          ],
+        },
+      ] as UIChatMessage[];
+
+      const state = merge(initialStore, {
+        messagesMap: {
+          [messageMapKey({ agentId: 'active-session' })]: messagesWithSupervisor,
+        },
+        activeAgentId: 'active-session',
+      });
+
+      const concatenatedString = displayMessageSelectors.mainAIChatsMessageString(state);
+
+      expect(concatenatedString).toBe('User messageSupervisor summarySupervisor conclusion');
+    });
   });
 
   describe('mainAILatestMessageReasoningContent', () => {

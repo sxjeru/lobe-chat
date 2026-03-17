@@ -6,6 +6,7 @@ import { cssVar } from 'antd-style';
 import numeral from 'numeral';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { shallow } from 'zustand/shallow';
 
 import { createAgentToolsEngine } from '@/helpers/toolEngineering';
 import { useModelContextWindowTokens } from '@/hooks/useModelContextWindowTokens';
@@ -14,11 +15,13 @@ import { useTokenCount } from '@/hooks/useTokenCount';
 import { createSkillEngine } from '@/services/chat/mecha/skillEngineering';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
+import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
+import { useToolStore } from '@/store/tool';
 import { pluginHelpers } from '@/store/tool/helpers';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
 
 import { useAgentId } from '../../hooks/useAgentId';
 import { useChatInputStore } from '../../store';
@@ -48,6 +51,10 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
   });
 
   const maxTokens = useModelContextWindowTokens(model, provider);
+  const [isDevMode, globalMemoryEnabled] = useUserStore(
+    (s) => [userGeneralSettingsSelectors.config(s).isDevMode, settingsSelectors.memoryEnabled(s)],
+    shallow,
+  );
 
   // Tool usage token
   const canUseTool = useModelSupportToolUse(model, provider);
@@ -55,9 +62,43 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
     agentByIdSelectors.getAgentPluginsById(agentId)(s),
     chatConfigByIdSelectors.getSkillActivateModeById(agentId)(s),
   ]);
+  const agentToolsConfigSignal = useAgentStore(
+    (s) => [
+      chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
+      chatConfigByIdSelectors.getUseModelBuiltinSearchById(agentId)(s),
+      chatConfigByIdSelectors.getRuntimeModeById(agentId)(s),
+      chatConfigByIdSelectors.isMemoryToolEnabledById(agentId)(s),
+      agentByIdSelectors.getAgentKnowledgeBasesById(agentId)(s),
+    ],
+    shallow,
+  );
+  const aiInfraSearchSignal = useAiInfraStore(
+    (s) => [
+      aiProviderSelectors.isProviderHasBuiltinSearch(provider)(s),
+      aiModelSelectors.isModelHasBuiltinSearch(model, provider)(s),
+      aiModelSelectors.isModelBuiltinSearchInternal(model, provider)(s),
+    ],
+    shallow,
+  );
   const isManualMode = skillActivateMode === 'manual';
+  const toolSkillStoreSignal = useToolStore(
+    (s) => [
+      s.installedPlugins,
+      s.builtinTools,
+      s.servers,
+      s.lobehubSkillServers,
+      s.builtinSkills,
+      s.agentSkills,
+    ],
+    shallow,
+  );
 
   const toolsString = useMemo(() => {
+    void agentToolsConfigSignal;
+    void aiInfraSearchSignal;
+    void globalMemoryEnabled;
+    void toolSkillStoreSignal;
+
     const toolsEngine = createAgentToolsEngine({ model, provider });
     const skillEngine = createSkillEngine();
 
@@ -92,7 +133,16 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
         : '';
 
     return skillContextPrompt + toolsSystemRole + schemaNumber;
-  }, [isManualMode, model, pluginIds, provider]);
+  }, [
+    agentToolsConfigSignal,
+    aiInfraSearchSignal,
+    globalMemoryEnabled,
+    isManualMode,
+    model,
+    pluginIds,
+    provider,
+    toolSkillStoreSignal,
+  ]);
 
   const toolsToken = useTokenCount(canUseTool ? toolsString : '');
 
@@ -106,8 +156,6 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
 
   // Total token
   const totalToken = systemRoleToken + historySummaryToken + toolsToken + chatsToken;
-
-  const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
 
   if (!isDevMode && maxTokens > 0 && totalToken / maxTokens <= 0.5) return null;
 
