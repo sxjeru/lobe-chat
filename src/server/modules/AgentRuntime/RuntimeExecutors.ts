@@ -666,6 +666,7 @@ export const createRuntimeExecutors = (
         const toolMessage = await ctx.messageModel.create({
           agentId: state.metadata!.agentId!,
           content: executionResult.content,
+          metadata: { toolExecutionTimeMs: executionTime },
           parentId: payload.parentMessageId,
           plugin: chatToolPayload as any,
           pluginError: executionResult.error,
@@ -882,6 +883,7 @@ export const createRuntimeExecutors = (
             const toolMessage = await ctx.messageModel.create({
               agentId: state.metadata!.agentId!,
               content: executionResult.content,
+              metadata: { toolExecutionTimeMs: executionTime },
               parentId: parentMessageId,
               plugin: chatToolPayload as any,
               pluginError: executionResult.error,
