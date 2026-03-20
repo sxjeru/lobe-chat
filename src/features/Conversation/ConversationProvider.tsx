@@ -33,6 +33,14 @@ export interface ConversationProviderProps {
    */
   context: ConversationContext;
   /**
+   * Whether to enable destructive message-control hotkeys (delete / regenerate)
+   * for this conversation instance.
+   *
+   * Set to false for read-only or preview scenarios.
+   * @default true
+   */
+  enableMessageHotkeys?: boolean;
+  /**
    * Whether external messages have been initialized
    * When false, ChatList will show skeleton loading state
    */
@@ -77,6 +85,7 @@ export const ConversationProvider = memo<ConversationProviderProps>(
     actionsBar,
     children,
     context,
+    enableMessageHotkeys = true,
     hooks = {},
     hasInitMessages,
     messages,
@@ -85,6 +94,19 @@ export const ConversationProvider = memo<ConversationProviderProps>(
     skipFetch,
   }) => {
     const contextKey = useMemo(() => messageMapKey(context), [context]);
+
+    const storeUpdater = (
+      <StoreUpdater
+        actionsBar={actionsBar}
+        context={context}
+        hasInitMessages={hasInitMessages}
+        hooks={hooks}
+        messages={messages}
+        operationState={operationState}
+        skipFetch={skipFetch}
+        onMessagesChange={onMessagesChange}
+      />
+    );
 
     log(
       '[Provider] render | contextKey=%s | messagesCount=%d | hasInitMessages=%s | skipFetch=%s',
@@ -96,21 +118,20 @@ export const ConversationProvider = memo<ConversationProviderProps>(
 
     return (
       <Provider createStore={() => createStore({ context, hooks, skipFetch })} key={contextKey}>
-        <ConversationHotkeyBoundary conversationKey={contextKey}>
-          <StoreUpdater
-            actionsBar={actionsBar}
-            context={context}
-            hasInitMessages={hasInitMessages}
-            hooks={hooks}
-            messages={messages}
-            operationState={operationState}
-            skipFetch={skipFetch}
-            onMessagesChange={onMessagesChange}
-          />
-          <AssistantTurnSettledWatcher />
-          <HotkeyRegistry conversationKey={contextKey} />
-          {children}
-        </ConversationHotkeyBoundary>
+        {enableMessageHotkeys ? (
+          <ConversationHotkeyBoundary conversationKey={contextKey}>
+            {storeUpdater}
+            <AssistantTurnSettledWatcher />
+            <HotkeyRegistry conversationKey={contextKey} />
+            {children}
+          </ConversationHotkeyBoundary>
+        ) : (
+          <>
+            {storeUpdater}
+            <AssistantTurnSettledWatcher />
+            {children}
+          </>
+        )}
       </Provider>
     );
   },
