@@ -343,6 +343,7 @@ export const createRuntimeExecutors = (
 
       // Construct ChatStreamPayload
       const stream = ctx.stream ?? true;
+
       const chatPayload = { messages: processedMessages, model, stream, tools };
 
       log(
