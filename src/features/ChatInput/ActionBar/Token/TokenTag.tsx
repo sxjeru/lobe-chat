@@ -5,6 +5,7 @@ import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { ToolNameResolver } from '@lobechat/context-engine';
 import { pluginPrompts, skillsPrompts } from '@lobechat/prompts';
+import type { AssistantContentBlock, UIChatMessage } from '@lobechat/types';
 import { Center, Flexbox, Tooltip } from '@lobehub/ui';
 import { TokenTag } from '@lobehub/ui/chat';
 import { cssVar } from 'antd-style';
@@ -21,7 +22,11 @@ import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
-import { dbMessageSelectors, topicSelectors } from '@/store/chat/selectors';
+import {
+  dbMessageSelectors,
+  displayMessageSelectors,
+  topicSelectors,
+} from '@/store/chat/selectors';
 import { parseSelectedToolsFromEditorData } from '@/store/chat/slices/aiChat/actions/commandBus/parseCommands';
 import { useToolStore } from '@/store/tool';
 import { pluginHelpers } from '@/store/tool/helpers';
@@ -38,6 +43,71 @@ const toolNameResolver = new ToolNameResolver();
 interface TokenTagProps {
   total: string;
 }
+
+const serializeEstimateText = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const collectRawMessageIdsFromBlock = (
+  block: AssistantContentBlock,
+  pushId: (id?: string) => void,
+) => {
+  pushId(block.id);
+  block.tools?.forEach((tool) => pushId(tool.result_msg_id));
+};
+
+const collectRawMessageIdsFromDisplayMessage = (
+  message: UIChatMessage,
+  pushId: (id?: string) => void,
+) => {
+  // Keep raw message identity aligned with real message records
+  pushId(message.id);
+
+  // Assistant/tool relation in raw messages
+  message.tools?.forEach((tool) => pushId(tool.result_msg_id));
+
+  if ((message.role === 'assistantGroup' || message.role === 'supervisor') && message.children) {
+    message.children.forEach((child) => collectRawMessageIdsFromBlock(child, pushId));
+  }
+
+  if (message.role === 'agentCouncil' && message.members) {
+    message.members.forEach((member) => collectRawMessageIdsFromDisplayMessage(member, pushId));
+  }
+
+  if ((message.role === 'tasks' || message.role === 'groupTasks') && message.tasks) {
+    message.tasks.forEach((task) => collectRawMessageIdsFromDisplayMessage(task, pushId));
+  }
+};
+
+const collectRawMessageEstimateText = (message: UIChatMessage): string => {
+  switch (message.role) {
+    case 'assistant': {
+      return [
+        serializeEstimateText(message.content),
+        message.reasoning?.content || '',
+        message.tools?.map((tool) => tool.arguments || '').join('') || '',
+      ].join('');
+    }
+
+    case 'tool':
+    case 'user':
+    case 'system': {
+      return serializeEstimateText(message.content);
+    }
+
+    default: {
+      return serializeEstimateText(message.content);
+    }
+  }
+};
+
 const Token = memo<TokenTagProps>(({ total: messageString }) => {
   const { t } = useTranslation(['chat', 'components']);
 
@@ -188,11 +258,28 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
   const toolsToken = useTokenCount(skillContextPrompt + toolContextString);
 
   // Chat usage token
+  const chats = useChatStore(displayMessageSelectors.mainAIChatsWithHistoryConfig);
+  const dbChats = useChatStore(dbMessageSelectors.activeDbMessages);
   const inputTokenCount = useTokenCount(input);
   const chatsString = useMemo(() => {
-    const chats = dbMessageSelectors.activeDbMessages(useChatStore.getState());
-    return chats.map((chat) => chat.content).join('');
-  }, [messageString]);
+    const rawMessageMap = new Map(dbChats.map((message) => [message.id, message]));
+    const rawMessageIds: string[] = [];
+    const seenIds = new Set<string>();
+
+    const pushId = (id?: string) => {
+      if (!id || seenIds.has(id) || !rawMessageMap.has(id)) return;
+      seenIds.add(id);
+      rawMessageIds.push(id);
+    };
+
+    chats.forEach((chat) => collectRawMessageIdsFromDisplayMessage(chat, pushId));
+
+    return rawMessageIds
+      .map((id) => rawMessageMap.get(id))
+      .filter(Boolean)
+      .map((message) => collectRawMessageEstimateText(message!))
+      .join('');
+  }, [chats, dbChats, messageString]);
   const chatsToken = useTokenCount(chatsString) + inputTokenCount;
 
   // SystemRole token
