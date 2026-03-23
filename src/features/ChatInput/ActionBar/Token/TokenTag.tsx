@@ -22,6 +22,7 @@ import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
+import { chatHelpers } from '@/store/chat/helpers';
 import {
   dbMessageSelectors,
   displayMessageSelectors,
@@ -108,7 +109,7 @@ const collectRawMessageEstimateText = (message: UIChatMessage): string => {
   }
 };
 
-const Token = memo<TokenTagProps>(({ total: messageString }) => {
+const Token = memo<TokenTagProps>(({ total: _messageString }) => {
   const { t } = useTranslation(['chat', 'components']);
 
   const input = useChatInputStore((s) => s.markdownContent);
@@ -125,6 +126,11 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
       agentByIdSelectors.getAgentModelProviderById(agentId)(s),
     ];
   });
+
+  const [historyCount, enableHistoryCount] = useAgentStore((s) => [
+    chatConfigByIdSelectors.getHistoryCountById(agentId)(s),
+    chatConfigByIdSelectors.getEnableHistoryCountById(agentId)(s),
+  ]);
 
   const maxTokens = useModelContextWindowTokens(model, provider);
   const [isDevMode, globalMemoryEnabled] = useUserStore(
@@ -258,7 +264,16 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
   const toolsToken = useTokenCount(skillContextPrompt + toolContextString);
 
   // Chat usage token
-  const chats = useChatStore(displayMessageSelectors.mainAIChatsWithHistoryConfig);
+  const mainAIChats = useChatStore(displayMessageSelectors.mainAIChats);
+  const chats = useMemo(
+    () =>
+      chatHelpers.getSlicedMessages(mainAIChats, {
+        enableHistoryCount,
+        historyCount,
+        includeNewUserMessage: Boolean(input?.trim()),
+      }),
+    [enableHistoryCount, historyCount, input, mainAIChats],
+  );
   const dbChats = useChatStore(dbMessageSelectors.activeDbMessages);
   const inputTokenCount = useTokenCount(input);
   const chatsString = useMemo(() => {
@@ -279,7 +294,7 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
       .filter(Boolean)
       .map((message) => collectRawMessageEstimateText(message!))
       .join('');
-  }, [chats, dbChats, messageString]);
+  }, [chats, dbChats]);
   const chatsToken = useTokenCount(chatsString) + inputTokenCount;
 
   // SystemRole token
