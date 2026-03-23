@@ -21,7 +21,7 @@ import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors, chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { aiModelSelectors, aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useChatStore } from '@/store/chat';
-import { topicSelectors } from '@/store/chat/selectors';
+import { dbMessageSelectors, topicSelectors } from '@/store/chat/selectors';
 import { parseSelectedToolsFromEditorData } from '@/store/chat/slices/aiChat/actions/commandBus/parseCommands';
 import { useToolStore } from '@/store/tool';
 import { pluginHelpers } from '@/store/tool/helpers';
@@ -189,7 +189,11 @@ const Token = memo<TokenTagProps>(({ total: messageString }) => {
 
   // Chat usage token
   const inputTokenCount = useTokenCount(input);
-  const chatsToken = useTokenCount(messageString) + inputTokenCount;
+  const chatsString = useMemo(() => {
+    const chats = dbMessageSelectors.activeDbMessages(useChatStore.getState());
+    return chats.map((chat) => chat.content).join('');
+  }, [messageString]);
+  const chatsToken = useTokenCount(chatsString) + inputTokenCount;
 
   // SystemRole token
   const systemRoleToken = useTokenCount(systemRole);
