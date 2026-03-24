@@ -164,6 +164,91 @@ describe('LobeGithubCopilotAI', () => {
     });
   });
 
+  describe('responses routing', () => {
+    it('should force Responses API for built-in responses model ids', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-5.3-codex',
+      });
+
+      expect(result).toBe(true);
+    });
+
+    it('should keep Chat Completions for non-gpt-5 models even when apiMode=responses', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'responses',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-4o',
+      });
+
+      expect(result).toBe(false);
+    });
+
+    it('should use Responses API when apiMode=responses and model is gpt-5 family', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'responses',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-5.4',
+      });
+
+      expect(result).toBe(true);
+    });
+
+    it('should force Responses API for GPT-5+ models even when apiMode=chatCompletion', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'chatCompletion',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-5.4-mini',
+      });
+
+      expect(result).toBe(true);
+    });
+
+    it('should keep Chat Completions for gpt-5-mini', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'chatCompletion',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-5-mini',
+      });
+
+      expect(result).toBe(false);
+    });
+
+    it('should keep Chat Completions for provider-prefixed GPT-5+ models after removing model normalization', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'chatCompletion',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'openai/gpt-5.4',
+      });
+
+      expect(result).toBe(false);
+    });
+
+    it('should keep Chat Completions for non-forced models when apiMode=chatCompletion', () => {
+      const instance = new LobeGithubCopilotAI({ apiKey: 'ghp_test' });
+
+      const result = (instance as any).shouldUseResponsesAPI({
+        apiMode: 'chatCompletion',
+        messages: [{ content: 'Hello', role: 'user' as const }],
+        model: 'gpt-4o',
+      });
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('error handling in constructor', () => {
     it('should throw InvalidGithubCopilotToken when no credentials provided', () => {
       expect(() => new LobeGithubCopilotAI({})).toThrow();

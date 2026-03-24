@@ -3,8 +3,12 @@ import { ModelProvider } from 'model-bank';
 import OpenAI from 'openai';
 
 import { type LobeRuntimeAI } from '../../core/BaseAI';
-import { pruneReasoningPayload } from '../../core/contextBuilders/openai';
-import { OpenAIStream } from '../../core/streams';
+import {
+  convertOpenAIResponseInputs,
+  pruneReasoningPayload,
+} from '../../core/contextBuilders/openai';
+import { transformResponseAPIToStream } from '../../core/openaiCompatibleFactory/nonStreamToStream';
+import { OpenAIResponsesStream, OpenAIStream } from '../../core/streams';
 import { type ChatMethodOptions, type ChatStreamPayload } from '../../types';
 import { AgentRuntimeErrorType } from '../../types/error';
 import { AgentRuntimeError } from '../../utils/createError';
@@ -165,20 +169,56 @@ export class LobeGithubCopilotAI implements LobeRuntimeAI {
       });
 
       const { model, ...rest } = this.handlePayload(payload);
-      const shouldStream = rest.stream !== false;
 
-      const response = await client.chat.completions.create(
-        { ...rest, model, stream: shouldStream } as OpenAI.ChatCompletionCreateParamsStreaming,
-        { signal: options?.signal },
-      );
+      if (this.shouldUseResponsesAPI({ ...payload, model })) {
+        const {
+          apiMode: _apiMode,
+          frequency_penalty: _frequencyPenalty,
+          max_tokens,
+          messages,
+          presence_penalty: _presencePenalty,
+          ...responseRest
+        } = rest as ChatStreamPayload;
 
-      return StreamingResponse(
-        OpenAIStream(response, {
-          callbacks: options?.callback,
-          payload: { model, provider: ModelProvider.GithubCopilot },
-        }),
-        { headers: options?.headers },
-      );
+        const shouldStream = rest.stream !== false;
+        const input = await convertOpenAIResponseInputs(messages as any, {
+          strictToolPairing: true,
+        });
+
+        const response = await client.responses.create(
+          {
+            ...responseRest,
+            ...(max_tokens ? { max_output_tokens: max_tokens } : {}),
+            input,
+            store: false,
+            stream: shouldStream || undefined,
+          } as OpenAI.Responses.ResponseCreateParams,
+          { headers: options?.requestHeaders, signal: options?.signal },
+        );
+
+        if (shouldStream) {
+          return StreamingResponse(
+            OpenAIResponsesStream(response as any, {
+              callbacks: options?.callback,
+              payload: { model, provider: ModelProvider.GithubCopilot },
+            }),
+            { headers: options?.headers },
+          );
+        }
+
+        const stream = transformResponseAPIToStream(response as OpenAI.Responses.Response);
+
+        return StreamingResponse(
+          OpenAIResponsesStream(stream, {
+            callbacks: options?.callback,
+            enableStreaming: false,
+            payload: { model, provider: ModelProvider.GithubCopilot },
+          }),
+          { headers: options?.headers },
+        );
+      }
+
+      return this.chatWithCompletions(client, model, rest, options);
     });
   }
 
@@ -222,6 +262,51 @@ export class LobeGithubCopilotAI implements LobeRuntimeAI {
     }
 
     return { ...payload, stream: true };
+  }
+
+  private shouldUseResponsesAPI(payload: ChatStreamPayload): boolean {
+    const isCopilotResponsesModel = this.isCopilotResponsesModel(payload.model);
+
+    // Copilot gpt-5* family requires /responses.
+    if (isCopilotResponsesModel) return true;
+
+    // Keep non-gpt-5 models on /chat/completions even when user toggles Responses.
+    // This prevents "The requested model is not supported" for unsupported models.
+    if (payload.apiMode === 'responses') return isCopilotResponsesModel;
+
+    if (payload.apiMode === 'chatCompletion') return false;
+
+    return false;
+  }
+
+  private isCopilotResponsesModel(model: string): boolean {
+    const modelName = model.toLowerCase();
+    if (!modelName) return false;
+
+    if (modelName === 'gpt-5-mini') return false;
+
+    return modelName.startsWith('gpt-5');
+  }
+
+  private async chatWithCompletions(
+    client: OpenAI,
+    model: string,
+    rest: Omit<ChatStreamPayload, 'model'>,
+    options?: ChatMethodOptions,
+  ) {
+    const shouldStream = rest.stream !== false;
+    const response = await client.chat.completions.create(
+      { ...rest, model, stream: shouldStream } as OpenAI.ChatCompletionCreateParamsStreaming,
+      { headers: options?.requestHeaders, signal: options?.signal },
+    );
+
+    return StreamingResponse(
+      OpenAIStream(response, {
+        callbacks: options?.callback,
+        payload: { model, provider: ModelProvider.GithubCopilot },
+      }),
+      { headers: options?.headers },
+    );
   }
 
   private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
