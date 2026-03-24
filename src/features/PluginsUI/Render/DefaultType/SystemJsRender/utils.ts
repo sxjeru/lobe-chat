@@ -1,4 +1,3 @@
- 
 /**
  * This dynamic loading module is implemented using SystemJS, caching four modules in Lobe Chat: React, ReactDOM, antd, and antd-style.
  */
