@@ -432,6 +432,7 @@
   "userPanel.billing": "Facturatiebeheer",
   "userPanel.cloud": "Start {{name}}",
   "userPanel.community": "Community",
+  "userPanel.credits": "Credits Beheer",
   "userPanel.data": "Gegevensopslag",
   "userPanel.defaultNickname": "Communitygebruiker",
   "userPanel.discord": "Communityondersteuning",
@@ -443,6 +444,7 @@
   "userPanel.plans": "Abonnementen",
   "userPanel.profile": "Account",
   "userPanel.setting": "Instellingen",
+  "userPanel.upgradePlan": "Abonnement upgraden",
   "userPanel.usages": "Gebruiksstatistieken",
   "version": "Versie"
 }

@@ -512,6 +512,7 @@ export default {
   'userPanel.billing': 'Billing Management',
   'userPanel.cloud': 'Launch {{name}}',
   'userPanel.community': 'Community',
+  'userPanel.credits': 'Credits Management',
   'userPanel.data': 'Data Storage',
   'userPanel.defaultNickname': 'Community User',
   'userPanel.discord': 'Discord',
@@ -523,6 +524,7 @@ export default {
   'userPanel.plans': 'Subscription Plans',
   'userPanel.profile': 'Account',
   'userPanel.setting': 'Settings',
+  'userPanel.upgradePlan': 'Upgrade Plan',
   'userPanel.usages': 'Usage Statistics',
   'version': 'Version',
 };
