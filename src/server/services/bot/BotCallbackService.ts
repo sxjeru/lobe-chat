@@ -7,9 +7,16 @@ import { getAgentRuntimeRedisClient } from '@/server/modules/AgentRuntime/redis'
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { SystemAgentService } from '@/server/services/systemAgent';
 
+import { AgentBridgeService } from './AgentBridgeService';
 import type { BotProviderConfig, PlatformClient, PlatformMessenger, UsageStats } from './platforms';
 import { platformRegistry } from './platforms';
-import { renderError, renderFinalReply, renderStepProgress, splitMessage } from './replyTemplate';
+import {
+  renderError,
+  renderFinalReply,
+  renderStepProgress,
+  renderStopped,
+  splitMessage,
+} from './replyTemplate';
 
 const log = debug('lobe-server:bot:callback');
 
@@ -89,6 +96,10 @@ export class BotCallbackService {
         canEdit,
       );
       await this.removeEyesReaction(body, client, platformThreadId);
+      // Clear the active thread tracker so the thread can accept new messages.
+      // In queue mode, the bridge handler's finally block skips this cleanup
+      // to keep the thread marked active while the agent runs on the job queue.
+      AgentBridgeService.clearActiveThread(platformThreadId);
       this.summarizeTopicTitle(body, messenger);
     }
   }
@@ -211,6 +222,16 @@ export class BotCallbackService {
       return;
     }
 
+    if (reason === 'interrupted') {
+      const stoppedText = renderStopped(errorMessage || 'Execution stopped.');
+      try {
+        await messenger.createMessage(stoppedText);
+      } catch (error) {
+        log('handleCompletion: failed to send interrupted message: %O', error);
+      }
+      return;
+    }
+
     if (!lastAssistantContent) {
       log('handleCompletion: no lastAssistantContent, skipping');
       return;
@@ -269,7 +290,16 @@ export class BotCallbackService {
 
   private summarizeTopicTitle(body: BotCallbackBody, messenger: PlatformMessenger): void {
     const { reason, topicId, userId, userPrompt, lastAssistantContent } = body;
-    if (reason === 'error' || !topicId || !userId || !userPrompt || !lastAssistantContent) return;
+    if (
+      reason === 'error' ||
+      reason === 'interrupted' ||
+      !topicId ||
+      !userId ||
+      !userPrompt ||
+      !lastAssistantContent
+    ) {
+      return;
+    }
 
     const topicModel = new TopicModel(this.db, userId);
     topicModel

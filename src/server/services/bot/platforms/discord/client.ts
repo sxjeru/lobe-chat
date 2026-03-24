@@ -1,5 +1,6 @@
 import type { DiscordAdapter } from '@chat-adapter/discord';
 import { createDiscordAdapter } from '@chat-adapter/discord';
+import type { Chat as ChatBot } from 'chat';
 import debug from 'debug';
 
 import {
@@ -13,6 +14,7 @@ import {
 } from '../types';
 import { formatUsageStats } from '../utils';
 import { DiscordApi } from './api';
+import { patchDiscordForwardedInteractions } from './patch';
 
 const log = debug('bot-platform:discord:bot');
 
@@ -122,6 +124,10 @@ class DiscordGatewayClient implements PlatformClient {
 
   // --- Runtime Operations ---
 
+  applyChatPatches(chatBot: ChatBot<any>): void {
+    patchDiscordForwardedInteractions(chatBot);
+  }
+
   createAdapter(): Record<string, any> {
     return {
       discord: createDiscordAdapter({
@@ -176,6 +182,13 @@ class DiscordGatewayClient implements PlatformClient {
 
   sanitizeUserInput(text: string): string {
     return text.replaceAll(new RegExp(`<@!?${this.applicationId}>\\s*`, 'g'), '').trim();
+  }
+
+  async registerBotCommands(
+    commands: Array<{ command: string; description: string }>,
+  ): Promise<void> {
+    await this.discord.registerCommands(this.applicationId, commands);
+    log('DiscordBot appId=%s registered %d commands', this.applicationId, commands.length);
   }
 }
 
