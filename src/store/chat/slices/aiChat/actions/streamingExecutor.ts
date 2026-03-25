@@ -11,6 +11,7 @@ import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
 import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { PageAgentIdentifier } from '@lobechat/builtin-tool-page-agent';
+import { TopicReferenceManifest } from '@lobechat/builtin-tool-topic-reference';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { dynamicInterventionAudits } from '@lobechat/builtin-tools/dynamicInterventionAudits';
 import { isDesktop } from '@lobechat/const';
@@ -194,7 +195,13 @@ export class StreamingExecutorActionImpl {
           ...(hasEnabledKnowledgeBases ? [KnowledgeBaseManifest.identifier] : []),
         ]
       : [];
-    const effectiveToolIds = [...new Set([...(mergedToolIds || []), ...manualConfigToolIds])];
+    const effectiveToolIds = [
+      ...new Set([
+        ...(mergedToolIds || []),
+        ...manualConfigToolIds,
+        ...(hasTopicReference ? [TopicReferenceManifest.identifier] : []),
+      ]),
+    ];
 
     const toolsDetailed = toolsEngine.generateToolsDetailed({
       model: agentConfigData.model,

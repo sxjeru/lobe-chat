@@ -10,6 +10,7 @@ import {
   generateSystemPrompt,
   RemoteDeviceManifest,
 } from '@lobechat/builtin-tool-remote-device';
+import { TopicReferenceManifest } from '@lobechat/builtin-tool-topic-reference';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { builtinTools } from '@lobechat/builtin-tools';
 import { LOADING_FLAT } from '@lobechat/const';
@@ -496,7 +497,13 @@ export class AiAgentService {
           ...(hasEnabledKnowledgeBases ? [KnowledgeBaseManifest.identifier] : []),
         ]
       : [];
-    const effectiveToolIds = [...new Set([...(pluginIds || []), ...manualConfigToolIds])];
+    const effectiveToolIds = [
+      ...new Set([
+        ...(pluginIds || []),
+        ...manualConfigToolIds,
+        ...(hasTopicReference ? [TopicReferenceManifest.identifier] : []),
+      ]),
+    ];
 
     const toolsResult = toolsEngine.generateToolsDetailed({
       model,
