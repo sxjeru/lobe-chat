@@ -54,7 +54,7 @@ import {
 
 import { isCanUseVideo, isCanUseVision } from '../helper';
 import { combineUserMemoryData, resolveTopicMemories, resolveUserPersona } from './memoryManager';
-import { resolveClientSkills } from './skillEngineering';
+import { createSkillEngine } from './skillEngineering';
 import { stripActionTagsFromText } from './skillPreload';
 
 const log = debug('context-engine:contextEngineering');
@@ -99,6 +99,8 @@ interface ContextEngineeringContext {
   plugins?: string[];
   provider: string;
   sessionId?: string;
+  /** Skill activate mode from chatConfig */
+  skillActivateMode?: 'auto' | 'manual';
   /**
    * Step context from Agent Runtime
    * Contains latest XML structure updated each step
@@ -161,6 +163,7 @@ export const contextEngineering = async ({
   groupId,
   initialContext,
   plugins,
+  skillActivateMode,
   stepContext,
   topicId,
   memoryContext,
@@ -587,6 +590,16 @@ export const contextEngineering = async ({
     log('mentionedAgents injected: %d agents', initialContext!.mentionedAgents!.length);
   }
 
+  const enabledSkills = (() => {
+    if (!plugins) return undefined;
+
+    const skillEngine = createSkillEngine();
+
+    return skillActivateMode === 'manual'
+      ? skillEngine.getEnabledSkills(plugins)
+      : skillEngine.getAllSkills();
+  })();
+
   // Resolve topic references from messages containing <refer_topic> tags
   const topicReferences = await resolveTopicReferences(
     messages,
@@ -642,9 +655,11 @@ export const contextEngineering = async ({
     initialContext,
     stepContext,
 
-    // Skills configuration — expose all installed skills so the AI can discover and activate them
+    // Skills configuration
+    // - auto (default): expose all installed skills for autonomous activation
+    // - manual: expose only explicitly enabled skills
     skillsConfig: {
-      enabledSkills: plugins ? resolveClientSkills(plugins).skills : undefined,
+      enabledSkills,
     },
 
     // Tool Discovery configuration

@@ -1,12 +1,20 @@
+import { getHistorySlicedMessages } from '@lobechat/context-engine';
 import { type PropsWithChildren } from 'react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { useModelHasContextWindowToken } from '@/hooks/useModelHasContextWindowToken';
 import dynamic from '@/libs/next/dynamic';
+import { useAgentStore } from '@/store/agent';
+import { chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { displayMessageSelectors, threadSelectors } from '@/store/chat/selectors';
+import { extractDisplayMessageContent } from '@/store/chat/slices/message/selectors/displayMessage';
+
+import { useAgentId } from '../../hooks/useAgentId';
 
 const LargeTokenContent = dynamic(() => import('./TokenTag'), { ssr: false });
+const RUNTIME_HISTORY_COUNT_BUFFER = 1;
+const RESERVED_PENDING_INPUT_SLOT = 1;
 
 const Token = memo<PropsWithChildren>(({ children }) => {
   const showTag = useModelHasContextWindowToken();
@@ -14,8 +22,37 @@ const Token = memo<PropsWithChildren>(({ children }) => {
   return showTag && children;
 });
 
+const useTokenRelatedConfigSubscription = (agentId: string) => {
+  const [historyCount, enableHistoryCount] = useAgentStore(
+    (s) =>
+      [
+        chatConfigByIdSelectors.getHistoryCountById(agentId)(s),
+        chatConfigByIdSelectors.getEnableHistoryCountById(agentId)(s),
+        chatConfigByIdSelectors.isEnableSearchById(agentId)(s),
+        chatConfigByIdSelectors.getUseModelBuiltinSearchById(agentId)(s),
+      ] as const,
+  );
+
+  return { enableHistoryCount, historyCount };
+};
+
 export const MainToken = memo(() => {
-  const total = useChatStore(displayMessageSelectors.mainAIChatsMessageString);
+  const agentId = useAgentId();
+  const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
+  const allChats = useChatStore(displayMessageSelectors.mainAIChats);
+  const effectiveHistoryCount =
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - RESERVED_PENDING_INPUT_SLOT;
+
+  const total = useMemo(
+    () =>
+      getHistorySlicedMessages(allChats, {
+        enableHistoryCount,
+        historyCount: effectiveHistoryCount,
+      })
+        .map(extractDisplayMessageContent)
+        .join(''),
+    [allChats, effectiveHistoryCount, enableHistoryCount],
+  );
 
   return (
     <Token>
@@ -25,7 +62,22 @@ export const MainToken = memo(() => {
 });
 
 export const PortalToken = memo(() => {
-  const total = useChatStore(threadSelectors.portalDisplayChatsString);
+  const agentId = useAgentId();
+  const { historyCount, enableHistoryCount } = useTokenRelatedConfigSubscription(agentId);
+  const allPortalChats = useChatStore(threadSelectors.portalAIChats);
+  const effectiveHistoryCount =
+    historyCount + RUNTIME_HISTORY_COUNT_BUFFER - RESERVED_PENDING_INPUT_SLOT;
+
+  const total = useMemo(
+    () =>
+      getHistorySlicedMessages(allPortalChats, {
+        enableHistoryCount,
+        historyCount: effectiveHistoryCount,
+      })
+        .map(extractDisplayMessageContent)
+        .join(''),
+    [allPortalChats, effectiveHistoryCount, enableHistoryCount],
+  );
 
   return (
     <Token>

@@ -325,6 +325,46 @@ describe('contextEngineering', () => {
     expect(result[1].content).not.toContain('<action type="lobe-notebook" category="tool" />');
   });
 
+  it('should expose only selected skills when skillActivateMode is manual', async () => {
+    const messages: UIChatMessage[] = [
+      {
+        content: 'hello',
+        createdAt: Date.now(),
+        id: 'manual-skill-mode',
+        role: 'user',
+        updatedAt: Date.now(),
+      },
+    ];
+
+    const autoResult = await contextEngineering({
+      messages,
+      model: 'gpt-4',
+      plugins: ['lobe-artifacts'],
+      provider: 'openai',
+      skillActivateMode: 'auto',
+    });
+
+    const manualResult = await contextEngineering({
+      messages,
+      model: 'gpt-4',
+      plugins: ['lobe-artifacts'],
+      provider: 'openai',
+      skillActivateMode: 'manual',
+    });
+
+    const autoSystemMessage = autoResult.find((msg) => msg.role === 'system');
+    const manualSystemMessage = manualResult.find((msg) => msg.role === 'system');
+
+    expect(autoSystemMessage).toBeDefined();
+    expect(manualSystemMessage).toBeDefined();
+
+    expect(autoSystemMessage!.content).toContain('<skill name="Artifacts">');
+    expect(manualSystemMessage!.content).toContain('<skill name="Artifacts">');
+
+    expect(autoSystemMessage!.content).toContain('<skill name="LobeHub">');
+    expect(manualSystemMessage!.content).not.toContain('<skill name="LobeHub">');
+  });
+
   describe('getAssistantContent', () => {
     it('should handle assistant message with imageList and content', async () => {
       // Mock isCanUseVision to return true for vision models

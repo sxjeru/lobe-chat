@@ -234,6 +234,68 @@ describe('displayMessageSelectors', () => {
       // Restore the mocks after the test
       vi.restoreAllMocks();
     });
+
+    it('should extract content from assistantGroup children instead of top-level content', () => {
+      const messagesWithGroup = [
+        {
+          id: 'msg1',
+          content: 'User message',
+          role: 'user',
+        },
+        {
+          id: 'group-1',
+          content: '',
+          role: 'assistantGroup',
+          children: [
+            { id: 'child-1', content: 'First assistant response' },
+            { id: 'child-2', content: 'Second assistant response' },
+          ],
+        },
+      ] as UIChatMessage[];
+
+      const state = merge(initialStore, {
+        messagesMap: {
+          [messageMapKey({ agentId: 'active-session' })]: messagesWithGroup,
+        },
+        activeAgentId: 'active-session',
+      });
+
+      const concatenatedString = displayMessageSelectors.mainAIChatsMessageString(state);
+
+      expect(concatenatedString).toBe(
+        'User messageFirst assistant responseSecond assistant response',
+      );
+    });
+
+    it('should extract content from supervisor children instead of top-level content', () => {
+      const messagesWithSupervisor = [
+        {
+          id: 'msg1',
+          content: 'User message',
+          role: 'user',
+        },
+        {
+          id: 'supervisor-1',
+          content: '',
+          role: 'supervisor',
+          children: [
+            { id: 'child-1', content: 'Supervisor summary' },
+            { id: 'child-2', content: 'Supervisor conclusion' },
+          ],
+        },
+      ] as UIChatMessage[];
+
+      const state = merge(initialStore, {
+        messagesMap: {
+          [messageMapKey({ agentId: 'active-session' })]: messagesWithSupervisor,
+        },
+        activeAgentId: 'active-session',
+      });
+
+      const concatenatedString = displayMessageSelectors.mainAIChatsMessageString(state);
+
+      expect(concatenatedString).toBe('User messageSupervisor summarySupervisor conclusion');
+    });
   });
 
   describe('mainAILatestMessageReasoningContent', () => {

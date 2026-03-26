@@ -258,6 +258,7 @@ class ChatService {
       plugins,
       provider: payload.provider!,
       sessionId: options?.trace?.sessionId,
+      skillActivateMode: chatConfig.skillActivateMode,
       stepContext: options?.stepContext,
       systemRole: agentConfig.systemRole,
       tools: enabledToolIds,
@@ -499,6 +500,8 @@ class ChatService {
         messages: params.messages as any,
         model: params.model!,
         provider: params.provider!,
+        skillActivateMode:
+          agentChatConfigSelectors.currentChatConfig(getAgentStoreState()).skillActivateMode,
       });
 
       await this.getChatCompletion(

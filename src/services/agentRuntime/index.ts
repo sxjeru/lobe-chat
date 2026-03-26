@@ -51,6 +51,7 @@ class AgentRuntimeService {
       messages: data.messages as any,
       ...modelRuntimeConfig,
       plugins: agentConfig.plugins,
+      skillActivateMode: chatConfig.skillActivateMode,
       systemRole: agentConfig.systemRole,
       tools: enabledToolIds,
     });

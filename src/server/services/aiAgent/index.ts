@@ -1,13 +1,18 @@
 import type { AgentRuntimeContext, AgentState } from '@lobechat/agent-runtime';
 import { BUILTIN_AGENT_SLUGS, getAgentRuntimeConfig } from '@lobechat/builtin-agents';
 import { builtinSkills } from '@lobechat/builtin-skills';
+import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
+import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
 import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
+import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import {
   type DeviceAttachment,
   generateSystemPrompt,
   RemoteDeviceManifest,
 } from '@lobechat/builtin-tool-remote-device';
-import { builtinTools, manualModeExcludeToolIds } from '@lobechat/builtin-tools';
+import { TopicReferenceManifest } from '@lobechat/builtin-tool-topic-reference';
+import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
+import { builtinTools } from '@lobechat/builtin-tools';
 import { LOADING_FLAT } from '@lobechat/const';
 import type { LobeToolManifest } from '@lobechat/context-engine';
 import { SkillEngine } from '@lobechat/context-engine';
@@ -508,15 +513,34 @@ export class AiAgentService {
     ];
     log('execAgent: agent configured plugins: %O', pluginIds);
 
-    // When skillActivateMode is 'manual', exclude only discovery tools (lobe-activator, lobe-skill-store)
-    // so that externally enabled tools (sandbox, web browsing, etc.) remain available
+    // When skillActivateMode is 'manual', skip all default tools,
+    // then explicitly include tools derived from chatConfig/runtime settings.
     const isManualMode = agentConfig.chatConfig?.skillActivateMode === 'manual';
+    const runtimeMode =
+      agentConfig.chatConfig?.runtimeEnv?.runtimeMode?.[gatewayConfigured ? 'desktop' : 'web'] ??
+      (gatewayConfigured ? 'local' : 'none');
+    const manualConfigToolIds = isManualMode
+      ? [
+          ...(agentConfig.chatConfig?.searchMode !== 'off' ? [WebBrowsingManifest.identifier] : []),
+          ...(agentConfig.chatConfig?.memory?.enabled ? [MemoryManifest.identifier] : []),
+          ...(runtimeMode === 'local' ? [LocalSystemManifest.identifier] : []),
+          ...(runtimeMode === 'cloud' ? [CloudSandboxManifest.identifier] : []),
+          ...(hasEnabledKnowledgeBases ? [KnowledgeBaseManifest.identifier] : []),
+        ]
+      : [];
+    const effectiveToolIds = [
+      ...new Set([
+        ...(pluginIds || []),
+        ...manualConfigToolIds,
+        ...(hasTopicReference ? [TopicReferenceManifest.identifier] : []),
+      ]),
+    ];
 
     const toolsResult = toolsEngine.generateToolsDetailed({
-      excludeDefaultToolIds: isManualMode ? manualModeExcludeToolIds : undefined,
       model,
       provider,
-      toolIds: pluginIds,
+      skipDefaultTools: isManualMode,
+      toolIds: effectiveToolIds,
     });
 
     const tools = toolsResult.tools;
@@ -524,7 +548,7 @@ export class AiAgentService {
     log('execAgent: enabled tool ids: %O', toolsResult.enabledToolIds);
 
     // Get manifest map and convert from Map to Record
-    const manifestMap = toolsEngine.getEnabledPluginManifests(pluginIds);
+    const manifestMap = toolsEngine.getEnabledPluginManifests(effectiveToolIds);
     const toolManifestMap: Record<string, any> = {};
     manifestMap.forEach((manifest, id) => {
       toolManifestMap[id] = manifest;
