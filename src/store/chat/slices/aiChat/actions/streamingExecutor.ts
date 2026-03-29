@@ -8,12 +8,12 @@ import {
 import { AgentRuntime, computeStepContext, GeneralChatAgent } from '@lobechat/agent-runtime';
 import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
 import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
-import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
+import { createPathScopeAudit, LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { PageAgentIdentifier } from '@lobechat/builtin-tool-page-agent';
 import { TopicReferenceManifest } from '@lobechat/builtin-tool-topic-reference';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
-import { dynamicInterventionAudits } from '@lobechat/builtin-tools/dynamicInterventionAudits';
+import { dynamicInterventionAudits as builtinDynamicInterventionAudits } from '@lobechat/builtin-tools/dynamicInterventionAudits';
 import { isDesktop } from '@lobechat/const';
 import { type ToolsEngine } from '@lobechat/context-engine';
 import {
@@ -27,6 +27,7 @@ import { t } from 'i18next';
 import { createAgentToolsEngine } from '@/helpers/toolEngineering';
 import { type ResolvedAgentConfig } from '@/services/chat/mecha';
 import { resolveAgentConfig } from '@/services/chat/mecha';
+import { localFileService } from '@/services/electron/localFileService';
 import { messageService } from '@/services/message';
 import { getAgentStoreState } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
@@ -48,6 +49,18 @@ import {
 } from '../../message/selectors/dbMessage';
 
 const log = debug('lobe-store:streaming-executor');
+
+const dynamicInterventionAudits = {
+  ...builtinDynamicInterventionAudits,
+  pathScopeAudit: createPathScopeAudit({
+    areAllPathsSafe: async ({ paths, resolveAgainstScope }) => {
+      if (!isDesktop) return false;
+
+      const result = await localFileService.auditSafePaths({ paths, resolveAgainstScope });
+      return result.allSafe;
+    },
+  }),
+};
 
 const hasReferTopicNode = (editorData: Record<string, any> | null | undefined): boolean => {
   if (!editorData) return false;
@@ -206,7 +219,7 @@ export class StreamingExecutorActionImpl {
     const toolsDetailed = toolsEngine.generateToolsDetailed({
       model: agentConfigData.model,
       provider: agentConfigData.provider!,
-      skipDefaultTools: disableTools || isManualMode,
+      skipDefaultTools: disableTools || isManualMode ? true : undefined,
       toolIds: effectiveToolIds,
     });
 

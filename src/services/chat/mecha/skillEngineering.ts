@@ -29,7 +29,15 @@ const createOperationSkillSet = (pluginIds?: string[]): OperationSkillSet => {
 
 export const createSkillEngine = () => ({
   getAllSkills: () => createOperationSkillSet().skills,
-  getEnabledSkills: (pluginIds?: string[]) => createOperationSkillSet(pluginIds).skills,
+  getEnabledSkills: (pluginIds?: string[]) => {
+    if (!pluginIds || pluginIds.length === 0) return [];
+
+    const enabledIds = new Set(pluginIds);
+
+    return createOperationSkillSet(pluginIds).skills.filter((skill) =>
+      enabledIds.has(skill.identifier),
+    );
+  },
 });
 
 /**
