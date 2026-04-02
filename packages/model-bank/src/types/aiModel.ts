@@ -257,6 +257,7 @@ export type ExtendParamsType =
   | 'reasoningBudgetToken32k'
   | 'reasoningBudgetToken80k'
   | 'enableReasoning'
+  | 'preserveThinking'
   | 'enableAdaptiveThinking'
   | 'disableContextCaching'
   | 'effort'
@@ -306,6 +307,7 @@ export const ExtendParamsTypeSchema = z.enum([
   'reasoningBudgetToken32k',
   'reasoningBudgetToken80k',
   'enableReasoning',
+  'preserveThinking',
   'enableAdaptiveThinking',
   'disableContextCaching',
   'effort',
