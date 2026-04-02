@@ -30,6 +30,7 @@ export default defineConfig({
       input: resolve(__dirname, isMobile ? 'index.mobile.html' : 'index.html'),
       output: sharedRollupOutput,
     },
+    sourcemap: false,
   },
   define: sharedRendererDefine({ isMobile, isElectron: false }),
   optimizeDeps: sharedOptimizeDeps,
