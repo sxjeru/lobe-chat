@@ -110,6 +110,8 @@ const mockDefaultModelList: (Partial<ChatModelCard> & { id: string })[] = [
 vi.mock('model-bank', () => ({
   LOBE_DEFAULT_MODEL_LIST: mockDefaultModelList,
   // 新增 provider 专用清单，供 findKnownModelByProvider 使用
+  aihubmix: [],
+  openai: [],
   google: [
     {
       id: 'gemini-2.5-pro',
@@ -218,6 +220,131 @@ describe('modelParse', () => {
       expect(gpt4oResult.vision).toBe(true); // From keyword '4o'
       expect(gpt4oResult.displayName).toBe('gpt-4o'); // Default to id
       expect(gpt4oResult.enabled).toBe(false); // Default
+    });
+
+    it('should fall back to the part after slash when provider-specific ids do not match exactly', async () => {
+      const mockModule = await import('model-bank');
+      const originalOpenai = mockModule.openai;
+
+      mockModule.openai = [
+        {
+          displayName: 'Slash Fallback Model',
+          enabled: true,
+          id: 'model-known-displayname',
+        },
+      ] as any;
+
+      try {
+        const modelList = [{ id: 'vendor/model-known-displayname' }];
+        const result = await processModelList(modelList, MODEL_LIST_CONFIGS.openai, 'openai');
+
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('vendor/model-known-displayname');
+        expect(result[0].displayName).toBe('Slash Fallback Model');
+        expect(result[0].enabled).toBe(false);
+      } finally {
+        mockModule.openai = originalOpenai;
+      }
+    });
+
+    it('should trim trailing hyphen segments when slash fallback still misses the exact model', async () => {
+      const mockModule = await import('model-bank');
+      const originalOpenai = mockModule.openai;
+
+      mockModule.openai = [
+        {
+          displayName: 'Hyphen Fallback Model',
+          enabled: true,
+          id: 'model-known-settings',
+          settings: {
+            extendParams: ['enableReasoning'],
+            searchImpl: 'params',
+            searchProvider: 'builtin',
+          },
+        },
+      ] as any;
+
+      try {
+        const modelList = [{ id: 'vendor/model-known-settings-2026-04-02' }];
+        const result = await processModelList(modelList, MODEL_LIST_CONFIGS.openai, 'openai');
+
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('vendor/model-known-settings-2026-04-02');
+        expect(result[0].displayName).toBe('Hyphen Fallback Model');
+        expect(result[0].settings).toEqual({
+          extendParams: ['enableReasoning'],
+          searchImpl: 'params',
+          searchProvider: 'builtin',
+        });
+        expect(result[0].enabled).toBe(false);
+      } finally {
+        mockModule.openai = originalOpenai;
+      }
+    });
+
+    it('should apply fallback provider settings but keep enabled tied to exact matches', async () => {
+      const mockModule = await import('model-bank');
+      const originalAihubmix = mockModule.aihubmix;
+
+      mockModule.aihubmix = [
+        {
+          id: 'model-known-settings',
+          displayName: 'Local Settings Fallback Model',
+          enabled: true,
+          settings: {
+            searchImpl: 'tool',
+            searchProvider: 'third-party',
+          },
+        },
+      ] as any;
+
+      try {
+        const result = await processMultiProviderModelList(
+          [{ id: 'vendor/model-known-settings-2026-04-02' }],
+          'aihubmix',
+        );
+
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('vendor/model-known-settings-2026-04-02');
+        expect(result[0].settings?.searchImpl).toBe('tool');
+        expect(result[0].settings?.searchProvider).toBe('third-party');
+        expect(result[0].enabled).toBe(false);
+      } finally {
+        mockModule.aihubmix = originalAihubmix;
+      }
+    });
+
+    it('should fallback by trimming trailing hyphen segments for zhipu-like versioned ids', async () => {
+      const mockModule = await import('model-bank');
+
+      const baseModel = {
+        displayName: 'GLM-4-Flash-250414',
+        enabled: true,
+        id: 'glm-4-flash-250414',
+        settings: {
+          searchImpl: 'params',
+        },
+      };
+
+      mockModule.LOBE_DEFAULT_MODEL_LIST.push(baseModel as any);
+
+      try {
+        const result = await processMultiProviderModelList([{ id: 'glm-4-flash-250414-2026-04' }]);
+
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('glm-4-flash-250414-2026-04');
+        expect(result[0].displayName).toBe('GLM-4-Flash-250414');
+        expect(result[0].settings?.searchImpl).toBe('params');
+        expect(result[0].enabled).toBe(false);
+      } finally {
+        const index = mockModule.LOBE_DEFAULT_MODEL_LIST.findIndex(
+          (model: { id: string }) => model.id === baseModel.id,
+        );
+
+        if (index >= 0) {
+          mockModule.LOBE_DEFAULT_MODEL_LIST.splice(index, 1);
+        }
+      }
     });
 
     it('should respect excluded keywords when determining capabilities for unknown models', async () => {

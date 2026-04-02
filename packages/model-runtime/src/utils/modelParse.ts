@@ -233,6 +233,85 @@ const isKeywordListMatch = (modelId: string, keywords: readonly string[]): boole
   return includeKeywords.some((keyword) => matchKeyword(keyword));
 };
 
+interface ModelLookupMatch<T> {
+  isExactMatch: boolean;
+  model: T;
+}
+
+const getModelLookupCandidates = (modelId: string): string[] => {
+  const normalizedModelId = modelId.trim();
+  const candidates: string[] = [];
+  const seenCandidates = new Set<string>();
+
+  const addCandidate = (candidate: string | undefined): void => {
+    const normalizedCandidate = candidate?.trim();
+
+    if (!normalizedCandidate || seenCandidates.has(normalizedCandidate)) {
+      return;
+    }
+
+    seenCandidates.add(normalizedCandidate);
+    candidates.push(normalizedCandidate);
+  };
+
+  const addHyphenFallbacks = (baseModelId: string): void => {
+    let currentModelId = baseModelId.trim();
+
+    while (currentModelId) {
+      const lastHyphenIndex = currentModelId.lastIndexOf('-');
+
+      if (lastHyphenIndex <= 0) {
+        return;
+      }
+
+      currentModelId = currentModelId.slice(0, lastHyphenIndex);
+      addCandidate(currentModelId);
+    }
+  };
+
+  addCandidate(normalizedModelId);
+
+  const lastSlashIndex = normalizedModelId.lastIndexOf('/');
+  if (lastSlashIndex >= 0) {
+    const slashSuffix = normalizedModelId.slice(lastSlashIndex + 1);
+    addCandidate(slashSuffix);
+    addHyphenFallbacks(slashSuffix);
+  } else {
+    addHyphenFallbacks(normalizedModelId);
+  }
+
+  return candidates;
+};
+
+const findModelByIdMatch = <T extends { id: string }>(
+  modelList: ReadonlyArray<T> | undefined | null,
+  modelId: string,
+): ModelLookupMatch<T> | undefined => {
+  if (!modelList?.length) return undefined;
+
+  const lowerModelId = modelId.trim().toLowerCase();
+  const candidates = getModelLookupCandidates(modelId);
+
+  for (const candidate of candidates) {
+    const lowerCandidate = candidate.toLowerCase();
+    const matchedModel = modelList.find((model) => model.id.toLowerCase() === lowerCandidate);
+
+    if (matchedModel) {
+      return {
+        isExactMatch: lowerCandidate === lowerModelId,
+        model: matchedModel,
+      };
+    }
+  }
+
+  return undefined;
+};
+
+const findModelById = <T extends { id: string }>(
+  modelList: ReadonlyArray<T> | undefined | null,
+  modelId: string,
+): T | undefined => findModelByIdMatch(modelList, modelId)?.model;
+
 /**
  * Find the corresponding local model configuration based on provider type
  * @param modelId Model ID
@@ -243,8 +322,6 @@ const findKnownModelByProvider = async (
   modelId: string,
   provider: keyof typeof MODEL_LIST_CONFIGS,
 ): Promise<any> => {
-  const lowerModelId = modelId.toLowerCase();
-
   try {
     // Attempt to dynamically import the corresponding configuration file
     const modules = await import('model-bank');
@@ -258,7 +335,7 @@ const findKnownModelByProvider = async (
 
     // If import succeeds and has data, perform search
     if (Array.isArray(providerModels)) {
-      return providerModels.find((m) => m.id.toLowerCase() === lowerModelId);
+      return findModelById(providerModels, modelId);
     }
 
     return null;
@@ -450,16 +527,14 @@ const getProviderLocalConfig = async (provider?: ModelProviderKey): Promise<any[
  * @param model Model object
  * @returns Model local configuration
  */
-const getModelLocalEnableConfig = (
+const getModelLocalConfigMatch = (
   providerLocalConfig: any[],
   model: { id: string },
-): any | null => {
+): ModelLookupMatch<any> | null => {
   // If providerid is provided and has local configuration, try to get the model's enabled status from it
-  let providerLocalModelConfig = null;
-  if (providerLocalConfig && Array.isArray(providerLocalConfig)) {
-    providerLocalModelConfig = providerLocalConfig.find((m) => m.id === model.id);
-  }
-  return providerLocalModelConfig;
+  const providerLocalModelConfig = findModelByIdMatch(providerLocalConfig, model.id);
+
+  return providerLocalModelConfig ?? null;
 };
 
 /**
@@ -633,15 +708,13 @@ export const processModelList = async (
 
       // If not found, fall back to global configuration
       if (!knownModel) {
-        knownModel = LOBE_DEFAULT_MODEL_LIST.find(
-          (m) => model.id.toLowerCase() === m.id.toLowerCase(),
-        );
+        knownModel = findModelById(LOBE_DEFAULT_MODEL_LIST, model.id);
       }
 
       const processedModel = processModelCard(model, config, knownModel);
 
       // If provider is provided and has local configuration, try to get the model's enabled status from it
-      const providerLocalModelConfig = getModelLocalEnableConfig(
+      const providerLocalModelConfig = getModelLocalConfigMatch(
         providerLocalConfig as any[],
         model,
       );
@@ -649,10 +722,10 @@ export const processModelList = async (
       // If model is found in local configuration, use its enabled status
       if (
         processedModel &&
-        providerLocalModelConfig &&
-        typeof providerLocalModelConfig.enabled === 'boolean'
+        providerLocalModelConfig?.isExactMatch &&
+        typeof providerLocalModelConfig.model.enabled === 'boolean'
       ) {
-        processedModel.enabled = providerLocalModelConfig.enabled;
+        processedModel.enabled = providerLocalModelConfig.model.enabled;
       }
 
       return processedModel;
@@ -685,9 +758,7 @@ export const processMultiProviderModelList = async (
 
       // If not found, fall back to global configuration
       if (!knownModel) {
-        knownModel = LOBE_DEFAULT_MODEL_LIST.find(
-          (m) => model.id.toLowerCase() === m.id.toLowerCase(),
-        );
+        knownModel = findModelById(LOBE_DEFAULT_MODEL_LIST, model.id);
       }
 
       const includeKnownExtendParams =
@@ -698,7 +769,7 @@ export const processMultiProviderModelList = async (
       const includeSearchSettings = providerid === 'aihubmix' || providerid === 'newapi';
 
       // If providerid is provided and has local configuration, try to get the model's enabled status from it
-      const providerLocalModelConfig = getModelLocalEnableConfig(
+      const providerLocalModelConfig = getModelLocalConfigMatch(
         providerLocalConfig as any[],
         model,
       );
@@ -708,8 +779,10 @@ export const processMultiProviderModelList = async (
         includeSearchSettings,
       });
 
-      if (processedModel && includeSearchSettings && providerLocalModelConfig?.settings) {
-        const localSettings = providerLocalModelConfig.settings as AiModelSettings | undefined;
+      if (processedModel && includeSearchSettings && providerLocalModelConfig?.model.settings) {
+        const localSettings = providerLocalModelConfig.model.settings as
+          | AiModelSettings
+          | undefined;
         const searchImpl = localSettings?.searchImpl;
         const searchProvider = localSettings?.searchProvider;
 
@@ -734,10 +807,10 @@ export const processMultiProviderModelList = async (
       // If model is found in local configuration, use its enabled status
       if (
         processedModel &&
-        providerLocalModelConfig &&
-        typeof providerLocalModelConfig.enabled === 'boolean'
+        providerLocalModelConfig?.isExactMatch &&
+        typeof providerLocalModelConfig.model.enabled === 'boolean'
       ) {
-        processedModel.enabled = providerLocalModelConfig.enabled;
+        processedModel.enabled = providerLocalModelConfig.model.enabled;
       }
 
       return processedModel;
