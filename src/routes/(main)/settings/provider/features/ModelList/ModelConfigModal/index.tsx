@@ -32,9 +32,12 @@ const ModelConfigModal = memo<ModelConfigModalProps>(({ id, open, setOpen }) => 
 
   return (
     <Modal
+      allowFullscreen
+      centered
       destroyOnHidden
       maskClosable
       open={open}
+      style={{ maxHeight: 'calc(100dvh - 32px)' }}
       title={t('llm.customModelCards.modelConfig.modalTitle', { ns: 'setting' })}
       zIndex={1251} // Select is 1150
       footer={[
@@ -64,7 +67,8 @@ const ModelConfigModal = memo<ModelConfigModalProps>(({ id, open, setOpen }) => 
         body: {
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: 'calc(100vh - 150px)',
+          maxHeight: 'calc(100dvh - 32px - 56px - 64px)',
+          overflowY: 'auto',
         },
       }}
       onCancel={closeModal}
