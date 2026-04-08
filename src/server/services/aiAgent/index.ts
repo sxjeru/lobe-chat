@@ -41,6 +41,7 @@ import { TopicModel } from '@/database/models/topic';
 import { UserModel } from '@/database/models/user';
 import { UserPersonaModel } from '@/database/models/userMemory/persona';
 import { shouldEnableBuiltinSkill } from '@/helpers/skillFilters';
+import { signUserJWT } from '@/libs/trpc/utils/internalJwt';
 import {
   createServerAgentToolsEngine,
   type EvalContext,
@@ -691,13 +692,23 @@ export class AiAgentService {
     let agentManagementContext: AgentManagementContext | undefined;
 
     if (shouldInjectAvailableAgents) {
-      // Query user's most recently updated agents. Over-fetch by 1 to detect overflow.
+      // Query user's most recently updated agents.
+      // Over-fetch by 2: +1 reserved for the current agent (filtered out below
+      // so the model has no exposure to its own id and cannot self-delegate)
+      // and +1 to detect overflow for the `hasMore` flag.
       const AVAILABLE_AGENTS_LIMIT = 10;
       const recentAgents = await this.agentModel.queryAgents({
-        limit: AVAILABLE_AGENTS_LIMIT + 1,
+        limit: AVAILABLE_AGENTS_LIMIT + 2,
       });
-      const hasMoreAgents = recentAgents.length > AVAILABLE_AGENTS_LIMIT;
-      const availableAgents = recentAgents.slice(0, AVAILABLE_AGENTS_LIMIT).map((a) => ({
+
+      // Exclude the current agent from `availableAgents` — the model is the current
+      // agent. Its persona/identity is already established by `systemRole`, so we
+      // don't re-inject it here, and removing self from the list ensures the model
+      // never sees its own id in the agent-management context (so it can't
+      // accidentally call itself via `callAgent`).
+      const otherAgents = recentAgents.filter((a) => a.id !== resolvedAgentId);
+      const hasMoreAgents = otherAgents.length > AVAILABLE_AGENTS_LIMIT;
+      const availableAgents = otherAgents.slice(0, AVAILABLE_AGENTS_LIMIT).map((a) => ({
         description: a.description ?? undefined,
         id: a.id,
         title: a.title ?? 'Untitled',
@@ -1065,6 +1076,14 @@ export class AiAgentService {
 
       log('execAgent: created operation %s (autoStarted: %s)', operationId, result.autoStarted);
 
+      // Generate a short-lived JWT for Gateway WebSocket authentication
+      let gatewayToken: string | undefined;
+      try {
+        gatewayToken = await signUserJWT(this.userId);
+      } catch {
+        log('execAgent: failed to sign gateway JWT, gateway auth will be unavailable');
+      }
+
       return {
         agentId: resolvedAgentId,
         assistantMessageId: assistantMessageRecord.id,
@@ -1076,6 +1095,7 @@ export class AiAgentService {
         status: 'created',
         success: true,
         timestamp: new Date().toISOString(),
+        token: gatewayToken,
         topicId,
         userMessageId: userMessageRecord?.id ?? parentMessageId ?? '',
       };
