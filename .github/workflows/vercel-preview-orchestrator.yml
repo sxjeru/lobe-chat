@@ -78,7 +78,7 @@ jobs:
 
           if [[ ${#BRANCHES[@]} -eq 0 ]]; then
             echo "No branches to process."
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[{"branch":"__noop__","sha":"__noop__"}]}' >> "$GITHUB_OUTPUT"
             echo 'has_targets=false' >> "$GITHUB_OUTPUT"
             echo 'observed_state_json={"version":1,"updatedAt":"","branches":{}}' >> "$GITHUB_OUTPUT"
             echo "should_persist_state=${SHOULD_PERSIST_STATE}" >> "$GITHUB_OUTPUT"
@@ -126,6 +126,9 @@ jobs:
           fi
 
           MATRIX=$(jq -c --argjson include "$INCLUDE" '{include: $include}')
+          if [[ "$COUNT" == "0" ]]; then
+            MATRIX='{"include":[{"branch":"__noop__","sha":"__noop__"}]}'
+          fi
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # In manual mode, merge observed branch SHA into existing state to avoid
