@@ -56,9 +56,10 @@ jobs:
           TARGET_REF='${{ inputs.target_ref }}'
           TRACKED='${{ env.PREVIEW_TRACKED_BRANCHES }}'
           SHOULD_PERSIST_STATE=true
+          MANUAL_MODE=false
 
           if [[ -n "$TARGET_REF" ]]; then
-            SHOULD_PERSIST_STATE=false
+            MANUAL_MODE=true
             BRANCH_LIST="$TARGET_REF"
             echo "Manual dispatch target_ref=$TARGET_REF"
           else
@@ -126,7 +127,16 @@ jobs:
 
           MATRIX=$(jq -c --argjson include "$INCLUDE" '{include: $include}')
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          OBSERVED_STATE=$(jq -c --arg now "$NOW" --argjson branches "$OBSERVED" '{version:1, updatedAt:$now, branches:$branches}')
+
+          # In manual mode, merge observed branch SHA into existing state to avoid
+          # overwriting unrelated branch history.
+          BASE_BRANCHES=$(jq -c '.branches // {}' <<< "$STATE_JSON")
+          NEXT_BRANCHES="$OBSERVED"
+          if [[ "$MANUAL_MODE" == "true" ]]; then
+            NEXT_BRANCHES=$(jq -c --argjson base "$BASE_BRANCHES" --argjson observed "$OBSERVED" '$base + $observed')
+          fi
+
+          OBSERVED_STATE=$(jq -c --arg now "$NOW" --argjson branches "$NEXT_BRANCHES" '{version:1, updatedAt:$now, branches:$branches}')
 
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "has_targets=${HAS_TARGETS}" >> "$GITHUB_OUTPUT"
@@ -141,7 +151,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.discover.outputs.matrix || '{"include":[]}') }}
     steps:
       - name: Checkout target ref
         uses: actions/checkout@v6
