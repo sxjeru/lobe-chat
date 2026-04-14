@@ -154,7 +154,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 2
-      matrix: ${{ fromJson(needs.discover.outputs.matrix || '{"include":[]}') }}
+      matrix: ${{ fromJson(needs.discover.outputs.matrix || '{"include":[{"branch":"__noop__","sha":"__noop__"}]}') }}
     steps:
       - name: Checkout target ref
         uses: actions/checkout@v6
