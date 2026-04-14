@@ -148,7 +148,7 @@ jobs:
   build-preview:
     name: Build + deploy preview (${{ matrix.branch }})
     needs: discover
-    if: needs.discover.outputs.has_targets == 'true' && matrix.branch != '__noop__'
+    if: needs.discover.outputs.has_targets == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
