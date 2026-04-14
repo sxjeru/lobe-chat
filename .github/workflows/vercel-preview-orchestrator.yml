@@ -8,9 +8,8 @@ on:
         required: false
         default: ''
         type: string
-  schedule:
-    # Incremental polling fallback (UTC)
-    - cron: '*/15 * * * *'
+  # schedule:
+  # - cron: '*/15 * * * *' # Incremental polling fallback (UTC)
 
 permissions:
   contents: write
@@ -149,7 +148,7 @@ jobs:
   build-preview:
     name: Build + deploy preview (${{ matrix.branch }})
     needs: discover
-    if: needs.discover.outputs.has_targets == 'true'
+    if: needs.discover.outputs.has_targets == 'true' && matrix.branch != '__noop__'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
