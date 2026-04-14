@@ -1,0 +1,207 @@
+name: Vercel Preview Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: 'Optional: build a single branch/ref immediately (e.g. feat/my-branch)'
+        required: false
+        default: ''
+        type: string
+  schedule:
+    # Incremental polling fallback (UTC)
+    - cron: '*/15 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vercel-preview-orchestrator-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Store in repository variables, e.g.:
+  # PREVIEW_TRACKED_BRANCHES="feat/a,feat/b,fix/c"
+  PREVIEW_TRACKED_BRANCHES: ${{ vars.PREVIEW_TRACKED_BRANCHES }}
+
+  # Vercel project linkage (store in GitHub Secrets)
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # State branch/file for incremental SHA tracking
+  STATE_BRANCH: ci-state
+  STATE_FILE: .ci/preview-state.json
+
+jobs:
+  discover:
+    name: Discover changed branches
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discovery.outputs.matrix }}
+      has_targets: ${{ steps.discovery.outputs.has_targets }}
+      observed_state_json: ${{ steps.discovery.outputs.observed_state_json }}
+      should_persist_state: ${{ steps.discovery.outputs.should_persist_state }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build incremental target matrix
+        id: discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_REF='${{ inputs.target_ref }}'
+          TRACKED='${{ env.PREVIEW_TRACKED_BRANCHES }}'
+          SHOULD_PERSIST_STATE=true
+
+          if [[ -n "$TARGET_REF" ]]; then
+            SHOULD_PERSIST_STATE=false
+            BRANCH_LIST="$TARGET_REF"
+            echo "Manual dispatch target_ref=$TARGET_REF"
+          else
+            BRANCH_LIST="$TRACKED"
+            echo "Schedule mode branches=$BRANCH_LIST"
+          fi
+
+          # Normalize branch list: comma/space/newline -> one per line, unique, non-empty
+          mapfile -t BRANCHES < <(
+            printf '%s' "$BRANCH_LIST" \
+              | tr ', ' '\n\n' \
+              | sed 's/^\s*//;s/\s*$//' \
+              | sed '/^$/d' \
+              | awk '!seen[$0]++'
+          )
+
+          if [[ ${#BRANCHES[@]} -eq 0 ]]; then
+            echo "No branches to process."
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo 'has_targets=false' >> "$GITHUB_OUTPUT"
+            echo 'observed_state_json={"version":1,"updatedAt":"","branches":{}}' >> "$GITHUB_OUTPUT"
+            echo "should_persist_state=${SHOULD_PERSIST_STATE}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Load previous state from state branch (if exists)
+          STATE_JSON='{"version":1,"updatedAt":"","branches":{}}'
+          if git ls-remote --exit-code origin "refs/heads/${STATE_BRANCH}" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "${STATE_BRANCH}:${STATE_BRANCH}" >/dev/null 2>&1 || true
+            if git show "${STATE_BRANCH}:${STATE_FILE}" > /tmp/preview-state.json 2>/dev/null; then
+              if jq empty /tmp/preview-state.json >/dev/null 2>&1; then
+                STATE_JSON=$(cat /tmp/preview-state.json)
+              fi
+            fi
+          fi
+
+          INCLUDE='[]'
+          OBSERVED='{}'
+
+          for BRANCH in "${BRANCHES[@]}"; do
+            SHA=$(git ls-remote origin "refs/heads/${BRANCH}" | awk '{print $1}')
+            if [[ -z "${SHA}" ]]; then
+              echo "::warning::Branch not found on origin: ${BRANCH}"
+              continue
+            fi
+
+            OBSERVED=$(jq -c --arg b "$BRANCH" --arg s "$SHA" '. + {($b): $s}' <<< "$OBSERVED")
+
+            if [[ "$SHOULD_PERSIST_STATE" == "true" ]]; then
+              PREV_SHA=$(jq -r --arg b "$BRANCH" '.branches[$b] // ""' <<< "$STATE_JSON")
+              if [[ "$PREV_SHA" == "$SHA" ]]; then
+                echo "Skip unchanged branch: ${BRANCH} (${SHA})"
+                continue
+              fi
+            fi
+
+            INCLUDE=$(jq -c --arg b "$BRANCH" --arg s "$SHA" '. + [{"branch":$b,"sha":$s}]' <<< "$INCLUDE")
+          done
+
+          COUNT=$(jq -r 'length' <<< "$INCLUDE")
+          HAS_TARGETS=false
+          if [[ "$COUNT" != "0" ]]; then
+            HAS_TARGETS=true
+          fi
+
+          MATRIX=$(jq -c --argjson include "$INCLUDE" '{include: $include}')
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          OBSERVED_STATE=$(jq -c --arg now "$NOW" --argjson branches "$OBSERVED" '{version:1, updatedAt:$now, branches:$branches}')
+
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "has_targets=${HAS_TARGETS}" >> "$GITHUB_OUTPUT"
+          echo "observed_state_json=${OBSERVED_STATE}" >> "$GITHUB_OUTPUT"
+          echo "should_persist_state=${SHOULD_PERSIST_STATE}" >> "$GITHUB_OUTPUT"
+
+  build-preview:
+    name: Build + deploy preview (${{ matrix.branch }})
+    needs: discover
+    if: needs.discover.outputs.has_targets == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout target ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.sha }}
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel env + project settings
+        run: vercel pull --yes --environment=preview --git-branch=${{ matrix.branch }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build with Vercel
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy prebuilt artifact
+        run: |
+          deployment_url=$(vercel deploy --prebuilt --archive=tgz --token=${{ secrets.VERCEL_TOKEN }} --meta branch=${{ matrix.branch }} --meta commitSha=${{ matrix.sha }})
+          echo "Preview deployed: ${deployment_url}"
+
+  persist-state:
+    name: Persist branch SHA state
+    needs:
+      - discover
+      - build-preview
+    if: needs.discover.outputs.should_persist_state == 'true' && needs.discover.outputs.has_targets == 'true' && needs.build-preview.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Update state branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code origin "refs/heads/${STATE_BRANCH}" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "${STATE_BRANCH}:${STATE_BRANCH}"
+            git checkout "${STATE_BRANCH}"
+          else
+            git checkout --orphan "${STATE_BRANCH}"
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          mkdir -p "$(dirname "${STATE_FILE}")"
+          printf '%s\n' '${{ needs.discover.outputs.observed_state_json }}' > "${STATE_FILE}"
+
+          git add "${STATE_FILE}"
+          if git diff --cached --quiet; then
+            echo "No state change."
+            exit 0
+          fi
+
+          git commit -m "chore(ci): update preview state [skip ci]"
+          git push origin "${STATE_BRANCH}"
