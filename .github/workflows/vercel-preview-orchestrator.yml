@@ -124,7 +124,7 @@ jobs:
             HAS_TARGETS=true
           fi
 
-          MATRIX=$(jq -c --argjson include "$INCLUDE" '{include: $include}')
+          MATRIX=$(jq -cn --arg include "$INCLUDE" '{include: ($include | fromjson? // [])}')
           if [[ "$COUNT" == "0" ]]; then
             MATRIX='{"include":[{"branch":"__noop__","sha":"__noop__"}]}'
           fi
@@ -135,10 +135,10 @@ jobs:
           BASE_BRANCHES=$(jq -c '.branches // {}' <<< "$STATE_JSON")
           NEXT_BRANCHES="$OBSERVED"
           if [[ "$MANUAL_MODE" == "true" ]]; then
-            NEXT_BRANCHES=$(jq -c --argjson base "$BASE_BRANCHES" --argjson observed "$OBSERVED" '$base + $observed')
+            NEXT_BRANCHES=$(jq -cn --arg base "$BASE_BRANCHES" --arg observed "$OBSERVED" '($base | fromjson? // {}) as $b | ($observed | fromjson? // {}) as $o | $b + $o')
           fi
 
-          OBSERVED_STATE=$(jq -c --arg now "$NOW" --argjson branches "$NEXT_BRANCHES" '{version:1, updatedAt:$now, branches:$branches}')
+          OBSERVED_STATE=$(jq -cn --arg now "$NOW" --arg branches "$NEXT_BRANCHES" '{version:1, updatedAt:$now, branches: ($branches | fromjson? // {})}')
 
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "has_targets=${HAS_TARGETS}" >> "$GITHUB_OUTPUT"
