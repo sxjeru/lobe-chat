@@ -43,7 +43,7 @@ const GetOperationStatusSchema = z.object({
 });
 
 const ProcessHumanInterventionSchema = z.object({
-  action: z.enum(['approve', 'reject', 'input', 'select']),
+  action: z.enum(['approve', 'reject', 'reject_continue', 'input', 'select']),
   data: z
     .object({
       approvedToolCall: z.any().optional(),
@@ -54,6 +54,13 @@ const ProcessHumanInterventionSchema = z.object({
   operationId: z.string(),
   reason: z.string().optional(),
   stepIndex: z.number().optional().default(0),
+  /**
+   * ID of the pending `role='tool'` message targeted by this intervention.
+   * Required for approve / reject / reject_continue so the server can update
+   * the message's intervention status, content, and — on approve — hand the
+   * id to the `call_tool` short-circuit via `skipCreateToolMessage`.
+   */
+  toolMessageId: z.string().optional(),
 });
 
 const GetPendingInterventionsSchema = z
@@ -107,6 +114,24 @@ const ExecAgentSchema = z
     parentMessageId: z.string().optional(),
     /** The user input/prompt */
     prompt: z.string(),
+    /**
+     * Resume a previous op paused on `human_approve_required`. When set, the
+     * new op writes the decision to the target tool message and either runs
+     * the approved tool (`approved`), halts with reason=`human_rejected`
+     * (`rejected`), or surfaces the rejection as user feedback so the LLM
+     * can continue (`rejected_continue`).
+     */
+    resumeApproval: z
+      .object({
+        decision: z.enum(['approved', 'rejected', 'rejected_continue']),
+        /** ID of the pending `role='tool'` message this decision targets. */
+        parentMessageId: z.string(),
+        /** Optional user-supplied rejection reason (only meaningful for rejected variants). */
+        rejectionReason: z.string().optional(),
+        /** tool_call_id of the pending tool call being approved/rejected. */
+        toolCallId: z.string(),
+      })
+      .optional(),
     /** The agent slug to run (either agentId or slug is required) */
     slug: z.string().optional(),
     /**
@@ -547,6 +572,7 @@ export const aiAgentRouter = router({
       existingMessageIds = [],
       fileIds,
       parentMessageId,
+      resumeApproval,
       userInterventionConfig,
     } = input;
 
@@ -563,8 +589,10 @@ export const aiAgentRouter = router({
         fileIds,
         parentMessageId,
         prompt,
-        // When parentMessageId is provided, this is a regeneration/continue — skip user message creation
+        // When parentMessageId is provided, this is a regeneration/continue or a
+        // human-approval resume — either way, skip user message creation.
         resume: !!parentMessageId,
+        resumeApproval,
         slug,
         userInterventionConfig,
       });
@@ -1079,7 +1107,7 @@ export const aiAgentRouter = router({
   processHumanIntervention: aiAgentProcedure
     .input(ProcessHumanInterventionSchema)
     .mutation(async ({ input, ctx }) => {
-      const { operationId, action, data, reason, stepIndex } = input;
+      const { operationId, action, data, reason, stepIndex, toolMessageId } = input;
 
       log(`Processing ${action} for operation ${operationId}`);
 
@@ -1088,6 +1116,7 @@ export const aiAgentRouter = router({
         action,
         operationId,
         stepIndex,
+        toolMessageId,
       };
 
       switch (action) {
@@ -1099,10 +1128,16 @@ export const aiAgentRouter = router({
             });
           }
           interventionParams.approvedToolCall = data.approvedToolCall;
+          // toolMessageId is required for the server to persist the
+          // intervention + short-circuit into call_tool; the handler itself
+          // no-ops when missing, so keep the schema permissive for legacy
+          // callers that haven't been updated yet.
           break;
         }
-        case 'reject': {
+        case 'reject':
+        case 'reject_continue': {
           interventionParams.rejectionReason = reason || 'Tool call rejected by user';
+          interventionParams.rejectAndContinue = action === 'reject_continue';
           break;
         }
         case 'input': {
