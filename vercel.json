@@ -49,6 +49,7 @@
       ]
     }
   ],
+  "installCommand": "pnpm install",
   "rewrites": [
     {
       "source": "/_dangerous_local_dev_proxy",
