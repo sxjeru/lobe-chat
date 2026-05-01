@@ -49,7 +49,7 @@
       ]
     }
   ],
-  "installCommand": "pnpm install",
+  "installCommand": "npx pnpm@11.0.0 install",
   "rewrites": [
     {
       "source": "/_dangerous_local_dev_proxy",
