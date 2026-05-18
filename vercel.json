@@ -1,5 +1,11 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bun run build:vercel",
+  "git": {
+    "deploymentEnabled": {
+      "canary": false
+    }
+  },
   "headers": [
     {
       "source": "/_spa/(.*)",
