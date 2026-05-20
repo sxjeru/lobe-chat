@@ -45,6 +45,18 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: true
+
+      - name: Restore build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+            .vercel/cache
+          key: ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-
 
       - name: Validate Vercel secrets
         env:
@@ -93,10 +105,18 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            vercel build --prod --token="$VERCEL_TOKEN"
-          else
-            vercel build --token="$VERCEL_TOKEN"
+          run_vercel_build() {
+            if [ "$TARGET_ENVIRONMENT" = "production" ]; then
+              vercel build --prod --token="$VERCEL_TOKEN"
+            else
+              vercel build --token="$VERCEL_TOKEN"
+            fi
+          }
+
+          if ! run_vercel_build; then
+            echo "::warning::Vercel build failed, clearing build caches and retrying once"
+            rm -rf .next/cache .vercel/cache
+            run_vercel_build
           fi
 
       - name: Verify prebuilt output
