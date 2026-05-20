@@ -9,7 +9,7 @@ on:
       target_environment:
         description: Vercel environment to deploy
         required: true
-        default: preview
+        default: production
         type: choice
         options:
           - preview
