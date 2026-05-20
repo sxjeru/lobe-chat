@@ -1,45 +1,43 @@
-name: Vercel Prebuilt Deploy
+name: Vercel Prebuilt Branch Preview Deploy
 
 on:
   push:
-    branches:
+    branches-ignore:
       - canary
   workflow_dispatch:
     inputs:
-      target_environment:
-        description: Vercel environment to deploy
-        required: true
-        default: production
-        type: choice
-        options:
-          - preview
-          - production
+      git_ref:
+        description: Branch, tag, or SHA to build. Leave empty to use the selected workflow branch.
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.git_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
   NODE_VERSION: 24.11.1
-  TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }}
+  TARGET_ENVIRONMENT: preview
   VERCEL: '1'
-  VERCEL_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }}
-  NEXT_PUBLIC_VERCEL_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }}
+  VERCEL_ENV: preview
+  NEXT_PUBLIC_VERCEL_ENV: preview
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
   deploy:
-    name: Deploy ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'production' }} prebuilt output
+    name: Deploy preview prebuilt output
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.git_ref || github.ref }}
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -49,34 +47,44 @@ jobs:
       - name: Validate Vercel secrets
         env:
           APP_URL_PREVIEW: ${{ secrets.APP_URL_PREVIEW }}
-          APP_URL_PRODUCTION: ${{ secrets.APP_URL_PRODUCTION }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           missing=0
 
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID APP_URL_PRODUCTION; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::${name} is not configured"
               missing=1
             fi
           done
 
-          if [ "$TARGET_ENVIRONMENT" = "preview" ] && [ -z "$APP_URL_PREVIEW" ]; then
+          if [ -z "$APP_URL_PREVIEW" ]; then
             echo "::notice::APP_URL_PREVIEW is not configured; preview builds will fall back to Vercel-resolved URLs"
           fi
 
           exit "$missing"
 
+      - name: Resolve source ref
+        id: source_ref
+        env:
+          INPUT_GIT_REF: ${{ inputs.git_ref }}
+        run: |
+          if [ -n "$INPUT_GIT_REF" ]; then
+            source_ref="$INPUT_GIT_REF"
+          else
+            source_ref="${GITHUB_REF_NAME}"
+          fi
+
+          echo "value=$source_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve source sha
+        id: source_sha
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Resolve APP_URL
         env:
           APP_URL_PREVIEW: ${{ secrets.APP_URL_PREVIEW }}
-          APP_URL_PRODUCTION: ${{ secrets.APP_URL_PRODUCTION }}
         run: |
-          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            echo "APP_URL=$APP_URL_PRODUCTION" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
           if [ -n "$APP_URL_PREVIEW" ]; then
             echo "APP_URL=$APP_URL_PREVIEW" >> "$GITHUB_ENV"
           fi
@@ -92,12 +100,7 @@ jobs:
       - name: Build Vercel output
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            vercel build --prod --token="$VERCEL_TOKEN"
-          else
-            vercel build --token="$VERCEL_TOKEN"
-          fi
+        run: vercel build --token="$VERCEL_TOKEN"
 
       - name: Verify prebuilt output
         run: test -d .vercel/output
@@ -107,13 +110,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deploy_flags=(--prebuilt --archive=tgz --token="$VERCEL_TOKEN")
-
-          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            deploy_flags+=(--prod)
-          fi
-
-          deployment_output="$(vercel deploy "${deploy_flags[@]}")"
+          deployment_output="$(vercel deploy --prebuilt --archive=tgz --token="$VERCEL_TOKEN")"
           echo "$deployment_output"
 
           deployment_url="$(echo "$deployment_output" | awk 'NF { line=$0 } END { print line }')"
@@ -121,8 +118,9 @@ jobs:
 
       - name: Write deployment summary
         run: |
-          echo "## Vercel Prebuilt Deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Vercel Prebuilt Branch Preview Deploy" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Environment: \`$TARGET_ENVIRONMENT\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Commit: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source Ref: \`${{ steps.source_ref.outputs.value }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${{ steps.source_sha.outputs.value }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deployment: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APP_URL Source: ${{ secrets.APP_URL_PREVIEW != '' && 'APP_URL_PREVIEW secret' || 'Vercel runtime fallback' }}" >> "$GITHUB_STEP_SUMMARY"
