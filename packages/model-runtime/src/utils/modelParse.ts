@@ -7,7 +7,7 @@ import type {
   ExtendParamsType,
   LobeDefaultAiModelListItem,
 } from 'model-bank';
-import { AiModelTypeSchema, ModelProvider } from 'model-bank';
+import { AiModelTypeSchema, loadModels as loadModelBankModels, ModelProvider } from 'model-bank';
 
 import type { ModelProviderKey } from '../types';
 
@@ -737,8 +737,7 @@ export const processModelList = async (
   config: ModelProcessorConfig,
   provider?: keyof typeof MODEL_LIST_CONFIGS,
 ): Promise<ChatModelCard[]> => {
-  const { loadModels } = (await import('model-bank')) as unknown as BusinessModelConfigModule;
-  const builtinModels = await loadModels();
+  const builtinModels = await loadModelBankModels();
 
   // If provider is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(provider as ModelProviderKey);
@@ -793,10 +792,7 @@ export const processMultiProviderModelList = async (
   modelList: Array<{ id: string }>,
   providerid?: ModelProviderKey,
 ): Promise<ChatModelCard[]> => {
-  const { loadModels } = (await import(
-    /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
-  )) as BusinessModelConfigModule;
-  const builtinModels = await loadModels();
+  const builtinModels = await loadModelBankModels();
 
   // If providerid is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(providerid);
