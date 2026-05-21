@@ -5,9 +5,8 @@ import type {
   AiModelSettings,
   AiModelType,
   ExtendParamsType,
-  LobeDefaultAiModelListItem,
 } from 'model-bank';
-import { AiModelTypeSchema, ModelProvider } from 'model-bank';
+import { AiModelTypeSchema, loadModels as loadModelBankModels, ModelProvider } from 'model-bank';
 
 import type { ModelProviderKey } from '../types';
 
@@ -201,11 +200,6 @@ export const IMAGE_MODEL_KEYWORDS = [
 export const EMBEDDING_MODEL_KEYWORDS = ['embedding', 'embed', 'bge', 'm3e'] as const;
 
 const AI_MODEL_TYPE_SET = new Set<AiModelType>(AiModelTypeSchema.options);
-const BUSINESS_MODEL_CONFIG_MODULE = '@lobechat/business-model-bank/model-config';
-
-interface BusinessModelConfigModule {
-  loadModels: () => Promise<LobeDefaultAiModelListItem[]>;
-}
 
 const normalizeModelType = (value: unknown): AiModelType | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -541,10 +535,7 @@ const getProviderLocalConfig = async (
   if (!provider) return null;
 
   if (provider === ModelProvider.LobeHub) {
-    const { loadModels } = (await import(
-      /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
-    )) as BusinessModelConfigModule;
-    const models = await loadModels();
+    const models = await loadModelBankModels();
     return models.filter((model) => model.providerId === ModelProvider.LobeHub);
   }
 
@@ -733,8 +724,7 @@ export const processModelList = async (
   config: ModelProcessorConfig,
   provider?: keyof typeof MODEL_LIST_CONFIGS,
 ): Promise<ChatModelCard[]> => {
-  const { loadModels } = (await import('model-bank')) as unknown as BusinessModelConfigModule;
-  const builtinModels = await loadModels();
+  const builtinModels = await loadModelBankModels();
 
   // If provider is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(provider as ModelProviderKey);
@@ -785,10 +775,7 @@ export const processMultiProviderModelList = async (
   modelList: Array<{ id: string }>,
   providerid?: ModelProviderKey,
 ): Promise<ChatModelCard[]> => {
-  const { loadModels } = (await import(
-    /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
-  )) as BusinessModelConfigModule;
-  const builtinModels = await loadModels();
+  const builtinModels = await loadModelBankModels();
 
   // If providerid is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(providerid);
