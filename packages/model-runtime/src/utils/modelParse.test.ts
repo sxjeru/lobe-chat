@@ -345,7 +345,10 @@ describe('modelParse', () => {
       mockModule.LOBE_DEFAULT_MODEL_LIST.push(baseModel as any);
 
       try {
-        const result = await processMultiProviderModelList([{ id: 'glm-4-flash-250414-2026-04' }]);
+        const result = await processMultiProviderModelList(
+          [{ id: 'glm-4-flash-250414-2026-04' }],
+          'newapi',
+        );
 
         expect(result).toHaveLength(1);
         expect(result[0].id).toBe('glm-4-flash-250414-2026-04');
