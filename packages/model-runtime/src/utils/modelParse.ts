@@ -5,8 +5,9 @@ import type {
   AiModelSettings,
   AiModelType,
   ExtendParamsType,
+  LobeDefaultAiModelListItem,
 } from 'model-bank';
-import { AiModelTypeSchema, loadModels as loadModelBankModels, ModelProvider } from 'model-bank';
+import { AiModelTypeSchema, ModelProvider } from 'model-bank';
 
 import type { ModelProviderKey } from '../types';
 import { EMBEDDING_MODEL_KEYWORDS } from './modelTypeKeywords';
@@ -221,6 +222,11 @@ export const IMAGE_MODEL_KEYWORDS = [
 ] as const;
 
 const AI_MODEL_TYPE_SET = new Set<AiModelType>(AiModelTypeSchema.options);
+const BUSINESS_MODEL_CONFIG_MODULE = '@lobechat/business-model-bank/model-config';
+
+interface BusinessModelConfigModule {
+  loadModels: () => Promise<LobeDefaultAiModelListItem[]>;
+}
 
 
 const normalizeModelType = (value: unknown): AiModelType | undefined => {
@@ -559,7 +565,10 @@ const getProviderLocalConfig = async (
   if (!provider) return null;
 
   if (provider === ModelProvider.LobeHub) {
-    const models = await loadModelBankModels();
+    const { loadModels } = (await import(
+      /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
+    )) as BusinessModelConfigModule;
+    const models = await loadModels();
     return models.filter((model) => model.providerId === ModelProvider.LobeHub);
   }
 
@@ -622,9 +631,9 @@ const processModelCard = (
     )
       ? 'image'
       : isKeywordListMatch(
-        model.id.toLowerCase(),
-        EMBEDDING_MODEL_KEYWORDS.map((k) => k.toLowerCase()),
-      )
+            model.id.toLowerCase(),
+            EMBEDDING_MODEL_KEYWORDS.map((k) => k.toLowerCase()),
+          )
         ? 'embedding'
         : 'chat');
 
@@ -748,7 +757,8 @@ export const processModelList = async (
   config: ModelProcessorConfig,
   provider?: ModelProviderKey,
 ): Promise<ChatModelCard[]> => {
-  const builtinModels = await loadModelBankModels();
+  const { loadModels } = (await import('model-bank')) as unknown as BusinessModelConfigModule;
+  const builtinModels = await loadModels();
 
   // If provider is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(provider);
@@ -803,7 +813,10 @@ export const processMultiProviderModelList = async (
   modelList: Array<{ id: string }>,
   providerid?: ModelProviderKey,
 ): Promise<ChatModelCard[]> => {
-  const builtinModels = await loadModelBankModels();
+  const { loadModels } = (await import(
+    /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
+  )) as BusinessModelConfigModule;
+  const builtinModels = await loadModels();
 
   // If providerid is provided, try to get the local configuration for that provider
   const providerLocalConfig = await getProviderLocalConfig(providerid);
