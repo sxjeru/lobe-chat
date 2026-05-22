@@ -783,9 +783,8 @@ export const processMultiProviderModelList = async (
   modelList: Array<{ id: string }>,
   providerid?: ModelProviderKey,
 ): Promise<ChatModelCard[]> => {
-  const { loadModels } = (await import(
-    /* @vite-ignore */ BUSINESS_MODEL_CONFIG_MODULE
-  )) as BusinessModelConfigModule;
+  const { loadModels } =
+    (await import('@lobechat/business-model-bank/model-config')) as BusinessModelConfigModule;
   const builtinModels = await loadModels();
 
   // If providerid is provided, try to get the local configuration for that provider
