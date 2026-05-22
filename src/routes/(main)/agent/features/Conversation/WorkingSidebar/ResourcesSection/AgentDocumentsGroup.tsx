@@ -1,3 +1,4 @@
+import { buildAgentSkillIdentifier } from '@lobechat/const';
 import { ActionIcon, Center, Empty, Flexbox, Text } from '@lobehub/ui';
 import { SkillsIcon } from '@lobehub/ui/icons';
 import { App } from 'antd';
@@ -13,12 +14,16 @@ import { useMatch, useNavigate } from 'react-router-dom';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { DocumentExplorerTree } from '@/features/AgentDocumentsExplorer';
-import SkillsList, { type SkillListItem } from '@/features/AgentDocumentsExplorer/SkillsList';
+import { startSkillDrag } from '@/features/ChatInput/InputEditor/ActionTag/skillDragData';
+import { type SkillListItem, SkillSection, SkillsList } from '@/features/SkillsList';
 import { useClientDataSWR } from '@/libs/swr';
 import { agentDocumentService, agentDocumentSWRKeys } from '@/services/agentDocument';
 import { useAgentStore } from '@/store/agent';
+import { chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { chatPortalSelectors } from '@/store/chat/selectors';
+
+import ProjectLevelSkills from './ProjectLevelSkills';
 
 const PAGE_ROUTE_PATTERN = '/agent/:aid/:topicId/page/:docId?';
 
@@ -251,15 +256,21 @@ const buildSkillBundleViews = (data: AgentDocumentListItem[]): SkillBundleView[]
 
 interface AgentDocumentsGroupProps {
   style?: CSSProperties;
+  workingDirectory?: string;
 }
 
-const AgentDocumentsGroup = memo<AgentDocumentsGroupProps>(({ style }) => {
+const AgentDocumentsGroup = memo<AgentDocumentsGroupProps>(({ style, workingDirectory }) => {
   const { t } = useTranslation('chat');
   const agentId = useAgentStore((s) => s.activeAgentId);
+  const isLocalEnabled = useAgentStore((s) =>
+    agentId ? chatConfigByIdSelectors.isLocalSystemEnabledById(agentId)(s) : false,
+  );
   const openDocument = useChatStore((s) => s.openDocument);
   const navigate = useNavigate();
   const pageMatch = useMatch(PAGE_ROUTE_PATTERN);
   const [filter, setFilter] = useState<ResourceFilter>('skills');
+
+  const showProjectSkills = isLocalEnabled && !!workingDirectory;
 
   const {
     data = [],
@@ -314,30 +325,67 @@ const AgentDocumentsGroup = memo<AgentDocumentsGroupProps>(({ style }) => {
     );
   }
 
+  const renderAgentSkillsList = () => (
+    <SkillsList
+      items={skillItems}
+      onOpenFile={(item, relativePath) => {
+        const view = skillBundleViews.find((v) => v.bundle.documentId === item.id);
+        const docId = view?.pathToDocumentId.get(relativePath);
+        if (docId) openDocumentByRoute(docId);
+      }}
+      onOpenSkill={(item) => {
+        // Open the SKILL.md (skills/index child) when present; fall back to
+        // the bundle itself (orphan bundles surface for recovery).
+        const view = skillBundleViews.find((v) => v.bundle.documentId === item.id);
+        const indexChild = data.find((doc) => doc.parentId === item.id && doc.isSkillIndex);
+        openDocumentByRoute(indexChild?.documentId ?? view?.bundle.documentId ?? item.id);
+      }}
+      onSkillDragStart={(item, event) => {
+        // The runtime resolves these via the `agent-skills:<filename>`
+        // identifier (built from the shared const helper so the prefix stays
+        // in lockstep with the server-side resolver). Display label keeps
+        // the human-readable title.
+        const view = skillBundleViews.find((v) => v.bundle.documentId === item.id);
+        const filename = view?.bundle.filename;
+        if (!filename) return;
+        startSkillDrag(event, {
+          category: 'agentSkill',
+          label: item.name,
+          type: buildAgentSkillIdentifier(filename),
+        });
+      }}
+    />
+  );
+
   const renderSkills = () => {
-    if (skillItems.length === 0) {
-      return (
-        <Center flex={1} gap={8} paddingBlock={24}>
-          <Empty description={t('workingPanel.skills.empty')} icon={SkillsIcon} />
-        </Center>
-      );
+    // No project section (not local mode / no working dir): show the agent
+    // skills flat, without the redundant "Agent skills" group header.
+    if (!showProjectSkills) {
+      if (skillItems.length === 0) {
+        return (
+          <Center flex={1} gap={8} paddingBlock={24}>
+            <Empty description={t('workingPanel.skills.empty')} icon={SkillsIcon} />
+          </Center>
+        );
+      }
+      return renderAgentSkillsList();
     }
+
+    // Both sections coexist — label each so the source is clear.
     return (
-      <SkillsList
-        items={skillItems}
-        onOpenFile={(item, relativePath) => {
-          const view = skillBundleViews.find((v) => v.bundle.documentId === item.id);
-          const docId = view?.pathToDocumentId.get(relativePath);
-          if (docId) openDocumentByRoute(docId);
-        }}
-        onOpenSkill={(item) => {
-          // Open the SKILL.md (skills/index child) when present; fall back to
-          // the bundle itself (orphan bundles surface for recovery).
-          const view = skillBundleViews.find((v) => v.bundle.documentId === item.id);
-          const indexChild = data.find((doc) => doc.parentId === item.id && doc.isSkillIndex);
-          openDocumentByRoute(indexChild?.documentId ?? view?.bundle.documentId ?? item.id);
-        }}
-      />
+      <Flexbox gap={16}>
+        <SkillSection
+          emptyText={t('workingPanel.skills.emptyAgent')}
+          isEmpty={skillItems.length === 0}
+          sectionHeader={{
+            count: skillItems.length,
+            title: t('workingPanel.skills.section.agent'),
+          }}
+        >
+          {renderAgentSkillsList()}
+        </SkillSection>
+        <ProjectLevelSkills workingDirectory={workingDirectory!} />
+      </Flexbox>
     );
   };
 

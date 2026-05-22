@@ -13,6 +13,13 @@ const useMatchMock = vi.hoisted(() => vi.fn());
 const useNavigateMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@lobehub/ui', () => ({
+  Accordion: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  AccordionItem: ({ children, title }: { children?: ReactNode; title?: ReactNode }) => (
+    <div>
+      {title}
+      {children}
+    </div>
+  ),
   ActionIcon: ({ onClick, title }: { onClick?: (e: React.MouseEvent) => void; title?: string }) => (
     <button aria-label={title} onClick={onClick}>
       {title}
@@ -81,7 +88,7 @@ vi.mock('@/features/AgentDocumentsExplorer', () => ({
   ),
 }));
 
-vi.mock('@/features/AgentDocumentsExplorer/SkillsList', () => {
+vi.mock('@/features/SkillsList', () => {
   type Item = { fileCount: number; id: string; name: string };
   const SkillsList = ({
     items,
@@ -107,7 +114,35 @@ vi.mock('@/features/AgentDocumentsExplorer/SkillsList', () => {
       ))}
     </div>
   );
-  return { default: SkillsList };
+  // SkillSection is a thin presentational wrapper — the real one only adds
+  // an Accordion / header. For these tests we pass children through and
+  // surface the count so assertions that key off the section header still
+  // work.
+  const SkillSection = ({
+    children,
+    sectionHeader,
+  }: {
+    children?: ReactNode;
+    sectionHeader?: { count?: number; title: string };
+  }) => (
+    <div data-testid={sectionHeader ? `skill-section-${sectionHeader.title}` : 'skill-section'}>
+      {sectionHeader && (
+        <div data-testid="skill-section-header">
+          <span>{sectionHeader.title}</span>
+          {typeof sectionHeader.count === 'number' && <span>{sectionHeader.count}</span>}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+  const useProjectSkills = () => ({
+    isLoading: false,
+    items: [],
+    onOpenFile: () => undefined,
+    onOpenSkill: () => undefined,
+    raw: undefined,
+  });
+  return { SkillSection, SkillsList, useProjectSkills };
 });
 
 vi.mock('@/services/agentDocument', () => ({
@@ -122,8 +157,8 @@ vi.mock('@/services/agentDocument', () => ({
 }));
 
 vi.mock('@/store/agent', () => ({
-  useAgentStore: (selector: (state: { activeAgentId: string }) => unknown) =>
-    selector({ activeAgentId: 'agent-1' }),
+  useAgentStore: (selector: (state: { activeAgentId: string; agentMap: object }) => unknown) =>
+    selector({ activeAgentId: 'agent-1', agentMap: {} }),
 }));
 
 const openDocument = vi.fn();
