@@ -1,7 +1,6 @@
+import { HotkeyEnum } from '@lobechat/const/hotkeys';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { HotkeyEnum } from '@/types/hotkey';
 
 import ConversationHotkeyBoundary from './ConversationHotkeyBoundary';
 import HotkeyRegistry from './HotkeyRegistry';
@@ -168,6 +167,25 @@ describe('ConversationHotkeyBoundary', () => {
 
     fireEvent.blur(threadButton);
     fireEvent.focus(outsideButton);
+
+    await waitFor(() => {
+      expect(useConversationHotkeyStore.getState().activeConversationKey).toBeUndefined();
+    });
+  });
+
+  it('should clear the active conversation when clicking a non-focusable element outside', async () => {
+    render(
+      <>
+        <ConversationHotkeyBoundary conversationKey={'main'}>
+          <button type={'button'}>main</button>
+        </ConversationHotkeyBoundary>
+        <div>outside</div>
+      </>,
+    );
+
+    expect(useConversationHotkeyStore.getState().activeConversationKey).toBe('main');
+
+    fireEvent.pointerDown(screen.getByText('outside'));
 
     await waitFor(() => {
       expect(useConversationHotkeyStore.getState().activeConversationKey).toBeUndefined();

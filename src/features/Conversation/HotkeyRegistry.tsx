@@ -1,10 +1,10 @@
 'use client';
 
+import { HotkeyEnum } from '@lobechat/const/hotkeys';
 import { type UIChatMessage } from '@lobechat/types';
 import { memo } from 'react';
 
 import { useHotkeyById } from '@/hooks/useHotkeys/useHotkeyById';
-import { HotkeyEnum } from '@/types/hotkey';
 
 import { useConversationHotkeyStore } from './hotkeyStore';
 import { useConversationStore } from './store';
