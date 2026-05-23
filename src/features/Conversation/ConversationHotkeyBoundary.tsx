@@ -36,6 +36,21 @@ const ConversationHotkeyBoundary = memo<ConversationHotkeyBoundaryProps>(
     }, [clearCurrentConversation]);
 
     useEffect(() => {
+      const handleDocumentPointerDown = (event: PointerEvent) => {
+        const root = rootRef.current;
+        if (!root || root.contains(event.target as Node)) return;
+
+        clearCurrentConversation();
+      };
+
+      document.addEventListener('pointerdown', handleDocumentPointerDown);
+
+      return () => {
+        document.removeEventListener('pointerdown', handleDocumentPointerDown);
+      };
+    }, [clearCurrentConversation]);
+
+    useEffect(() => {
       const { activeConversationKey } = useConversationHotkeyStore.getState();
 
       if (!activeConversationKey) {
