@@ -6,6 +6,7 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
+import { ServerConfigStoreProvider } from '@/store/serverConfig/Provider';
 
 import { ConversationProvider } from './ConversationProvider';
 import { dataSelectors, useConversationStore } from './store';
@@ -61,16 +62,23 @@ describe('ConversationProvider', () => {
   it('does not expose the previous local conversation store after context changes', () => {
     const snapshots: Snapshot[] = [];
 
+    const wrapper: React.JSXElementConstructor<{ children: React.ReactNode }> = ({ children }) => (
+      <ServerConfigStoreProvider>{children}</ServerConfigStoreProvider>
+    );
+
     const { rerender } = render(
       <ConversationProvider hasInitMessages context={oldContext} messages={oldMessages}>
         <Probe expectedContext={oldContext} snapshots={snapshots} />
       </ConversationProvider>,
+      { wrapper },
     );
 
     rerender(
-      <ConversationProvider context={nextContext} hasInitMessages={false}>
-        <Probe expectedContext={nextContext} snapshots={snapshots} />
-      </ConversationProvider>,
+      <ServerConfigStoreProvider>
+        <ConversationProvider context={nextContext} hasInitMessages={false}>
+          <Probe expectedContext={nextContext} snapshots={snapshots} />
+        </ConversationProvider>
+      </ServerConfigStoreProvider>,
     );
 
     const mismatchedNextContextSnapshots = snapshots.filter(
