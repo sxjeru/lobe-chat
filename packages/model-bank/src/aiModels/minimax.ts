@@ -23,39 +23,30 @@ const minimaxChatModels: AIChatModelCard[] = [
       currency: 'CNY',
       units: [
         {
-          lookup: {
-            prices: {
-              '[0, 0.512]': 2.1,
-              '[0.512, infinity]': 8.4,
-            },
-            pricingParams: ['textInputRange'],
-          },
           name: 'textInput',
-          strategy: 'lookup',
+          strategy: 'tiered',
+          tiers: [
+            { rate: 2.1, upTo: 512_000 },
+            { rate: 8.4, upTo: 'infinity' },
+          ],
           unit: 'millionTokens',
         },
         {
-          lookup: {
-            prices: {
-              '[0, 0.512]': 8.4,
-              '[0.512, infinity]': 33.6,
-            },
-            pricingParams: ['textInputRange'],
-          },
           name: 'textOutput',
-          strategy: 'lookup',
+          strategy: 'tiered',
+          tiers: [
+            { rate: 8.4, upTo: 512_000 },
+            { rate: 33.6, upTo: 'infinity' },
+          ],
           unit: 'millionTokens',
         },
         {
-          lookup: {
-            prices: {
-              '[0, 0.512]': 0.42,
-              '[0.512, infinity]': 1.68,
-            },
-            pricingParams: ['textInputRange'],
-          },
           name: 'textInput_cacheRead',
-          strategy: 'lookup',
+          strategy: 'tiered',
+          tiers: [
+            { rate: 0.42, upTo: 512_000 },
+            { rate: 1.68, upTo: 'infinity' },
+          ],
           unit: 'millionTokens',
         },
         { name: 'textInput_cacheWrite', rate: 2.625, strategy: 'fixed', unit: 'millionTokens' },
