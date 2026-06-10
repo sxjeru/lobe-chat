@@ -4,6 +4,7 @@ permissions:
   contents: write
   issues: write
   actions: write
+  # workflows: write
 
 on:
   schedule:
@@ -23,6 +24,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 确保 label 存在 / Ensure label exists
+          gh label create "🚨 Sync Fail" --color "d73a4a" || true
+
           # 动态嗅探并清理遗留的失败提示 Issue
           for num in $(gh issue list --label "🚨 Sync Fail" --state open --json number --jq '.[].number'); do
             gh issue close "$num" --reason "completed"
@@ -43,6 +47,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 确保 label 存在 / Ensure label exists
+          gh label create "🚨 Sync Fail" --color "d73a4a" || true
+
           # 仅在同步失败时创建报警 Issue
           gh issue create \
             --title "🚨 同步失败 | Sync Fail" \
