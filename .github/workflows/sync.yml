@@ -25,11 +25,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 确保 label 存在 / Ensure label exists
-          gh label create "🚨 Sync Fail" --color "d73a4a" || true
+          gh label create "🚨 Sync Fail" --color "d73a4a" -R "$GITHUB_REPOSITORY" || true
 
           # 动态嗅探并清理遗留的失败提示 Issue
-          for num in $(gh issue list --label "🚨 Sync Fail" --state open --json number --jq '.[].number'); do
-            gh issue close "$num" --reason "completed"
+          for num in $(gh issue list -R "$GITHUB_REPOSITORY" --label "🚨 Sync Fail" --state open --json number --jq '.[].number'); do
+            gh issue close "$num" --reason "completed" -R "$GITHUB_REPOSITORY"
           done
 
       - name: Sync upstream changes
@@ -48,10 +48,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 确保 label 存在 / Ensure label exists
-          gh label create "🚨 Sync Fail" --color "d73a4a" || true
+          gh label create "🚨 Sync Fail" --color "d73a4a" -R "$GITHUB_REPOSITORY" || true
 
           # 仅在同步失败时创建报警 Issue
           gh issue create \
+            -R "$GITHUB_REPOSITORY" \
             --title "🚨 同步失败 | Sync Fail" \
             --label "🚨 Sync Fail" \
             --body "Due to a change in the workflow file of the [LobeChat][lobechat] upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork. Please refer to the detailed [Tutorial][tutorial-en-US] for instructions.
