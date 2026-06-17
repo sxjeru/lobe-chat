@@ -22,7 +22,7 @@ jobs:
 
       - name: Clean issue notice
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           # 确保 label 存在 / Ensure label exists
           gh label create "🚨 Sync Fail" --color "d73a4a" -R "$GITHUB_REPOSITORY" || true
@@ -45,7 +45,7 @@ jobs:
       - name: Sync check
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           # 确保 label 存在 / Ensure label exists
           gh label create "🚨 Sync Fail" --color "d73a4a" -R "$GITHUB_REPOSITORY" || true
