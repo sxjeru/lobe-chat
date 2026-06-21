@@ -157,7 +157,11 @@ export const isGPT5ResponsesModel = (model: string): boolean => {
   if (hasModifier(parsed, 'codex') || hasModifier(parsed, 'pro')) return true;
   if (baseGPT5MiniResponsesModels.has(parsed.normalizedModelId)) return true;
 
-  return parsed.minorVersion !== undefined && parsed.minorVersion >= 2;
+  // GPT-5 minor versions >= 2 (e.g. gpt-5.4) are no longer forced to use Responses API by default
+  // unless they have codex or pro modifiers (e.g. gpt-5.4-pro is still forced).
+  // return parsed.minorVersion !== undefined && parsed.minorVersion >= 2;
+
+  return false;
 };
 
 export const isResponsesAPIModel = (model: string): boolean =>
