@@ -12,6 +12,7 @@ interface ConversationHotkeyBoundaryProps extends PropsWithChildren {
 const ConversationHotkeyBoundary = memo<ConversationHotkeyBoundaryProps>(
   ({ children, conversationKey }) => {
     const rootRef = useRef<HTMLDivElement>(null);
+    const activateIfNone = useConversationHotkeyStore((s) => s.activateIfNone);
     const setActiveConversationKey = useConversationHotkeyStore((s) => s.setActiveConversationKey);
 
     const activateCurrentConversation = useCallback(() => {
@@ -51,16 +52,13 @@ const ConversationHotkeyBoundary = memo<ConversationHotkeyBoundaryProps>(
     }, [clearCurrentConversation]);
 
     useEffect(() => {
-      const { activeConversationKey } = useConversationHotkeyStore.getState();
-
-      if (!activeConversationKey) {
-        setActiveConversationKey(conversationKey);
-      }
+      // Atomically activate only if no other conversation is active
+      activateIfNone(conversationKey);
 
       return () => {
         clearCurrentConversation();
       };
-    }, [clearCurrentConversation, conversationKey, setActiveConversationKey]);
+    }, [activateIfNone, clearCurrentConversation, conversationKey]);
 
     return (
       <div
