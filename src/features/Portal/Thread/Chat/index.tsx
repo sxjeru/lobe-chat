@@ -233,7 +233,7 @@ const ThreadChat = memo(() => {
     <ConversationProvider
       actionsBar={actionsBarConfig}
       context={context}
-      enableMessageHotkeys={false}
+      enableMessageHotkeys={!isSubagentThread && !isCreatingNewThread}
       hasInitMessages={!!messages}
       hooks={hooks}
       messages={messages}

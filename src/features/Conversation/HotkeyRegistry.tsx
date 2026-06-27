@@ -23,12 +23,20 @@ interface RegenerateTarget {
  *
  * These hotkeys need access to the local ConversationStore which is only available
  * within the ConversationProvider, so they cannot be registered globally in chatScope.ts.
+ *
+ * When inside a thread, skip parent messages (threadId is null/undefined).
+ * A parent message is a main-conversation message shown above the divider
+ * for context and must not be deleted or regenerated via thread hotkeys.
  */
 const getLastRegenerateTarget = (
   displayMessages: UIChatMessage[],
+  activeThreadId: string | null | undefined,
 ): RegenerateTarget | undefined => {
   for (let index = displayMessages.length - 1; index >= 0; index -= 1) {
     const item = displayMessages[index];
+
+    // In thread context: skip parent messages (those without a matching threadId)
+    if (activeThreadId && item.threadId !== activeThreadId) continue;
 
     if (item.role === 'assistant' || item.role === 'assistantGroup' || item.role === 'user') {
       return {
@@ -41,7 +49,19 @@ const getLastRegenerateTarget = (
   return undefined;
 };
 
-const getLastMessageId = (displayMessages: UIChatMessage[]) => displayMessages.at(-1)?.id;
+const getLastMessageId = (
+  displayMessages: UIChatMessage[],
+  activeThreadId: string | null | undefined,
+) => {
+  if (activeThreadId) {
+    // Only consider thread-owned messages; skip parent messages
+    for (let index = displayMessages.length - 1; index >= 0; index -= 1) {
+      if (displayMessages[index].threadId === activeThreadId) return displayMessages[index].id;
+    }
+    return undefined;
+  }
+  return displayMessages.at(-1)?.id;
+};
 
 const HotkeyRegistry = memo<HotkeyRegistryProps>(({ conversationKey }) => {
   const [
@@ -57,12 +77,15 @@ const HotkeyRegistry = memo<HotkeyRegistryProps>(({ conversationKey }) => {
     s.regenerateAssistantMessage,
     s.regenerateUserMessage,
   ]);
+  // Retrieve the threadId from the conversation context so we can skip
+  // parent (main-conversation) messages when operating inside a thread.
+  const activeThreadId = useConversationStore((s) => s.context.threadId);
   const enabled = useConversationHotkeyStore((s) => s.activeConversationKey === conversationKey);
 
   useHotkeyById(
     HotkeyEnum.RegenerateMessage,
     () => {
-      const target = getLastRegenerateTarget(displayMessages);
+      const target = getLastRegenerateTarget(displayMessages, activeThreadId);
 
       if (!target) return;
 
@@ -74,24 +97,24 @@ const HotkeyRegistry = memo<HotkeyRegistryProps>(({ conversationKey }) => {
       void regenerateAssistantMessage(target.id);
     },
     { enableOnContentEditable: true, enabled },
-    [displayMessages, enabled, regenerateAssistantMessage, regenerateUserMessage],
+    [activeThreadId, displayMessages, enabled, regenerateAssistantMessage, regenerateUserMessage],
   );
 
   useHotkeyById(
     HotkeyEnum.DeleteLastMessage,
     () => {
-      const id = getLastMessageId(displayMessages);
+      const id = getLastMessageId(displayMessages, activeThreadId);
 
       if (id) void deleteMessage(id);
     },
     { enableOnContentEditable: true, enabled },
-    [deleteMessage, displayMessages, enabled],
+    [activeThreadId, deleteMessage, displayMessages, enabled],
   );
 
   useHotkeyById(
     HotkeyEnum.DeleteAndRegenerateMessage,
     () => {
-      const target = getLastRegenerateTarget(displayMessages);
+      const target = getLastRegenerateTarget(displayMessages, activeThreadId);
 
       if (!target) return;
 
@@ -103,7 +126,7 @@ const HotkeyRegistry = memo<HotkeyRegistryProps>(({ conversationKey }) => {
       void delAndRegenerateMessage(target.id);
     },
     { enableOnContentEditable: true, enabled },
-    [delAndRegenerateMessage, displayMessages, enabled, regenerateUserMessage],
+    [activeThreadId, delAndRegenerateMessage, displayMessages, enabled, regenerateUserMessage],
   );
 
   return null;

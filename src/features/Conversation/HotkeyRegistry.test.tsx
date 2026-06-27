@@ -8,7 +8,24 @@ import { useConversationHotkeyStore } from './hotkeyStore';
 
 const mockUseHotkeyById = vi.fn();
 
-let mockConversationStore = {
+interface MockConversationMessage {
+  id: string;
+  parentId?: string;
+  role: 'assistant' | 'assistantGroup' | 'user';
+  threadId?: string | null;
+}
+
+interface MockConversationStore {
+  context: { threadId: string | null };
+  delAndRegenerateMessage: ReturnType<typeof vi.fn>;
+  deleteMessage: ReturnType<typeof vi.fn>;
+  displayMessages: MockConversationMessage[];
+  regenerateAssistantMessage: ReturnType<typeof vi.fn>;
+  regenerateUserMessage: ReturnType<typeof vi.fn>;
+}
+
+let mockConversationStore: MockConversationStore = {
+  context: { threadId: null as string | null },
   delAndRegenerateMessage: vi.fn(),
   deleteMessage: vi.fn(),
   displayMessages: [
@@ -33,6 +50,7 @@ describe('HotkeyRegistry', () => {
     vi.clearAllMocks();
     useConversationHotkeyStore.setState({ activeConversationKey: undefined });
     mockConversationStore = {
+      context: { threadId: null },
       delAndRegenerateMessage: vi.fn(),
       deleteMessage: vi.fn(),
       displayMessages: [
@@ -129,6 +147,52 @@ describe('HotkeyRegistry', () => {
 
     expect(mockConversationStore.regenerateUserMessage).toHaveBeenCalledWith('user-3');
     expect(mockConversationStore.delAndRegenerateMessage).not.toHaveBeenCalled();
+  });
+
+  it('should target only messages from the active thread', () => {
+    useConversationHotkeyStore.setState({ activeConversationKey: 'thread' });
+    mockConversationStore = {
+      ...mockConversationStore,
+      context: { threadId: 'thread-1' },
+      displayMessages: [
+        { id: 'parent-user', role: 'user' },
+        { id: 'thread-user', role: 'user', threadId: 'thread-1' },
+        {
+          id: 'thread-assistant',
+          parentId: 'thread-user',
+          role: 'assistant',
+          threadId: 'thread-1',
+        },
+        {
+          id: 'other-thread-assistant',
+          parentId: 'other-thread-user',
+          role: 'assistant',
+          threadId: 'thread-2',
+        },
+      ],
+    };
+
+    render(<HotkeyRegistry conversationKey={'thread'} />);
+
+    const regenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.RegenerateMessage,
+    );
+    const deleteLastCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteLastMessage,
+    );
+    const deleteAndRegenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteAndRegenerateMessage,
+    );
+
+    regenerateCall?.[1]();
+    deleteLastCall?.[1]();
+    deleteAndRegenerateCall?.[1]();
+
+    expect(mockConversationStore.regenerateAssistantMessage).toHaveBeenCalledWith(
+      'thread-assistant',
+    );
+    expect(mockConversationStore.deleteMessage).toHaveBeenCalledWith('thread-assistant');
+    expect(mockConversationStore.delAndRegenerateMessage).toHaveBeenCalledWith('thread-assistant');
   });
 });
 
