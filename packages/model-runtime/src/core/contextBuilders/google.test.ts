@@ -215,6 +215,13 @@ describe('google contextBuilders', () => {
         type: 'url',
       });
 
+      vi.mocked(isPublicExternalUrl).mockReturnValueOnce(true);
+      vi.mocked(validateExternalUrl).mockResolvedValueOnce({
+        contentLength: 1024,
+        contentType: 'image/png',
+        isValid: true,
+      });
+
       const imageToBase64Spy = vi
         .spyOn(imageToBase64Module, 'imageUrlToBase64')
         .mockResolvedValueOnce({
@@ -237,9 +244,47 @@ describe('google contextBuilders', () => {
         thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE,
       });
 
-      expect(isPublicExternalUrl).not.toHaveBeenCalled();
-      expect(validateExternalUrl).not.toHaveBeenCalled();
+      expect(isPublicExternalUrl).toHaveBeenCalledWith(imageUrl);
+      expect(validateExternalUrl).toHaveBeenCalledWith(imageUrl);
       expect(imageToBase64Spy).toHaveBeenCalledWith(imageUrl);
+    });
+
+    it('should preserve size validation before forcing inlineData for external URL images', async () => {
+      process.env.LLM_VISION_IMAGE_USE_BASE64 = '1';
+
+      const imageUrl = 'https://example.com/large-image.png';
+
+      vi.mocked(parseDataUri).mockReturnValueOnce({
+        base64: null,
+        mimeType: 'image/png',
+        type: 'url',
+      });
+
+      vi.mocked(isPublicExternalUrl).mockReturnValueOnce(true);
+      vi.mocked(validateExternalUrl).mockResolvedValueOnce({
+        contentLength: 120 * 1024 * 1024,
+        contentType: 'image/png',
+        isTooLarge: true,
+        isValid: false,
+        reason: 'File too large: 120MB',
+      });
+
+      const imageToBase64Spy = vi
+        .spyOn(imageToBase64Module, 'imageUrlToBase64')
+        .mockResolvedValueOnce({
+          base64: 'mockBase64Data',
+          mimeType: 'image/png',
+        });
+
+      const content: UserMessageContentPart = {
+        image_url: { url: imageUrl },
+        type: 'image_url',
+      };
+
+      await expect(buildGooglePart(content, { model: 'gemini-3-flash-preview' })).rejects.toThrow(
+        RangeError,
+      );
+      expect(imageToBase64Spy).not.toHaveBeenCalled();
     });
 
     it('should fallback to inlineData when external URL validation fails for HEIC', async () => {
