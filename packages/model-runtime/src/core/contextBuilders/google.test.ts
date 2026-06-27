@@ -1,6 +1,6 @@
 // @vitest-environment node
 import * as imageToBase64Module from '@lobechat/utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChatCompletionTool, OpenAIChatMessage, UserMessageContentPart } from '../../types';
 import { isPublicExternalUrl, parseDataUri, validateExternalUrl } from '../../utils/uriParser';
@@ -25,6 +25,7 @@ vi.mock('../../utils/imageToBase64', () => ({
 }));
 
 const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ';
+const originalVisionImageUseBase64 = process.env.LLM_VISION_IMAGE_USE_BASE64;
 
 describe('google contextBuilders', () => {
   describe('GEMINI_MAGIC_THOUGHT_SIGNATURE', () => {
@@ -38,6 +39,22 @@ describe('google contextBuilders', () => {
   describe('buildGooglePart', () => {
     beforeEach(() => {
       vi.clearAllMocks();
+      vi.mocked(isPublicExternalUrl).mockReset().mockReturnValue(false);
+      vi.mocked(validateExternalUrl).mockReset().mockResolvedValue({
+        contentLength: 0,
+        contentType: '',
+        isValid: false,
+        reason: 'mocked',
+      });
+      delete process.env.LLM_VISION_IMAGE_USE_BASE64;
+    });
+
+    afterEach(() => {
+      if (originalVisionImageUseBase64 === undefined) {
+        delete process.env.LLM_VISION_IMAGE_USE_BASE64;
+      } else {
+        process.env.LLM_VISION_IMAGE_USE_BASE64 = originalVisionImageUseBase64;
+      }
     });
 
     it('should handle text type messages', async () => {
@@ -185,6 +202,44 @@ describe('google contextBuilders', () => {
       });
 
       expect(imageToBase64Spy).not.toHaveBeenCalled();
+    });
+
+    it('should force inlineData for external URL images when LLM_VISION_IMAGE_USE_BASE64 is enabled', async () => {
+      process.env.LLM_VISION_IMAGE_USE_BASE64 = '1';
+
+      const imageUrl = 'https://example.com/image.png';
+
+      vi.mocked(parseDataUri).mockReturnValueOnce({
+        base64: null,
+        mimeType: null,
+        type: 'url',
+      });
+
+      const imageToBase64Spy = vi
+        .spyOn(imageToBase64Module, 'imageUrlToBase64')
+        .mockResolvedValueOnce({
+          base64: 'mockBase64Data',
+          mimeType: 'image/png',
+        });
+
+      const content: UserMessageContentPart = {
+        image_url: { url: imageUrl },
+        type: 'image_url',
+      };
+
+      const result = await buildGooglePart(content, { model: 'gemini-3-flash-preview' });
+
+      expect(result).toEqual({
+        inlineData: {
+          data: 'mockBase64Data',
+          mimeType: 'image/png',
+        },
+        thoughtSignature: GEMINI_MAGIC_THOUGHT_SIGNATURE,
+      });
+
+      expect(isPublicExternalUrl).not.toHaveBeenCalled();
+      expect(validateExternalUrl).not.toHaveBeenCalled();
+      expect(imageToBase64Spy).toHaveBeenCalledWith(imageUrl);
     });
 
     it('should fallback to inlineData when external URL validation fails for HEIC', async () => {

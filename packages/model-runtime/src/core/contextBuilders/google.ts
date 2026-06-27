@@ -124,8 +124,11 @@ export const buildGooglePart = async (
 
       if (type === 'url') {
         const url = content.image_url.url;
+        const shouldForceImageBase64 = process.env.LLM_VISION_IMAGE_USE_BASE64 === '1';
 
-        const externalUrlPart = await buildExternalUrlFileDataPart(url, options);
+        const externalUrlPart = shouldForceImageBase64
+          ? undefined
+          : await buildExternalUrlFileDataPart(url, options);
         if (externalUrlPart) return externalUrlPart;
 
         // Fallback: convert URL to base64 (for private/local URLs or failed validation)
