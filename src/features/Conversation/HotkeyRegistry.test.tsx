@@ -1,4 +1,5 @@
 import { HotkeyEnum } from '@lobechat/const/hotkeys';
+import { type UIChatMessage } from '@lobechat/types';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,11 +8,17 @@ import HotkeyRegistry from './HotkeyRegistry';
 import { useConversationHotkeyStore } from './hotkeyStore';
 
 const mockUseHotkeyById = vi.fn();
+const mockPermissionState = vi.hoisted(() => ({
+  permissions: {
+    create_content: true,
+    edit_own_content: true,
+  } as Record<string, boolean>,
+}));
 
 interface MockConversationMessage {
   id: string;
   parentId?: string;
-  role: 'assistant' | 'assistantGroup' | 'user';
+  role: UIChatMessage['role'];
   threadId?: string | null;
 }
 
@@ -40,6 +47,13 @@ vi.mock('@/hooks/useHotkeys/useHotkeyById', () => ({
   useHotkeyById: (...args: any[]) => mockUseHotkeyById(...args),
 }));
 
+vi.mock('@/hooks/usePermission', () => ({
+  usePermission: (action: string) => ({
+    allowed: mockPermissionState.permissions[action] ?? true,
+    reason: '',
+  }),
+}));
+
 vi.mock('./store', () => ({
   useConversationStore: (selector: (state: typeof mockConversationStore) => unknown) =>
     selector(mockConversationStore),
@@ -48,6 +62,10 @@ vi.mock('./store', () => ({
 describe('HotkeyRegistry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPermissionState.permissions = {
+      create_content: true,
+      edit_own_content: true,
+    };
     useConversationHotkeyStore.setState({ activeConversationKey: undefined });
     mockConversationStore = {
       context: { threadId: null },
@@ -99,6 +117,57 @@ describe('HotkeyRegistry', () => {
         enabled: false,
       });
     }
+  });
+
+  it('should gate destructive hotkeys by content permissions', () => {
+    useConversationHotkeyStore.setState({ activeConversationKey: 'main' });
+    mockPermissionState.permissions = {
+      create_content: false,
+      edit_own_content: true,
+    };
+
+    const { unmount } = render(<HotkeyRegistry conversationKey={'main'} />);
+
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.RegenerateMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: false });
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteLastMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: true });
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteAndRegenerateMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: false });
+
+    unmount();
+    vi.clearAllMocks();
+    mockPermissionState.permissions = {
+      create_content: true,
+      edit_own_content: false,
+    };
+
+    render(<HotkeyRegistry conversationKey={'main'} />);
+
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.RegenerateMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: true });
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteLastMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: false });
+    expect(
+      mockUseHotkeyById.mock.calls.find(
+        ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteAndRegenerateMessage,
+      )?.[2],
+    ).toMatchObject({ enabled: true });
   });
 
   it('should fall back to regenerating the last user message when no assistant message exists', () => {
@@ -193,6 +262,38 @@ describe('HotkeyRegistry', () => {
     );
     expect(mockConversationStore.deleteMessage).toHaveBeenCalledWith('thread-assistant');
     expect(mockConversationStore.delAndRegenerateMessage).toHaveBeenCalledWith('thread-assistant');
+  });
+
+  it('should skip default and system messages when selecting hotkey targets', () => {
+    useConversationHotkeyStore.setState({ activeConversationKey: 'main' });
+    mockConversationStore = {
+      ...mockConversationStore,
+      displayMessages: [
+        { id: 'assistant-1', role: 'assistant' },
+        { id: 'default', role: 'assistant' },
+        { id: 'system-1', role: 'system' },
+      ],
+    };
+
+    render(<HotkeyRegistry conversationKey={'main'} />);
+
+    const regenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.RegenerateMessage,
+    );
+    const deleteLastCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteLastMessage,
+    );
+    const deleteAndRegenerateCall = mockUseHotkeyById.mock.calls.find(
+      ([hotkeyId]) => hotkeyId === HotkeyEnum.DeleteAndRegenerateMessage,
+    );
+
+    regenerateCall?.[1]();
+    deleteLastCall?.[1]();
+    deleteAndRegenerateCall?.[1]();
+
+    expect(mockConversationStore.regenerateAssistantMessage).toHaveBeenCalledWith('assistant-1');
+    expect(mockConversationStore.deleteMessage).toHaveBeenCalledWith('assistant-1');
+    expect(mockConversationStore.delAndRegenerateMessage).toHaveBeenCalledWith('assistant-1');
   });
 });
 

@@ -367,6 +367,7 @@ const AgentOnboardingPage = memo(() => {
           agentId={onboardingAgentId}
           frozen={onboardingFinished}
           hooks={conversationHooks}
+          readOnly={viewingHistoricalTopic}
           topicId={effectiveTopicId}
         >
           <ErrorBoundary fallbackRender={() => null}>
