@@ -108,6 +108,34 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
     expect(mockSsrfSafeFetch).toHaveBeenCalledWith(
       'https://newapi.test.com/api/pricing',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: 'application/json; charset=utf-8',
+        }),
+      }),
+    );
+    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
+  });
+
+  it('should always resolve the pricing endpoint from the provider origin', async () => {
+    const mockParams = Promise.resolve({ provider: '123nhh' });
+    const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
+      keyVaults: {
+        apiKey: 'test-key',
+        baseURL: 'https://api.123nhh.com/custom/path/v1?source=test',
+      },
+    } as any);
+
+    mockSsrfSafeFetch.mockResolvedValue(
+      Response.json({ success: true, data: [{ model_name: 'test' }] }),
+    );
+
+    const response = await GET(request, { params: mockParams });
+
+    expect(response.status).toBe(200);
+    expect(mockSsrfSafeFetch).toHaveBeenCalledWith(
+      'https://api.123nhh.com/api/pricing',
       expect.any(Object),
     );
   });
@@ -142,7 +170,7 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     );
   });
 
-  it('should fallback to fetch without auth if fetch with auth fails', async () => {
+  it('should fallback to authenticated fetch if the public request fails', async () => {
     const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
@@ -152,10 +180,12 @@ describe('GET /webapi/models/[provider]/pricing', () => {
       },
     } as any);
 
-    mockSsrfSafeFetch.mockRejectedValueOnce(new Error('Auth fetch failed')).mockResolvedValueOnce({
-      json: async () => ({ success: true, data: [{ model_name: 'test' }] }),
-      ok: true,
-    });
+    mockSsrfSafeFetch
+      .mockRejectedValueOnce(new Error('Public fetch failed'))
+      .mockResolvedValueOnce({
+        json: async () => ({ success: true, data: [{ model_name: 'test' }] }),
+        ok: true,
+      });
 
     const response = await GET(request, { params: mockParams });
     const responseBody = await response.json();
@@ -163,6 +193,64 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     expect(response.status).toBe(200);
     expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
     expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
+    expect(mockSsrfSafeFetch.mock.calls[1][1]?.headers).toHaveProperty(
+      'Authorization',
+      'Bearer test-key',
+    );
+  });
+
+  it('should retry with auth if the public pricing response is HTML', async () => {
+    const mockParams = Promise.resolve({ provider: '123nhh' });
+    const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
+      keyVaults: {
+        apiKey: 'test-key',
+        baseURL: 'https://api.123nhh.com/v1',
+      },
+    } as any);
+
+    mockSsrfSafeFetch
+      .mockResolvedValueOnce(
+        new Response('<!doctype html><html><body>NewAPI</body></html>', {
+          headers: { 'Content-Type': 'text/html' },
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ success: true, data: [{ model_name: 'test' }] }));
+
+    const response = await GET(request, { params: mockParams });
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
+    expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should report the upstream path if all pricing responses are HTML', async () => {
+    const mockParams = Promise.resolve({ provider: '123nhh' });
+    const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
+      keyVaults: {
+        apiKey: 'test-key',
+        baseURL: 'https://api.123nhh.com/v1',
+      },
+    } as any);
+
+    mockSsrfSafeFetch.mockResolvedValue(
+      new Response('<!doctype html><html><body>NewAPI</body></html>', {
+        headers: { 'Content-Type': 'text/html' },
+        status: 200,
+      }),
+    );
+
+    const response = await GET(request, { params: mockParams });
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(responseBody.body).toEqual({
+      message: 'Provider pricing endpoint returned an invalid JSON response.',
+      upstreamPath: '/api/pricing',
+    });
   });
 
   it('should return BadGateway if external api call fails', async () => {
