@@ -67,6 +67,13 @@ jobs:
         id: source_sha
         run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Attach source branch to checked out commit
+        if: github.event_name == 'workflow_run'
+        env:
+          SOURCE_REF: ${{ steps.source_ref.outputs.value }}
+          SOURCE_SHA: ${{ steps.source_sha.outputs.value }}
+        run: git checkout --force -B "$SOURCE_REF" "$SOURCE_SHA"
+
       - name: Setup environment
         uses: ./.github/actions/setup-env
         with:
