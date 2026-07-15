@@ -39,27 +39,29 @@ const fetchPricing = async (
     if (isBrowser()) {
       res = await fetch(`/webapi/models/${encodeURIComponent(providerId)}/pricing`);
     } else {
-      const fetchWithAuth = async (useAuth: boolean) => {
-        const headers: Record<string, string> = {
-          Accept: 'application/json; charset=utf-8',
-        };
-        if (useAuth && apiKey) {
-          headers.Authorization = `Bearer ${apiKey}`;
+      const normalizedApiKey = apiKey.trim().replace(/^Bearer\s+/i, '');
+      const authorizationAttempts = normalizedApiKey
+        ? [`Bearer ${normalizedApiKey}`, normalizedApiKey, undefined]
+        : [undefined];
+
+      for (const authorization of authorizationAttempts) {
+        try {
+          const headers: Record<string, string> = {
+            Accept: 'application/json; charset=utf-8',
+          };
+          if (authorization) headers.Authorization = authorization;
+
+          res = await fetch(pricingUrl, { headers });
+          if (!res.ok) continue;
+
+          const body = await res.json();
+          if (body?.success && body?.data) return body.data as NewAPIPricing[];
+        } catch {
+          continue;
         }
-        return fetch(pricingUrl, { headers });
-      };
-
-      let usedAuth = true;
-      try {
-        res = await fetchWithAuth(true);
-      } catch {
-        usedAuth = false;
-        res = await fetchWithAuth(false);
       }
 
-      if (!res.ok && usedAuth) {
-        res = await fetchWithAuth(false);
-      }
+      return null;
     }
 
     if (!res.ok) return null;

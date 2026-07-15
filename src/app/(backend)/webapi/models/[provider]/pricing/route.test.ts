@@ -111,10 +111,10 @@ describe('GET /webapi/models/[provider]/pricing', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Accept: 'application/json; charset=utf-8',
-          Authorization: 'Bearer test-key',
         }),
       }),
     );
+    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
   });
 
   it('should always resolve the pricing endpoint from the provider origin', async () => {
@@ -170,7 +170,7 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     );
   });
 
-  it('should fallback to public fetch if the authenticated request fails', async () => {
+  it('should fallback to bearer auth if the public request fails', async () => {
     const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
@@ -181,7 +181,7 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     } as any);
 
     mockSsrfSafeFetch
-      .mockRejectedValueOnce(new Error('Authenticated fetch failed'))
+      .mockRejectedValueOnce(new Error('Public fetch failed'))
       .mockResolvedValueOnce({
         json: async () => ({ success: true, data: [{ model_name: 'test' }] }),
         ok: true,
@@ -193,14 +193,14 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     expect(response.status).toBe(200);
     expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
     expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
-    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).toHaveProperty(
+    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
+    expect(mockSsrfSafeFetch.mock.calls[1][1]?.headers).toHaveProperty(
       'Authorization',
       'Bearer test-key',
     );
-    expect(mockSsrfSafeFetch.mock.calls[1][1]?.headers).not.toHaveProperty('Authorization');
   });
 
-  it('should fallback to public fetch if authenticated pricing returns a business error', async () => {
+  it('should retry with bearer auth if public pricing returns a business error', async () => {
     const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
@@ -222,14 +222,40 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     expect(response.status).toBe(200);
     expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
     expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
-    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).toHaveProperty(
+    expect(mockSsrfSafeFetch.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
+    expect(mockSsrfSafeFetch.mock.calls[1][1]?.headers).toHaveProperty(
       'Authorization',
       'Bearer test-key',
     );
-    expect(mockSsrfSafeFetch.mock.calls[1][1]?.headers).not.toHaveProperty('Authorization');
   });
 
-  it('should retry without auth if the authenticated pricing response is HTML', async () => {
+  it('should retry with a raw token if bearer auth is treated as an invalid access token', async () => {
+    const mockParams = Promise.resolve({ provider: 'newapi' });
+    const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
+      keyVaults: {
+        apiKey: 'test-key',
+        baseURL: 'https://newapi.test.com/v1',
+      },
+    } as any);
+
+    mockSsrfSafeFetch
+      .mockResolvedValueOnce(Response.json({ message: 'Authentication required', success: false }))
+      .mockResolvedValueOnce(
+        Response.json({ message: 'Unauthorized, invalid access token', success: false }),
+      )
+      .mockResolvedValueOnce(Response.json({ success: true, data: [{ model_name: 'test' }] }));
+
+    const response = await GET(request, { params: mockParams });
+    const responseBody = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(responseBody).toEqual({ success: true, data: [{ model_name: 'test' }] });
+    expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(3);
+    expect(mockSsrfSafeFetch.mock.calls[2][1]?.headers).toHaveProperty('Authorization', 'test-key');
+  });
+
+  it('should retry with auth if the public pricing response is HTML', async () => {
     const mockParams = Promise.resolve({ provider: '123nhh' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({

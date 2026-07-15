@@ -18,6 +18,8 @@ interface NewApiPricingKeyVaults {
 
 const isFailedPricingResponse = (body: unknown) => isRecord(body) && body.success === false;
 
+type PricingAuthMode = 'anonymous' | 'bearer' | 'raw';
+
 export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
   const provider = (await params).provider;
 
@@ -43,7 +45,7 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
 
     const keyVaults = (providerConfig.keyVaults || {}) as NewApiPricingKeyVaults;
     const baseURL = keyVaults.baseURL;
-    const apiKey = keyVaults.apiKey;
+    const apiKey = keyVaults.apiKey?.trim().replace(/^Bearer\s+/i, '');
 
     if (!baseURL) {
       return createErrorResponse(ChatErrorType.BadRequest, {
@@ -57,22 +59,24 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
       Accept: 'application/json; charset=utf-8',
     };
 
-    const fetchWithAuth = async (useAuth: boolean) => {
+    const fetchPricing = async (authMode: PricingAuthMode) => {
       const currentHeaders = { ...headers };
-      if (useAuth && apiKey) {
-        currentHeaders.Authorization = `Bearer ${apiKey}`;
+      if (apiKey && authMode !== 'anonymous') {
+        currentHeaders.Authorization = authMode === 'bearer' ? `Bearer ${apiKey}` : apiKey;
       }
       return ssrfSafeFetch(pricingUrl, { headers: currentHeaders });
     };
 
-    const authAttempts = apiKey ? [true, false] : [false];
+    // NewAPI variants differ here: current releases expose pricing publicly, while older forks
+    // may expect either an API token (Bearer) or a dashboard access token (raw Authorization).
+    const authAttempts: PricingAuthMode[] = apiKey ? ['anonymous', 'bearer', 'raw'] : ['anonymous'];
     let lastBody: unknown;
     let lastError: unknown;
     let lastResponse: Response | undefined;
 
-    for (const useAuth of authAttempts) {
+    for (const authMode of authAttempts) {
       try {
-        const res = await fetchWithAuth(useAuth);
+        const res = await fetchPricing(authMode);
         lastResponse = res;
 
         if (!res.ok) continue;
