@@ -1,5 +1,6 @@
 import { ssrfSafeFetch } from '@lobechat/ssrf-safe-fetch';
 import { ChatErrorType } from '@lobechat/types';
+import { isRecord } from '@lobechat/utils/object';
 import debug from 'debug';
 import { NextResponse } from 'next/server';
 
@@ -14,6 +15,8 @@ interface NewApiPricingKeyVaults {
   apiKey?: string;
   baseURL?: string;
 }
+
+const isFailedPricingResponse = (body: unknown) => isRecord(body) && body.success === false;
 
 export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
   const provider = (await params).provider;
@@ -62,7 +65,8 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
       return ssrfSafeFetch(pricingUrl, { headers: currentHeaders });
     };
 
-    const authAttempts = apiKey ? [false, true] : [false];
+    const authAttempts = apiKey ? [true, false] : [false];
+    let lastBody: unknown;
     let lastError: unknown;
     let lastResponse: Response | undefined;
 
@@ -75,6 +79,10 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
 
         try {
           const body: unknown = await res.json();
+          lastBody = body;
+
+          if (isFailedPricingResponse(body)) continue;
+
           return NextResponse.json(body);
         } catch (error) {
           lastError = error;
@@ -83,6 +91,8 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
         lastError = error;
       }
     }
+
+    if (lastBody !== undefined) return NextResponse.json(lastBody);
 
     if (!lastResponse) throw lastError;
 
