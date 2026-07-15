@@ -32,7 +32,7 @@ const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'un
 const fetchPricing = async (
   pricingUrl: string,
   apiKey: string,
-  providerId: string = ModelProvider.NewAPI,
+  providerId = ModelProvider.NewAPI,
 ): Promise<NewAPIPricing[] | null> => {
   try {
     let res: Response;
