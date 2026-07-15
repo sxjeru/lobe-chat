@@ -48,7 +48,9 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
       });
     }
 
-    const pricingUrl = new URL('/api/pricing', baseURL).toString();
+    // Remove trailing API version paths like /v1, /v1beta, etc.
+    const cleanBaseURL = baseURL.replace(/\/v\d+[a-z]*\/?$/, '');
+    const pricingUrl = `${cleanBaseURL}/api/pricing`;
 
     const headers: Record<string, string> = {
       Accept: 'application/json; charset=utf-8',
@@ -62,40 +64,27 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
       return ssrfSafeFetch(pricingUrl, { headers: currentHeaders });
     };
 
-    const authAttempts = apiKey ? [false, true] : [false];
-    let lastError: unknown;
-    let lastResponse: Response | undefined;
-
-    for (const useAuth of authAttempts) {
-      try {
-        const res = await fetchWithAuth(useAuth);
-        lastResponse = res;
-
-        if (!res.ok) continue;
-
-        try {
-          const body: unknown = await res.json();
-          return NextResponse.json(body);
-        } catch (error) {
-          lastError = error;
-        }
-      } catch (error) {
-        lastError = error;
-      }
+    let res: Response;
+    let usedAuth = true;
+    try {
+      res = await fetchWithAuth(true);
+    } catch {
+      usedAuth = false;
+      res = await fetchWithAuth(false);
     }
 
-    if (!lastResponse) throw lastError;
+    if (!res.ok && usedAuth) {
+      res = await fetchWithAuth(false);
+    }
 
-    if (!lastResponse.ok) {
+    if (!res.ok) {
       return createErrorResponse(ChatErrorType.BadGateway, {
-        message: `Failed to fetch pricing from provider: ${lastResponse.statusText}`,
+        message: `Failed to fetch pricing from provider: ${res.statusText}`,
       });
     }
 
-    return createErrorResponse(ChatErrorType.BadGateway, {
-      message: 'Provider pricing endpoint returned an invalid JSON response.',
-      upstreamPath: new URL(pricingUrl).pathname,
-    });
+    const body = await res.json();
+    return NextResponse.json(body);
   } catch (e) {
     log(`Route: [${provider}] pricing error: %O`, e);
     const error = e instanceof Error ? { message: e.message, name: e.name } : e;
