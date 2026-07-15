@@ -1,6 +1,5 @@
 import { ssrfSafeFetch } from '@lobechat/ssrf-safe-fetch';
 import { ChatErrorType } from '@lobechat/types';
-import { isRecord } from '@lobechat/utils/object';
 import debug from 'debug';
 import { NextResponse } from 'next/server';
 
@@ -12,13 +11,8 @@ import { createErrorResponse } from '@/utils/errorResponse';
 const log = debug('lobe-server:models:pricing');
 
 interface NewApiPricingKeyVaults {
-  apiKey?: string;
   baseURL?: string;
 }
-
-const isFailedPricingResponse = (body: unknown) => isRecord(body) && body.success === false;
-
-type PricingAuthMode = 'anonymous' | 'bearer' | 'raw';
 
 export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
   const provider = (await params).provider;
@@ -45,7 +39,6 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
 
     const keyVaults = (providerConfig.keyVaults || {}) as NewApiPricingKeyVaults;
     const baseURL = keyVaults.baseURL;
-    const apiKey = keyVaults.apiKey?.trim().replace(/^Bearer\s+/i, '');
 
     if (!baseURL) {
       return createErrorResponse(ChatErrorType.BadRequest, {
@@ -55,61 +48,25 @@ export const GET = checkAuth(async (req, { params, userId, serverDB }) => {
 
     const pricingUrl = new URL('/api/pricing', baseURL).toString();
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json; charset=utf-8',
-    };
+    const res = await ssrfSafeFetch(pricingUrl, {
+      headers: { Accept: 'application/json; charset=utf-8' },
+    });
 
-    const fetchPricing = async (authMode: PricingAuthMode) => {
-      const currentHeaders = { ...headers };
-      if (apiKey && authMode !== 'anonymous') {
-        currentHeaders.Authorization = authMode === 'bearer' ? `Bearer ${apiKey}` : apiKey;
-      }
-      return ssrfSafeFetch(pricingUrl, { headers: currentHeaders });
-    };
-
-    // NewAPI variants differ here: current releases expose pricing publicly, while older forks
-    // may expect either an API token (Bearer) or a dashboard access token (raw Authorization).
-    const authAttempts: PricingAuthMode[] = apiKey ? ['anonymous', 'bearer', 'raw'] : ['anonymous'];
-    let lastBody: unknown;
-    let lastError: unknown;
-    let lastResponse: Response | undefined;
-
-    for (const authMode of authAttempts) {
-      try {
-        const res = await fetchPricing(authMode);
-        lastResponse = res;
-
-        if (!res.ok) continue;
-
-        try {
-          const body: unknown = await res.json();
-          lastBody = body;
-
-          if (isFailedPricingResponse(body)) continue;
-
-          return NextResponse.json(body);
-        } catch (error) {
-          lastError = error;
-        }
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    if (lastBody !== undefined) return NextResponse.json(lastBody);
-
-    if (!lastResponse) throw lastError;
-
-    if (!lastResponse.ok) {
+    if (!res.ok) {
       return createErrorResponse(ChatErrorType.BadGateway, {
-        message: `Failed to fetch pricing from provider: ${lastResponse.statusText}`,
+        message: `Failed to fetch pricing from provider: ${res.statusText}`,
       });
     }
 
-    return createErrorResponse(ChatErrorType.BadGateway, {
-      message: 'Provider pricing endpoint returned an invalid JSON response.',
-      upstreamPath: new URL(pricingUrl).pathname,
-    });
+    try {
+      const body: unknown = await res.json();
+      return NextResponse.json(body);
+    } catch {
+      return createErrorResponse(ChatErrorType.BadGateway, {
+        message: 'Provider pricing endpoint returned an invalid JSON response.',
+        upstreamPath: new URL(pricingUrl).pathname,
+      });
+    }
   } catch (e) {
     log(`Route: [${provider}] pricing error: %O`, e);
     const error = e instanceof Error ? { message: e.message, name: e.name } : e;

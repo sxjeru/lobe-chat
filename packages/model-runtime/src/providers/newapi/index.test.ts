@@ -904,7 +904,6 @@ describe('NewAPI Runtime - 100% Branch Coverage', () => {
       expect(mockFetch).toHaveBeenCalledWith('https://api.newapi.com/api/pricing', {
         headers: {
           Accept: 'application/json; charset=utf-8',
-          Authorization: 'Bearer test-key',
         },
       });
 
@@ -924,54 +923,6 @@ describe('NewAPI Runtime - 100% Branch Coverage', () => {
           },
         ],
       });
-    });
-
-    it('should retry pricing with a raw token after a bearer access-token error', async () => {
-      const mockClient = {
-        apiKey: 'test-key',
-        baseURL: 'https://api.newapi.com/v1',
-        models: {
-          list: vi.fn().mockResolvedValue({
-            data: [{ created: 123, id: 'test-model', object: 'model', owned_by: 'openai' }],
-          }),
-        },
-      };
-
-      mockFetch
-        .mockResolvedValueOnce(
-          Response.json({ message: 'Unauthorized, invalid access token', success: false }),
-        )
-        .mockResolvedValueOnce(
-          Response.json({
-            data: [
-              {
-                completion_ratio: 1.5,
-                enable_groups: ['default'],
-                model_name: 'test-model',
-                model_price: 10,
-                quota_type: 0,
-              },
-            ],
-            success: true,
-          }),
-        );
-      mockProcessMultiProviderModelList.mockImplementation((models) => models);
-
-      const result = await params.models({ client: mockClient as any });
-
-      expect(mockFetch).toHaveBeenNthCalledWith(1, 'https://api.newapi.com/api/pricing', {
-        headers: {
-          Accept: 'application/json; charset=utf-8',
-          Authorization: 'Bearer test-key',
-        },
-      });
-      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://api.newapi.com/api/pricing', {
-        headers: {
-          Accept: 'application/json; charset=utf-8',
-          Authorization: 'test-key',
-        },
-      });
-      expect(result[0].pricing).toBeDefined();
     });
 
     it('should handle pricing fetch with model_ratio instead of model_price', async () => {

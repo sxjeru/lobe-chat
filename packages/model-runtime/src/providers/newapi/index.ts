@@ -31,38 +31,17 @@ const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'un
 
 const fetchPricing = async (
   pricingUrl: string,
-  apiKey: string,
   providerId: string = ModelProvider.NewAPI,
 ): Promise<NewAPIPricing[] | null> => {
   try {
-    let res: Response;
-    if (isBrowser()) {
-      res = await fetch(`/webapi/models/${encodeURIComponent(providerId)}/pricing`);
-    } else {
-      const normalizedApiKey = apiKey.trim().replace(/^Bearer\s+/i, '');
-      const authorizationAttempts = normalizedApiKey
-        ? [`Bearer ${normalizedApiKey}`, normalizedApiKey, undefined]
-        : [undefined];
-
-      for (const authorization of authorizationAttempts) {
-        try {
-          const headers: Record<string, string> = {
-            Accept: 'application/json; charset=utf-8',
-          };
-          if (authorization) headers.Authorization = authorization;
-
-          res = await fetch(pricingUrl, { headers });
-          if (!res.ok) continue;
-
-          const body = await res.json();
-          if (body?.success && body?.data) return body.data as NewAPIPricing[];
-        } catch {
-          continue;
-        }
-      }
-
-      return null;
-    }
+    const requestUrl = isBrowser()
+      ? `/webapi/models/${encodeURIComponent(providerId)}/pricing`
+      : pricingUrl;
+    const res = isBrowser()
+      ? await fetch(requestUrl)
+      : await fetch(requestUrl, {
+          headers: { Accept: 'application/json; charset=utf-8' },
+        });
 
     if (!res.ok) return null;
 
@@ -97,11 +76,7 @@ export const params = {
     // Try to get pricing information to enrich model details
     const pricingMap: Map<string, NewAPIPricing> = new Map();
 
-    const pricingList = await fetchPricing(
-      `${baseURL}/api/pricing`,
-      openAIClient.apiKey || '',
-      providerId,
-    );
+    const pricingList = await fetchPricing(`${baseURL}/api/pricing`, providerId);
     if (Array.isArray(pricingList)) {
       pricingList.forEach((pricing) => {
         pricingMap.set(pricing.model_name, pricing);
