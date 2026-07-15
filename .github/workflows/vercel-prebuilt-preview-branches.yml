@@ -1,9 +1,11 @@
 name: Vercel Prebuilt Branch Preview Deploy
 
 on:
-  push:
-    branches-ignore:
-      - canary
+  workflow_run:
+    workflows:
+      - Test CI
+    types:
+      - requested
   workflow_dispatch:
     inputs:
       git_ref:
@@ -15,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.git_ref || github.ref_name }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || inputs.git_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -29,6 +31,12 @@ env:
 
 jobs:
   deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch != 'canary' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     name: Deploy preview prebuilt output
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -37,7 +45,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.git_ref || github.ref }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.git_ref || github.ref }}
+
+      - name: Resolve source ref
+        id: source_ref
+        env:
+          INPUT_GIT_REF: ${{ inputs.git_ref }}
+          WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -n "$WORKFLOW_RUN_HEAD_BRANCH" ]; then
+            source_ref="$WORKFLOW_RUN_HEAD_BRANCH"
+          elif [ -n "$INPUT_GIT_REF" ]; then
+            source_ref="$INPUT_GIT_REF"
+          else
+            source_ref="${GITHUB_REF_NAME}"
+          fi
+
+          echo "value=$source_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve source sha
+        id: source_sha
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
@@ -51,7 +79,7 @@ jobs:
           path: |
             .next/cache
             .vercel/cache
-          key: ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          key: ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ steps.source_sha.outputs.value }}
           restore-keys: |
             ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-${{ hashFiles('pnpm-lock.yaml') }}-
             ${{ runner.os }}-vercel-prebuilt-${{ env.TARGET_ENVIRONMENT }}-
@@ -75,23 +103,6 @@ jobs:
           fi
 
           exit "$missing"
-
-      - name: Resolve source ref
-        id: source_ref
-        env:
-          INPUT_GIT_REF: ${{ inputs.git_ref }}
-        run: |
-          if [ -n "$INPUT_GIT_REF" ]; then
-            source_ref="$INPUT_GIT_REF"
-          else
-            source_ref="${GITHUB_REF_NAME}"
-          fi
-
-          echo "value=$source_ref" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve source sha
-        id: source_sha
-        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Resolve APP_URL
         env:
