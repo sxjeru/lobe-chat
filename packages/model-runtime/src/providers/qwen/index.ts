@@ -95,12 +95,14 @@ export const params = {
                   thinking_budget:
                     thinking?.budget_tokens === 0 ? 0 : thinking?.budget_tokens || undefined,
                 }),
+                ...(!thinkingExplicitlyDisabled && reasoning_effort && { reasoning_effort }),
               }
             : model.includes('-thinking')
               ? {
                   enable_thinking: true,
                   thinking_budget:
                     thinking?.budget_tokens === 0 ? 0 : thinking?.budget_tokens || undefined,
+                  ...(reasoning_effort && { reasoning_effort }),
                 }
               : thinking
                 ? {
@@ -109,8 +111,11 @@ export const params = {
                     }),
                     thinking_budget:
                       thinking?.budget_tokens === 0 ? 0 : thinking?.budget_tokens || undefined,
+                    ...(!thinkingExplicitlyDisabled && reasoning_effort && { reasoning_effort }),
                   }
-                : {}),
+                : {
+                    ...(reasoning_effort && { reasoning_effort }),
+                  }),
         ...(typeof preserveThinking === 'boolean' && { preserve_thinking: preserveThinking }),
         frequency_penalty: undefined,
         messages,

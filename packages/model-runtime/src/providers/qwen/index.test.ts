@@ -90,6 +90,38 @@ describe('LobeQwenAI - custom features', () => {
       expect(calledPayload.thinking_budget).toBeUndefined();
     });
 
+    it('should forward enable_thinking and reasoning_effort for qwen3.8-max', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'qwen3.8-max',
+        reasoning_effort: 'medium',
+        thinking: {
+          type: 'enabled',
+        },
+      });
+
+      const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+
+      expect(calledPayload.enable_thinking).toBe(true);
+      expect(calledPayload.reasoning_effort).toBe('medium');
+    });
+
+    it('should drop reasoning_effort when qwen3.8-max thinking is disabled', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'qwen3.8-max',
+        reasoning_effort: 'xhigh',
+        thinking: {
+          type: 'disabled',
+        },
+      });
+
+      const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+
+      expect(calledPayload.enable_thinking).toBe(false);
+      expect(calledPayload.reasoning_effort).toBeUndefined();
+    });
+
     it('should only send thinking_budget for budget-only non-thinking models', async () => {
       await instance.chat({
         messages: [{ content: 'Hello', role: 'user' }],
