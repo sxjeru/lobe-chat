@@ -140,7 +140,7 @@ describe('LobeQwenAI - custom features', () => {
     it('should force enable_thinking even when thinking is disabled for thinking-forced models', async () => {
       await instance.chat({
         messages: [{ content: 'Hello', role: 'user' }],
-        model: 'qwen3.8-max-preview',
+        model: 'qwen3.9-max',
         thinking: {
           budget_tokens: 0,
           type: 'disabled',
@@ -156,7 +156,7 @@ describe('LobeQwenAI - custom features', () => {
     it('should keep thinking_budget for thinking-forced models when thinking is enabled', async () => {
       await instance.chat({
         messages: [{ content: 'Hello', role: 'user' }],
-        model: 'qwen3.8-max-preview',
+        model: 'qwen3.9-max',
         thinking: {
           budget_tokens: 4096,
           type: 'enabled',
@@ -167,6 +167,22 @@ describe('LobeQwenAI - custom features', () => {
 
       expect(calledPayload.enable_thinking).toBe(true);
       expect(calledPayload.thinking_budget).toBe(4096);
+    });
+
+    it('should allow enable_thinking false for hybrid qwen3.8-max-preview', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'qwen3.8-max-preview',
+        reasoning_effort: 'xhigh',
+        thinking: {
+          type: 'disabled',
+        },
+      });
+
+      const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+
+      expect(calledPayload.enable_thinking).toBe(false);
+      expect(calledPayload.reasoning_effort).toBeUndefined();
     });
 
     it('should still force enable_thinking for dedicated thinking models', async () => {
