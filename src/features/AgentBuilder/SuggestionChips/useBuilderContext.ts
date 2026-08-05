@@ -1,5 +1,10 @@
 import { type BuilderSuggestionMode } from '@lobechat/prompts';
-import type { AgentGroupDetail } from '@lobechat/types';
+import {
+  agentDisplayName,
+  type AgentGroupDetail,
+  type AgentPluginEntry,
+  getActivePluginIds,
+} from '@lobechat/types';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,7 +19,7 @@ interface AgentLike {
   model?: string | null;
   openingMessage?: string | null;
   openingQuestions?: (string | undefined)[];
-  plugins?: (string | undefined)[];
+  plugins?: AgentPluginEntry[];
   provider?: string | null;
   systemRole?: string | null;
   title?: string | null;
@@ -26,10 +31,12 @@ const summarize = (value: string | null | undefined, fallback: string): string =
 const buildAgentSummary = (agent?: AgentLike): string => {
   if (!agent) return 'A new agent with default settings and no role configured yet.';
   const role = agent.systemRole?.trim();
-  const plugins = (agent.plugins ?? []).filter(Boolean) as string[];
+  // Pinned identifiers only — a disabled plugin isn't a "tool enabled" for
+  // the builder-suggestion summary's purposes.
+  const plugins = getActivePluginIds(agent.plugins);
   const openingQuestions = agent.openingQuestions ?? [];
   return [
-    `Name: ${summarize(agent.title, '(untitled)')}`,
+    `Name: ${summarize(agentDisplayName(agent), '(untitled)')}`,
     `Description: ${summarize(agent.description, '(none)')}`,
     `System role: ${role ? `set (${role.length} chars)` : 'NOT set yet'}`,
     `Tools enabled: ${plugins.length ? `${plugins.length} (${plugins.slice(0, 6).join(', ')})` : 'none'}`,
@@ -61,6 +68,7 @@ export interface BuilderContext {
   contextSummary: string;
   generationMode: BuilderSuggestionMode;
   locale: string;
+  targetId?: string;
 }
 
 /**
@@ -88,5 +96,10 @@ export const useBuilderContext = (mode: SuggestMode): BuilderContext => {
     [isGroup, agentItem, group],
   );
 
-  return { contextSummary, generationMode: isGroup ? 'group' : 'agent', locale: i18n.language };
+  return {
+    contextSummary,
+    generationMode: isGroup ? 'group' : 'agent',
+    locale: i18n.language,
+    targetId: isGroup ? activeGroupId : activeAgentId,
+  };
 };

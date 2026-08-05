@@ -3,10 +3,12 @@ import {
   CUSTOM_FOLDER_FILE_TYPE,
   MARKDOWN_MIME_TYPES,
 } from '@lobechat/const';
-import { Checkbox, showContextMenu, stopPropagation } from '@lobehub/ui';
+import { Checkbox, stopPropagation } from '@lobehub/ui';
 import { createStaticStyles, cssVar, cx } from 'antd-style';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
+import { showContextMenu } from '@/libs/contextMenu';
 import {
   getTransparentDragImage,
   useDragActive,
@@ -181,6 +183,7 @@ interface MasonryFileItemProps extends FileListItem {
   knowledgeBaseId?: string;
   onOpen?: (id: string) => void;
   onSelectedChange: (id: string, selected: boolean) => void;
+  selectable?: boolean;
   selected?: boolean;
   slug?: string | null;
 }
@@ -198,6 +201,7 @@ const MasonryFileItem = memo<MasonryFileItemProps>(
     fileId,
     id,
     selected,
+    selectable = true,
     chunkingStatus,
     onSelectedChange,
     knowledgeBaseId,
@@ -206,7 +210,10 @@ const MasonryFileItem = memo<MasonryFileItemProps>(
     metadata,
     sourceType,
     slug,
+    userId,
+    visibility,
   }) => {
+    const { t } = useTranslation('components');
     const chunkTargetId = getChunkTargetId({ fileId, id });
     const [markdownContent, setMarkdownContent] = useState<string>('');
     const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
@@ -378,6 +385,8 @@ const MasonryFileItem = memo<MasonryFileItemProps>(
       libraryId: knowledgeBaseId,
       sourceType,
       url,
+      userId,
+      visibility,
     });
 
     return (
@@ -403,13 +412,16 @@ const MasonryFileItem = memo<MasonryFileItemProps>(
       >
         <div
           className={cx('checkbox', styles.checkbox)}
+          style={{ cursor: selectable ? 'pointer' : 'not-allowed' }}
+          title={selectable ? undefined : t('FileManager.selection.onlyOwn')}
           onPointerDown={stopPropagation}
           onClick={(e) => {
             e.stopPropagation();
+            if (!selectable) return;
             onSelectedChange(id, !selected);
           }}
         >
-          <Checkbox checked={selected} />
+          <Checkbox checked={selected} disabled={!selectable} />
         </div>
 
         <div

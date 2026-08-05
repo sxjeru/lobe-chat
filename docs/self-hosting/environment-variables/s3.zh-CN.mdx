@@ -53,8 +53,8 @@ LobeHub 支持多模态的 AI 会话，包括将图片、文件等非结构化�
 
 - 类型：可选
 - 描述：是否在上传文件时设置 ACL 为 `public-read`
-- 默认值：`1`
-- 示例：`0`
+- 默认值：`-`（默认关闭，仅显式设置为 `1` 时才会设置 public-read ACL）
+- 示例：`1`
 
 ### `S3_ENABLE_PATH_STYLE`
 
@@ -94,4 +94,4 @@ Route: [Gemini] ProviderBizError: Cannot fetch content from the provided URL.
 - 默认值：undefined
 - 示例：`1`
 
-当设置为 `1` 时，LobeChat 会将视频转换为 base64 编码后上传到 LLM 模型中。
+当设置为 `1` 时，LobeHub 会将视频转换为 base64 编码后上传到 LLM 模型中。

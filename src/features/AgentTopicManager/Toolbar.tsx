@@ -1,14 +1,23 @@
 'use client';
 
-import { ActionIcon, type DropdownItem, DropdownMenu, Flexbox, Icon, Text } from '@lobehub/ui';
-import { confirmModal, Tabs } from '@lobehub/ui/base-ui';
-import { App } from 'antd';
+import {
+  ActionIcon,
+  type DropdownItem,
+  DropdownMenu,
+  Flexbox,
+  Icon,
+  Text,
+  Tooltip,
+} from '@lobehub/ui';
+import { confirmModal, Tabs, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import {
   Archive,
   CalendarRange,
   ChevronDown,
   FolderClosed,
+  LayoutGrid,
+  List as ListIcon,
   ListFilter,
   ListTodoIcon,
   type LucideIcon,
@@ -203,7 +212,6 @@ const FilterChip = memo<FilterChipProps>(({ icon, label, value, items, onClear }
 
 const Toolbar = memo<ToolbarProps>(({ projects, statusCounts }) => {
   const { t } = useTranslation('topic');
-  const { message } = App.useApp();
 
   const topics = useChatStore(topicSelectors.agentTopicsViewTopics);
   const updateTopicStatus = useChatStore((s) => s.updateTopicStatus);
@@ -220,6 +228,8 @@ const Toolbar = memo<ToolbarProps>(({ projects, statusCounts }) => {
   const setSortBy = useTopicsViewStore((s) => s.setSortBy);
   const groupBy = useTopicsViewStore((s) => s.groupBy);
   const setGroupBy = useTopicsViewStore((s) => s.setGroupBy);
+  const viewMode = useTopicsViewStore((s) => s.viewMode);
+  const setViewMode = useTopicsViewStore((s) => s.setViewMode);
 
   const triggerItems: DropdownItem[] = useMemo(
     () =>
@@ -343,7 +353,7 @@ const Toolbar = memo<ToolbarProps>(({ projects, statusCounts }) => {
     });
 
     if (stale.length === 0) {
-      message.info(t('management.actionsMenu.archiveStale.noneFound'));
+      toast.info(t('management.actionsMenu.archiveStale.noneFound'));
       return;
     }
 
@@ -354,11 +364,11 @@ const Toolbar = memo<ToolbarProps>(({ projects, statusCounts }) => {
         for (const topic of stale) {
           await updateTopicStatus({ status: 'completed', topicId: topic.id });
         }
-        message.success(t('management.actionsMenu.archiveStale.done', { count: stale.length }));
+        toast.success(t('management.actionsMenu.archiveStale.done', { count: stale.length }));
       },
       title: t('management.actionsMenu.archiveStale.title'),
     });
-  }, [topics, updateTopicStatus, message, t]);
+  }, [topics, updateTopicStatus, t]);
 
   const overflowItems: DropdownItem[] = useMemo(() => {
     const items: DropdownItem[] = [
@@ -477,6 +487,33 @@ const Toolbar = memo<ToolbarProps>(({ projects, statusCounts }) => {
       )}
 
       <Flexbox flex={1} />
+
+      <Tabs
+        activeKey={viewMode}
+        size={'small'}
+        style={{ width: 'auto' }}
+        items={[
+          {
+            key: 'card',
+            label: (
+              <Tooltip title={t('management.view.card')}>
+                <Icon icon={LayoutGrid} />
+              </Tooltip>
+            ),
+          },
+          {
+            key: 'list',
+            label: (
+              <Tooltip title={t('management.view.list')}>
+                <Icon icon={ListIcon} />
+              </Tooltip>
+            ),
+          },
+        ]}
+        onChange={(key) => setViewMode(key as 'card' | 'list')}
+      />
+
+      <span className={styles.divider} />
 
       <DropdownMenu items={sortItems}>
         <span className={styles.sortPill}>

@@ -1,6 +1,11 @@
 import { type AgentState } from '@lobechat/agent-runtime';
 import { type BotPlatformContext } from '@lobechat/context-engine';
-import { type ExecSubAgentParams, type ExecVirtualSubAgentParams } from '@lobechat/types';
+import {
+  type ExecSubAgentParams,
+  type ExecSubAgentResult,
+  type ExecVirtualSubAgentParams,
+} from '@lobechat/types';
+import type { SearchDecision } from 'model-bank';
 
 import { type MessageModel } from '@/database/models/message';
 import { type LobeChatDatabase } from '@/database/type';
@@ -16,6 +21,13 @@ import { type IStreamEventManager } from './types';
 
 export interface RuntimeExecutorContext {
   agentConfig?: any;
+  /**
+   * Allows call_llm to publish visible_output_end immediately after a no-tool
+   * LLM stream_end. Only the default GeneralChatAgent treats no-tool llm_result
+   * as a final answer; injected multi-step agents such as GraphAgent can emit
+   * tools: [] for an intermediate graph node and continue to another node.
+   */
+  allowEarlyFinalAnswerVisibleOutputEnd?: boolean;
   botContext?: unknown;
   botPlatformContext?: BotPlatformContext;
   discordContext?: any;
@@ -31,17 +43,18 @@ export interface RuntimeExecutorContext {
    * Injected by AiAgentService so exec_sub_agent / exec_sub_agents executors
    * can dispatch callAgent-triggered runs without a circular import.
    */
-  execSubAgent?: (params: ExecSubAgentParams) => Promise<unknown>;
+  execSubAgent?: (params: ExecSubAgentParams) => Promise<ExecSubAgentResult>;
   /**
    * Callback to fork a `lobe-agent.callSubAgent` virtual child run. Unlike
    * execSubAgent, this path installs the async completion bridge and marks the
    * child operation as a sub-agent.
    */
-  execVirtualSubAgent?: (params: ExecVirtualSubAgentParams) => Promise<unknown>;
+  execVirtualSubAgent?: (params: ExecVirtualSubAgentParams) => Promise<ExecSubAgentResult>;
   hookDispatcher?: HookDispatcher;
   loadAgentState?: (operationId: string) => Promise<AgentState | null>;
   messageModel: MessageModel;
   operationId: string;
+  searchDecision?: SearchDecision;
   serverDB: LobeChatDatabase;
   stepIndex: number;
   stream?: boolean;
