@@ -250,7 +250,6 @@ const doubaoChatModels: AIChatModelCard[] = [
     description:
       'DeepSeek-V4-Pro is DeepSeek’s flagship MoE model on Volcano Ark, supporting both non-thinking and thinking modes for advanced reasoning, code generation, and complex agent workflows.',
     displayName: 'DeepSeek V4 Pro',
-    enabled: true,
     family: 'deepseek',
     generation: 'deepseek-v4',
     id: 'deepseek-v4-pro',
@@ -276,6 +275,46 @@ const doubaoChatModels: AIChatModelCard[] = [
       functionCall: true,
       reasoning: true,
       search: true,
+      structuredOutput: true,
+    },
+    config: {
+      deploymentName: 'deepseek-v4-flash-ga-260731',
+    },
+    contextWindowTokens: 1_048_576,
+    description:
+      'DeepSeek-V4-Flash GA is the general availability release of DeepSeek’s efficient model on Volcano Ark, with significantly enhanced agent capabilities, balanced speed and cost, and strong reasoning for daily Q&A, lightweight agents, and high-concurrency scenarios.',
+    displayName: 'DeepSeek V4 Flash 0731',
+    enabled: true,
+    family: 'deepseek',
+    generation: 'deepseek-v4',
+    id: 'deepseek-v4-flash-ga',
+    maxOutput: 393_216,
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput_cacheRead', rate: 0.2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        {
+          lookup: { prices: { '1h': 0.017 }, pricingParams: ['ttl'] },
+          name: 'textInput_cacheWrite',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2026-07-31',
+    settings: {
+      extendParams: ['deepseekV4ReasoningEffort'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
     },
     config: {
       deploymentName: 'deepseek-v4-flash-260425',
@@ -284,7 +323,6 @@ const doubaoChatModels: AIChatModelCard[] = [
     description:
       'DeepSeek-V4-Flash is DeepSeek’s efficient 1M-context model on Volcano Ark, balancing speed and cost while keeping strong reasoning and agent capabilities.',
     displayName: 'DeepSeek V4 Flash',
-    enabled: true,
     family: 'deepseek',
     generation: 'deepseek-v4',
     id: 'deepseek-v4-flash',
