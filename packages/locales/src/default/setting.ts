@@ -5,6 +5,8 @@ export default {
   'agentImport.description':
     'Create an independent copy in a Workspace. The original Agent stays in your personal account.',
   'agentImport.failed': 'Failed to copy agent.',
+  'agentImport.backgroundCopy':
+    'Chat history is large — it keeps copying in the background, and conversations light up one by one as they finish.',
   'agentImport.modal.configIncluded': 'Agent configuration is copied by default.',
   'agentImport.modal.confirm': 'Copy',
   'agentImport.modal.includeHistory': 'Copy topics and messages',
@@ -54,6 +56,13 @@ export default {
   'accountDeletion.requestSuccess': 'Deletion request submitted',
   'accountDeletion.sectionTitle': 'Account Deletion',
   'accountDeletion.title': 'Delete Account',
+  'accountDeletion.workspaceAutoCancel.notice':
+    'Deleting your account will automatically cancel the paid plans on these workspaces: {{names}}. Remaining time will not be refunded.',
+  'accountDeletion.workspaceBlocked.membersDesc':
+    'You are the owner of {{count}} workspace(s) that still have other members. To protect their data, transfer ownership or delete these workspaces before deleting your account.',
+  'accountDeletion.workspaceBlocked.reasonMembers': 'Other members',
+  'accountDeletion.workspaceBlocked.reasonPaid': 'Paid plan active',
+  'accountDeletion.workspaceBlocked.title': 'Transfer your workspaces first',
   'advancedSettings': 'Advanced Settings',
   'agentCronJobs.addJob': 'Add Scheduled Task',
   'agentCronJobs.clearTopics': 'Clear Topics',
@@ -752,6 +761,13 @@ export default {
     'This usually takes about 60 seconds. You can keep editing while it finishes.',
   'settingAgent.artwork.retry': 'Try again',
   'settingAgent.artwork.sizeExceeded': 'Image must be smaller than 1 MB',
+  'settingAgent.artwork.style.clay': '3D Clay',
+  'settingAgent.artwork.style.editorial': 'Editorial Illustration',
+  'settingAgent.artwork.style.geometric': 'Flat Geometric',
+  'settingAgent.artwork.style.photographic': 'Minimal Photography',
+  'settingAgent.artwork.style.riso': 'Retro Print',
+  'settingAgent.artwork.style.watercolor': 'Watercolor',
+  'settingAgent.artwork.styleMenu': 'Generation style',
   'settingAgent.artwork.uploadFailed': 'Could not upload the image. Try again.',
   'settingAgent.backgroundColor.title': 'Background Color',
   'settingAgent.description.desc': 'A brief introduction to your agent, not for character setting',
@@ -2336,6 +2352,8 @@ When I am ___, I need ___
   'workspace.general.leave.confirm.content':
     'You will lose access to "{{name}}" immediately. You can rejoin only if you are invited again.',
   'workspace.general.transferAgents.modal.back': 'Back',
+  'workspace.general.transferAgents.modal.backgroundMigration':
+    'Chat history is large, so it keeps migrating in the background. The agents are ready to use now; older conversations light up one by one as they finish.',
   'workspace.general.transferAgents.modal.continue': 'Continue',
   'workspace.general.transferAgents.modal.done': 'Done',
   'workspace.general.transferAgents.modal.failed': 'Failed to move agents',
@@ -2418,6 +2436,8 @@ When I am ___, I need ___
   'workspace.general.copyLobeAI.modal.selectTarget':
     'You can copy to personal or workspaces that have permission to create an agent.',
   'workspace.general.copyLobeAI.modal.success': '{{count}} agent(s) copied',
+  'workspace.general.copyLobeAI.modal.backgroundCopy':
+    'Chat history is large, so it keeps copying in the background. The agents are ready to use now; conversations light up one by one as they finish.',
   'workspace.general.copyLobeAI.modal.title': 'Copy Agents',
   'workspace.general.copyLobeAI.modal.untitledAgent': 'Untitled Agent',
   'workspace.general.copyAgentGroups.modal.back': 'Back',
@@ -2623,7 +2643,7 @@ When I am ___, I need ___
   'workspace.waitlistPage.submitHint': "We'll email you as soon as your access is approved.",
   'workspace.waitlistPage.subtitle': 'Members, agents, and knowledge in one shared space.',
   'workspace.waitlistPage.teamSizeLabel': 'How many people',
-  'workspace.waitlistPage.teamSizeOption.1': 'Just me',
+  'workspace.waitlistPage.teamSizeOption.1': 'Just me for now',
   'workspace.waitlistPage.teamSizeOption.2-10': '2–10',
   'workspace.waitlistPage.teamSizeOption.11-50': '11–50',
   'workspace.waitlistPage.teamSizeOption.50+': '50+',

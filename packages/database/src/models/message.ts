@@ -77,6 +77,7 @@ import {
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
 import { sanitizeBm25Query } from '../utils/bm25';
+import { notCopiedTranscript } from '../utils/copiedTranscript';
 import { genEndDateWhere, genRangeWhere, genStartDateWhere, genWhere } from '../utils/genWhere';
 import { idGenerator } from '../utils/idGenerator';
 import { buildWorkspacePayload, buildWorkspaceWhere } from '../utils/workspace';
@@ -2037,7 +2038,7 @@ export class MessageModel {
         id: messages.model,
       })
       .from(messages)
-      .where(and(this.ownership(), isNotNull(messages.model)))
+      .where(and(this.ownership(), isNotNull(messages.model), notCopiedTranscript()))
       .having(({ count }) => gt(count, 0))
       .groupBy(messages.model)
       .orderBy(desc(sql`count`), asc(messages.model))
@@ -2125,6 +2126,7 @@ export class MessageModel {
         genWhere([
           this.ownership(),
           eq(messages.role, 'assistant'),
+          notCopiedTranscript(),
           genRangeWhere(
             [startDate.format('YYYY-MM-DD'), endDate.add(1, 'day').format('YYYY-MM-DD')],
             messages.createdAt,
@@ -2792,6 +2794,22 @@ export class MessageModel {
       type: row.type ?? 'default',
       userId: row.userId,
     }));
+  };
+
+  /**
+   * Resolve the tool result message id for a toolCallId — the stable identifier
+   * the model emitted for the call. Lets server-side services push async state
+   * onto a tool card when all they hold is the call id recorded at creation
+   * time (e.g. the goal loop updating the `createGoal` card via
+   * `task.context.origin.toolCallId`).
+   */
+  findToolMessageIdByToolCallId = async (toolCallId: string): Promise<string | null> => {
+    const [row] = await this.db
+      .select({ id: messagePlugins.id })
+      .from(messagePlugins)
+      .where(and(eq(messagePlugins.toolCallId, toolCallId), this.pluginsOwnership()))
+      .limit(1);
+    return row?.id ?? null;
   };
 
   /**
