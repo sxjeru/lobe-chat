@@ -18,9 +18,9 @@ export interface Action {
   handleSendButton: () => void;
   handleStop: () => void;
   pauseInputCompletion: (error: State['inputCompletionError']) => void;
+  setActiveAudioInputMode: (mode?: State['activeAudioInputMode']) => void;
   setDocument: (type: string, content: any, options?: Record<string, unknown>) => void;
   setExpand: (expend: boolean) => void;
-  setGoalMode: (enabled: boolean) => void;
   setJSONState: (content: any) => void;
   setShowTypoBar: (show: boolean) => void;
   updateMarkdownContent: () => void;
@@ -86,25 +86,25 @@ export const store: CreateStore = (publicState) => (set, get) => ({
         }
       : undefined;
 
+    // Tie the draft's fate to the composer actually being cleared: a host may
+    // decline the send after the fact (a rejected scheduled send keeps the text
+    // on screen), and the key is captured here because committing the send can
+    // move the conversation to a freshly created topic.
+    const sentDraftKey = get().draftKey;
+
     onSend?.({
       clearContent: () => {
         editor?.cleanDocument();
-        set({ goalMode: false });
+        if (sentDraftKey) removeDraft(sentDraftKey);
       },
       editor: editor!,
       getEditorData: get().getJSONState,
-      getMarkdownContent: () => {
-        const content = get().getMarkdownContent();
-        return get().goalMode ? `/goal ${content}`.trimEnd() : content;
-      },
+      getMarkdownContent: get().getMarkdownContent,
     });
 
     if (historySnapshot) {
       addInputHistory(historySnapshot);
     }
-
-    const { draftKey } = get();
-    if (draftKey) removeDraft(draftKey);
 
     if (get().expand) {
       set({ _savedEditorState: undefined, expand: false });
@@ -126,6 +126,10 @@ export const store: CreateStore = (publicState) => (set, get) => ({
     set({ inputCompletionError, inputCompletionErrorDismissed: false });
   },
 
+  setActiveAudioInputMode: (activeAudioInputMode) => {
+    set({ activeAudioInputMode });
+  },
+
   setDocument: (type, content, options) => {
     get().editor?.setDocument(type, content, options);
   },
@@ -134,10 +138,6 @@ export const store: CreateStore = (publicState) => (set, get) => ({
     const editor = get().editor;
     const _savedEditorState = editor?.getDocument('json') as Record<string, any> | undefined;
     set({ _savedEditorState, expand });
-  },
-
-  setGoalMode: (goalMode) => {
-    set({ goalMode });
   },
 
   setJSONState: (content) => {

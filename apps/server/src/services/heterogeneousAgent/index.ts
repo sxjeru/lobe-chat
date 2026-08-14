@@ -45,6 +45,10 @@ export interface HeterogeneousIngestParams {
 
 export interface HeterogeneousFinishParams {
   agentType: HeterogeneousAgentType;
+  /** Initial assistant placeholder supplied by the producer. This remains
+   * usable when gateway completion wins the race and clears runningOperation
+   * before the CLI's terminal callback reaches the server. */
+  assistantMessageId?: string;
   /**
    * CLI-reported failure. `body`, when present, is the structured status-guide
    * error (`agentType` + `code` + details) persisted verbatim as the
@@ -113,7 +117,8 @@ export interface HeterogeneousAgentServiceOptions {
 
 /**
  * Server-side ingest handler for heterogeneous agent CLIs (`lh hetero exec`
- * for Amp / Claude Code / Codex / OpenCode / Pi / Qoder). Receives `AgentStreamEvent` batches from the
+ * for Amp / Claude Code / CodeBuddy / Codex / OpenCode / Pi / Qoder / TRAE). Receives
+ * `AgentStreamEvent` batches from the
  * producer and republishes them through the existing `StreamEventManager`
  * fanout, so renderer-side gateway WS subscribers see the same wire shape
  * regardless of whether the run came from the agent gateway or a CLI process.
@@ -229,7 +234,14 @@ export class HeterogeneousAgentService {
   }
 
   async heteroFinish(params: HeterogeneousFinishParams): Promise<void> {
-    const { agentType, operationId, result, sessionId, topicId } = params;
+    const {
+      agentType,
+      assistantMessageId: seedAssistantMessageId,
+      operationId,
+      result,
+      sessionId,
+      topicId,
+    } = params;
     const error = normalizeHeterogeneousFinishError(agentType, params.error);
 
     log(
@@ -261,7 +273,14 @@ export class HeterogeneousAgentService {
     // producing any stream event (spawn ENOENT / auth-on-stderr): the terminal
     // error must be written HERE, before the `agent_runtime_end` publish below
     // triggers the client's message refetch.
-    await this.persistenceHandler.finish({ error, operationId, result, sessionId, topicId });
+    await this.persistenceHandler.finish({
+      assistantMessageId: seedAssistantMessageId,
+      error,
+      operationId,
+      result,
+      sessionId,
+      topicId,
+    });
 
     // Always emit a terminal `agent_runtime_end` so renderer subscribers shut
     // down even if the CLI stream missed it (process killed mid-flight,
