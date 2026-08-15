@@ -309,7 +309,6 @@ export const openaiChatModels: AIChatModelCard[] = [
     description:
       "GPT-5.5 is OpenAI's previous-generation frontier model for complex professional work.",
     displayName: 'GPT-5.5',
-    enabled: true,
     family: 'gpt',
     generation: 'gpt-5.5',
     id: 'gpt-5.5',
@@ -405,7 +404,6 @@ export const openaiChatModels: AIChatModelCard[] = [
     description:
       'GPT-5.4 is the frontier model for complex professional work with highest reasoning capability.',
     displayName: 'GPT-5.4',
-    enabled: true,
     family: 'gpt',
     generation: 'gpt-5.4',
     id: 'gpt-5.4',
@@ -506,7 +504,6 @@ export const openaiChatModels: AIChatModelCard[] = [
     description:
       "GPT-5.4 mini is OpenAI's strongest mini model for coding, computer use, and subagents.",
     displayName: 'GPT-5.4 mini',
-    enabled: true,
     family: 'gpt',
     generation: 'gpt-5.4',
     id: 'gpt-5.4-mini',
