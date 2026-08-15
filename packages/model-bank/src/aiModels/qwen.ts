@@ -12,6 +12,64 @@ const qwenChatModels: AIChatModelCard[] = [
       functionCall: true,
       reasoning: true,
       search: true,
+    },
+    contextWindowTokens: 1_000_000,
+    description:
+      'DeepSeek V4 Pro 0813 is the August 13 snapshot of the V4 Pro flagship. It targets high-intensity reasoning, coding, math, and agentic workflows with a 1M context window. Peak pricing is 9/27 CNY per million tokens; off-peak (22:00–08:00) is 4.5/13.5.',
+    displayName: 'DeepSeek V4 Pro 0813',
+    family: 'deepseek',
+    generation: 'deepseek-v4',
+    id: 'deepseek-v4-pro-0813',
+    maxOutput: 393_216,
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput', rate: 9, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 27, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput_cacheRead', rate: 9 * 0.2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-08-13',
+    settings: {
+      extendParams: ['deepseekV4GAReasoningEffort'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
+    },
+    contextWindowTokens: 1_000_000,
+    description:
+      'DeepSeek V4 Flash 0731 is the July 31 snapshot of the V4 Flash model. It is the fast, cost-efficient member of the V4 family with a 1M context window and hybrid thinking.',
+    displayName: 'DeepSeek V4 Flash 0731',
+    family: 'deepseek',
+    generation: 'deepseek-v4',
+    id: 'deepseek-v4-flash-0731',
+    maxOutput: 393_216,
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput_cacheRead', rate: 0.2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-07-31',
+    settings: {
+      extendParams: ['deepseekV4GAReasoningEffort'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
       structuredOutput: true,
       vision: true,
       video: true,
