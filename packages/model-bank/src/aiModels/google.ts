@@ -1172,45 +1172,6 @@ const googleImageModels: AIImageModelCard[] = [
       ],
     },
   },
-  {
-    displayName: 'Imagen 4',
-    id: 'imagen-4.0-generate-001',
-    enabled: true,
-    type: 'image',
-    description: 'Imagen fourth-generation text-to-image model family.',
-    organization: 'Deepmind',
-    releasedAt: '2025-08-15',
-    parameters: imagenGenParameters,
-    pricing: {
-      units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
-    },
-  },
-  {
-    displayName: 'Imagen 4 Ultra',
-    id: 'imagen-4.0-ultra-generate-001',
-    enabled: true,
-    type: 'image',
-    description: 'Imagen fourth-generation text-to-image Ultra variant.',
-    organization: 'Deepmind',
-    releasedAt: '2025-08-15',
-    parameters: imagenGenParameters,
-    pricing: {
-      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
-    },
-  },
-  {
-    displayName: 'Imagen 4 Fast',
-    id: 'imagen-4.0-fast-generate-001',
-    enabled: true,
-    type: 'image',
-    description: 'Imagen fourth-generation text-to-image fast variant.',
-    organization: 'Deepmind',
-    releasedAt: '2025-08-15',
-    parameters: imagenGenParameters,
-    pricing: {
-      units: [{ name: 'imageGeneration', rate: 0.02, strategy: 'fixed', unit: 'image' }],
-    },
-  },
 ];
 
 const googleVideoModels: AIVideoModelCard[] = [
