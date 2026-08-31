@@ -30,6 +30,8 @@ table agents {
   opening_questions text[] [default: `[]`]
   session_group_id text
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -127,6 +129,8 @@ table agent_cron_jobs {
   execution_conditions jsonb
   last_executed_at timestamp
   total_executions integer [default: 0]
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -210,7 +214,7 @@ table agent_eval_benchmarks {
 
 table agent_eval_datasets {
   id text [pk, not null]
-  benchmark_id text [not null]
+  benchmark_id text
   source_experiment_id text
   identifier text [not null]
   user_id text
@@ -446,6 +450,9 @@ table agent_intervention_resolutions {
     resolution_request_id [name: 'agent_intervention_resolutions_request_unique', unique]
     (user_id, workspace_id, batch_id) [name: 'agent_intervention_resolutions_owner_batch_idx']
     (status, created_at) [name: 'agent_intervention_resolutions_status_created_idx']
+
+
+
 
 
   }
@@ -801,6 +808,8 @@ table agent_skills {
   zip_file_hash varchar(64)
   user_id text [not null]
   workspace_id text
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1018,6 +1027,8 @@ table chat_groups {
   group_id text
   pinned boolean [default: false]
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1499,6 +1510,8 @@ table documents {
   slug varchar(255)
   workspace_id text
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1535,6 +1548,8 @@ table files {
   embedding_task_id uuid
   workspace_id text
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1594,6 +1609,8 @@ table knowledge_bases {
   settings jsonb
   workspace_id text
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1618,6 +1635,8 @@ table generation_batches {
   height integer
   ratio varchar(64)
   config jsonb
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1637,6 +1656,8 @@ table generation_topics {
   cover_url text
   type varchar(32) [not null, default: 'image']
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1657,6 +1678,8 @@ table generations {
   file_id text
   seed integer
   asset jsonb
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -1685,6 +1708,8 @@ table goals {
   subject_id text
   started_at "timestamp with time zone"
   completed_at "timestamp with time zone"
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
 
@@ -1801,6 +1826,35 @@ table goal_nodes {
     task_id [name: 'goal_nodes_task_id_unique', unique]
 
 
+  }
+}
+
+table goal_traces {
+  goal_id text [pk, not null]
+  trace_s3_key text
+  started_at "timestamp with time zone"
+  completed_at "timestamp with time zone"
+  final_status text
+  advances_total integer
+  ticks_total integer
+  advances_by_trigger jsonb
+  advances_by_outcome jsonb
+  ticks_by_branch jsonb
+  total_cost "numeric(20, 6)"
+  work_operations integer
+  nodes_total integer
+  work_resolved integer
+  work_retired integer
+  findings_total integer
+  gates_opened integer
+  gates_resolved integer
+  human_waiting_ms integer
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    started_at [name: 'goal_traces_started_at_idx']
+    final_status [name: 'goal_traces_final_status_idx']
   }
 }
 
@@ -2018,6 +2072,8 @@ table messages {
   target_id text
   message_group_id varchar(255)
   workspace_id text
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -2482,6 +2538,8 @@ table projects {
   started_at "timestamp with time zone"
   completed_at "timestamp with time zone"
   archived_at "timestamp with time zone"
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -2856,6 +2914,28 @@ table resource_transfer_requests {
   }
 }
 
+table fts_search_sync_outbox {
+  attempts integer [not null, default: 0]
+  available_at "timestamp with time zone" [not null, default: `now()`]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+  dead_at "timestamp with time zone"
+  document_id text [not null]
+  entity text [not null]
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  last_error text
+  locked_until "timestamp with time zone"
+  priority smallint [not null, default: 10]
+  revision bigint [not null, default: `nextval('fts_search_sync_revision_seq')`]
+  updated_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    (entity, document_id) [name: 'fts_search_sync_outbox_entity_document_id_unique', unique]
+    (priority, available_at, revision) [name: 'fts_search_sync_outbox_claim_idx']
+    dead_at [name: 'fts_search_sync_outbox_dead_idx']
+    locked_until [name: 'fts_search_sync_outbox_lease_idx']
+  }
+}
+
 table session_groups {
   id text [pk, not null]
   name text [not null]
@@ -2864,6 +2944,8 @@ table session_groups {
   client_id text
   workspace_id text
   visibility text [not null, default: 'public']
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -3091,6 +3173,8 @@ table tasks {
   visibility text [not null, default: 'public']
   started_at "timestamp with time zone"
   completed_at "timestamp with time zone"
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -3131,6 +3215,8 @@ table threads {
   user_id text [not null]
   last_active_at "timestamp with time zone" [default: `now()`]
   workspace_id text
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -3209,6 +3295,8 @@ table topics {
   provider text
   sender_id text
   workspace_id text
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -3278,6 +3366,29 @@ table topic_comments {
     moderation_expires_at [name: 'topic_comments_moderation_expires_at_idx']
     moderated_by_user_id [name: 'topic_comments_moderated_by_user_id_idx']
     workspace_id [name: 'topic_comments_workspace_id_idx']
+  }
+}
+
+table trash_items {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  resource_type text [not null]
+  resource_id text [not null]
+  title text
+  meta jsonb
+  root_id uuid
+  user_id text [not null]
+  workspace_id text
+  deleted_by_user_id text
+  deleted_at "timestamp with time zone" [not null, default: `now()`]
+  expires_at "timestamp with time zone" [not null]
+  created_at "timestamp with time zone" [not null, default: `now()`]
+
+  indexes {
+    (resource_type, resource_id) [name: 'trash_items_resource_unique', unique]
+    (user_id, deleted_at) [name: 'trash_items_personal_listing_idx']
+    (workspace_id, deleted_at) [name: 'trash_items_workspace_listing_idx']
+    expires_at [name: 'trash_items_expires_at_idx']
+    root_id [name: 'trash_items_root_id_idx']
   }
 }
 
@@ -3351,6 +3462,8 @@ table user_memories {
   accessed_count bigint [default: 0]
   last_accessed_at "timestamp with time zone" [not null]
   captured_at "timestamp with time zone" [not null, default: `now()`]
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   accessed_at "timestamp with time zone" [not null, default: `now()`]
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
@@ -3420,6 +3533,7 @@ table user_memories_contexts {
     description_vector [name: 'user_memories_contexts_description_vector_index']
     type [name: 'user_memories_contexts_type_index']
     user_id [name: 'user_memories_contexts_user_id_index']
+    user_memory_ids [name: 'user_memories_contexts_user_memory_ids_gin_idx']
   }
 }
 
@@ -3857,6 +3971,8 @@ table works {
   user_id text [not null]
   workspace_id text
   visibility text [not null]
+  deleted_at "timestamp with time zone"
+  is_deleted boolean
   created_at "timestamp with time zone" [not null, default: `now()`]
   updated_at "timestamp with time zone" [not null, default: `now()`]
 

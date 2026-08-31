@@ -622,6 +622,116 @@ describe('HeterogeneousAgentCtr', () => {
     await rm(appStoragePath, { force: true, recursive: true });
   });
 
+  describe('cancelSession', () => {
+    /**
+     * @example A replacement local Codex turn starts only after the interrupted CLI exits.
+     */
+    it('does not resolve CLI cancellation until the native process exits', async () => {
+      // ROOT CAUSE:
+      //
+      // cancelSession previously sent SIGINT and returned immediately. “Send now”
+      // could then start a second `codex exec resume` while the first process still
+      // owned the thread writer.
+      //
+      // Before: signal the child and schedule a detached escalation timer.
+      // After: signal, await exit, and synchronously escalate after a bounded wait.
+      const { proc } = createFakeProc();
+      proc.__start = vi.fn();
+      proc.exitCode = null;
+      proc.signalCode = null;
+      nextFakeProc = proc;
+      const ctr = new HeterogeneousAgentCtr({
+        appStoragePath,
+        storeManager: { get: vi.fn() },
+      } as any);
+      const { sessionId } = await ctr.startSession({
+        agentType: 'codex',
+        command: 'codex',
+      });
+      const prompt = ctr.sendPrompt({
+        operationId: 'op-cancel-wait',
+        prompt: 'sleep 60',
+        sessionId,
+      });
+      await vi.waitFor(() => expect(spawnCalls).toHaveLength(1));
+
+      let cancellationSettled = false;
+      const cancellation = ctr.cancelSession({ sessionId }).then(() => {
+        cancellationSettled = true;
+      });
+      await Promise.resolve();
+
+      expect(cancellationSettled).toBe(false);
+
+      proc.stdout.end();
+      proc.stderr.end();
+      proc.signalCode = 'SIGINT';
+      proc.emit('exit', null, 'SIGINT');
+
+      await cancellation;
+      await prompt;
+    });
+
+    /**
+     * @example A wedged native process ignores both graceful and forced termination.
+     */
+    it('rejects cancellation when process exit is not observed after SIGKILL', async () => {
+      // ROOT CAUSE:
+      //
+      // cancelSession awaited the post-SIGKILL timeout but discarded its false
+      // result. Callers therefore started replacement turns even though the old
+      // process could still own the native Codex thread writer.
+      //
+      // Before: await forcedExit; return undefined.
+      // After: throw when forcedExit resolves false.
+      const processKill = vi.spyOn(process, 'kill').mockReturnValue(true);
+
+      try {
+        const { proc } = createFakeProc();
+        proc.__start = vi.fn();
+        proc.exitCode = null;
+        proc.pid = 4242;
+        proc.signalCode = null;
+        nextFakeProc = proc;
+        const ctr = new HeterogeneousAgentCtr({
+          appStoragePath,
+          storeManager: { get: vi.fn() },
+        } as unknown as ConstructorParameters<typeof HeterogeneousAgentCtr>[0]);
+        const { sessionId } = await ctr.startSession({
+          agentType: 'codex',
+          command: 'codex',
+        });
+        const spawnCount = spawnCalls.length;
+        const prompt = ctr.sendPrompt({
+          operationId: 'op-cancel-timeout',
+          prompt: 'ignore termination',
+          sessionId,
+        });
+        await vi.waitFor(() => expect(spawnCalls).toHaveLength(spawnCount + 1));
+
+        vi.useFakeTimers();
+        const cancellation = expect(ctr.cancelSession({ sessionId })).rejects.toThrow(
+          `Session ${sessionId} did not exit after SIGKILL`,
+        );
+        await vi.advanceTimersByTimeAsync(4000);
+        await cancellation;
+
+        expect(processKill).toHaveBeenNthCalledWith(1, -4242, 'SIGINT');
+        expect(processKill).toHaveBeenNthCalledWith(2, -4242, 'SIGKILL');
+
+        vi.useRealTimers();
+        proc.stdout.end();
+        proc.stderr.end();
+        proc.signalCode = 'SIGKILL';
+        proc.emit('exit', null, 'SIGKILL');
+        await prompt;
+      } finally {
+        processKill.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('image cache (delegates to shared `normalizeImage`)', () => {
     // Image fetch + cache moved to `@lobechat/heterogeneous-agents/spawn`'s
     // `normalizeImage`. The desktop controller passes its own cacheDir so the
@@ -3378,6 +3488,149 @@ describe('HeterogeneousAgentCtr', () => {
       expect(send).toHaveBeenCalledWith('heteroAgentSessionComplete', { sessionId });
     });
 
+    it('launches a provider-bound TRAE session with a managed secret-free profile', async () => {
+      const ctr = new HeterogeneousAgentCtr({
+        appStoragePath,
+        storeManager: { get: vi.fn() },
+      } as any);
+      const { sessionId } = await ctr.startSession({
+        agentType: 'trae',
+        args: ['--model', 'stale-model', '--profile', 'personal', '--permission-mode', 'auto'],
+        command: 'traecli',
+        env: {
+          LOBEHUB_TRAE_API_KEY: 'stale-host-key',
+          OPENAI_API_KEY: 'stale-openai-key',
+          TRAE_HOME: '/user/trae',
+        },
+        initialModel: 'stale-native-model',
+        providerBinding: {
+          apiConfig: { model: 'gpt-test', providerId: 'openai' },
+          kind: 'provider',
+        },
+      });
+
+      await ctr.sendPrompt({ operationId: 'op-trae-provider', prompt: 'hello', sessionId });
+
+      const options = traeAcpSessionConstructMock.mock.calls.at(-1)?.[0];
+      expect(options.args).toEqual(['--permission-mode', 'auto', '--profile', 'lobehub']);
+      expect(options.initialModel).toBeUndefined();
+      expect(options.env).toEqual(
+        expect.objectContaining({
+          LOBEHUB_TRAE_API_KEY: 'provider-secret',
+          TRAE_HOME: expect.stringContaining('/heteroAgent/bindings/trae/'),
+        }),
+      );
+      expect(options.env).not.toHaveProperty('OPENAI_API_KEY');
+
+      const bindingsDir = path.join(appStoragePath, 'heteroAgent', 'bindings', 'trae');
+      const [bindingDir] = await readdir(bindingsDir);
+      const profile = await readFile(
+        path.join(bindingsDir, bindingDir, 'lobehub.traecli.toml'),
+        'utf8',
+      );
+      expect(profile).toContain('model = "gpt-test"');
+      expect(profile).toContain('model_provider = "lobehub"');
+      expect(profile).toContain('base_url = "https://api.openai.com/v1"');
+      expect(profile).toContain('env_key = "LOBEHUB_TRAE_API_KEY"');
+      expect(profile).toContain('wire_api = "responses"');
+      expect(profile).not.toContain('provider-secret');
+      expect(JSON.stringify(loggerInfoMock.mock.calls)).not.toContain('provider-secret');
+      expect(await readdir(path.join(appStoragePath, 'heteroAgent', 'runs'))).toEqual([]);
+    });
+
+    it('injects a server-default operation token into the TRAE Responses profile', async () => {
+      const ctr = new HeterogeneousAgentCtr({
+        appStoragePath,
+        storeManager: { get: vi.fn() },
+      } as any);
+      const { sessionId } = await ctr.startSession({
+        agentType: 'trae',
+        command: 'traecli',
+        providerBinding: {
+          apiConfig: { model: 'gpt-5.4', source: 'server-default' },
+          kind: 'server-default',
+        },
+      });
+
+      await ctr.sendPrompt({
+        operationId: 'op-trae-server-default',
+        prompt: 'hello',
+        sessionId,
+        topicId: 'topic-1',
+      });
+
+      expect(beginServerDefaultOperationMock).toHaveBeenCalledWith(expect.any(Object), {
+        agentId: undefined,
+        agentType: 'trae',
+        model: 'gpt-5.4',
+        operationId: 'op-trae-server-default',
+        topicId: 'topic-1',
+      });
+      const options = traeAcpSessionConstructMock.mock.calls.at(-1)?.[0];
+      expect(options.args).toEqual(['--profile', 'lobehub']);
+      expect(options.env).toEqual(
+        expect.objectContaining({
+          LOBEHUB_TRAE_API_KEY: 'operation-token',
+          TRAE_HOME: expect.stringContaining('/heteroAgent/bindings/trae/'),
+        }),
+      );
+
+      const bindingsDir = path.join(appStoragePath, 'heteroAgent', 'bindings', 'trae');
+      const [bindingDir] = await readdir(bindingsDir);
+      const profile = await readFile(
+        path.join(bindingsDir, bindingDir, 'lobehub.traecli.toml'),
+        'utf8',
+      );
+      expect(profile).toContain('model = "lobehub/gpt-5.4"');
+      expect(profile).toContain('base_url = "https://app.example.com/api/v1/openai/v1"');
+      expect(profile).not.toContain('operation-token');
+      expect(settleServerDefaultOperationMock).toHaveBeenCalledWith(expect.any(Object), {
+        cancelled: false,
+        operationId: 'op-trae-server-default',
+        result: 'done',
+      });
+    });
+
+    it('requires TRAE CLI 0.201.2 for provider binding but not subscription mode', async () => {
+      const detect = vi.fn().mockResolvedValue({ available: true, version: '0.201.1' });
+      const ctr = new HeterogeneousAgentCtr({
+        appStoragePath,
+        binaryManager: { detect },
+        storeManager: { get: vi.fn() },
+      } as any);
+      const providerSession = await ctr.startSession({
+        agentType: 'trae',
+        command: 'traecli',
+        providerBinding: {
+          apiConfig: { model: 'gpt-test', providerId: 'openai' },
+          kind: 'provider',
+        },
+      });
+
+      await expect(
+        ctr.sendPrompt({
+          operationId: 'op-trae-old-provider',
+          prompt: 'provider prompt',
+          sessionId: providerSession.sessionId,
+        }),
+      ).rejects.toThrow(
+        'TRAE CLI 0.201.2 or newer is required to use a LobeHub provider. Installed version: 0.201.1.',
+      );
+      expect(traeAcpSessionConstructMock).not.toHaveBeenCalled();
+
+      const subscriptionSession = await ctr.startSession({
+        agentType: 'trae',
+        command: 'traecli',
+      });
+      await ctr.sendPrompt({
+        operationId: 'op-trae-old-subscription',
+        prompt: 'subscription prompt',
+        sessionId: subscriptionSession.sessionId,
+      });
+
+      expect(traeAcpSessionConstructMock).toHaveBeenCalledOnce();
+    });
+
     it('classifies authentication diagnostics emitted only on ACP stderr', async () => {
       const send = vi.fn();
       mockGetAllWindows.mockReturnValue([
@@ -3517,6 +3770,8 @@ describe('HeterogeneousAgentCtr', () => {
       const stdin = new EventEmitter() as any;
       stdin.end = vi.fn();
       stdin.write = vi.fn(() => true);
+      proc.kill = vi.fn(() => true);
+      proc.pid = 4321;
       proc.stdin = stdin;
       return proc;
     };
@@ -3701,6 +3956,50 @@ describe('HeterogeneousAgentCtr', () => {
       await expect(ack).resolves.toEqual({ status: 'accepted' });
 
       expect(() => proc.stdin.emit('error', new Error('write EPIPE'))).not.toThrow();
+    });
+
+    /**
+     * @example A replacement waits until operation A's wrapper exits before operation B starts.
+     */
+    it('waits for the gateway CLI wrapper to exit when cancelling its operation', async () => {
+      // ROOT CAUSE:
+      //
+      // Device-dispatched Codex wrappers were not registered by operation id, so
+      // server cancellation returned while the native thread still had an active
+      // writer. A replacement resume then failed with `already has an active writer`.
+      //
+      // Before: spawnLhHeteroExec acknowledged the child and discarded its handle.
+      // After: cancelLhHeteroExec signals that handle and resolves only after exit.
+      const proc = createGatewayCliProc();
+      nextFakeProc = proc;
+      const ctr = new HeterogeneousAgentCtr({
+        appStoragePath,
+        storeManager: { get: vi.fn() },
+      } as any);
+
+      const ack = ctr.spawnLhHeteroExec(params);
+      proc.emit('spawn');
+      await ack;
+
+      let cancellationSettled = false;
+      const cancellation = ctr
+        .cancelLhHeteroExec({ operationId: params.operationId })
+        .then((result) => {
+          cancellationSettled = true;
+          return result;
+        });
+      await Promise.resolve();
+
+      expect(proc.kill).toHaveBeenCalledWith('SIGINT');
+      expect(cancellationSettled).toBe(false);
+
+      proc.emit('exit', 130, 'SIGINT');
+
+      await expect(cancellation).resolves.toEqual({
+        exited: true,
+        pid: 4321,
+        signal: 'SIGINT',
+      });
     });
   });
 
