@@ -21,9 +21,10 @@ export interface GoalTickObservation {
   branch: GoalTickBranch;
   budget?: GoalBudgetState;
   candidates: FrontierCandidate[];
+  candidateTasks?: GoalFrontierTaskState[];
   chosenNodeId?: string;
+  concurrency?: number;
   effects: GoalAdvanceEffect[];
-  frontierTask?: GoalFrontierTaskState;
   graphState: GoalGraphState;
   message: string;
   outcome: GoalTickOutcome;
@@ -75,16 +76,20 @@ export const toTraceGraphState = (graph: GoalGraphSnapshot): GoalGraphState => (
   })),
 });
 
-export const toFrontierTaskState = (task: TaskItem): GoalFrontierTaskState => ({
+export const toFrontierTaskState = (task: TaskItem, nodeId?: string): GoalFrontierTaskState => ({
   error: task.error,
   id: task.id,
   identifier: task.identifier,
+  nodeId,
   status: task.status,
   updatedAt: new Date(task.updatedAt).getTime(),
 });
 
 export interface BudgetEvaluation {
   costLimitReached: boolean;
+  /** ISO deadline from the goal's schedule config; null = uncapped. */
+  deadline: string | null;
+  deadlinePassed: boolean;
   roundLimitReached: boolean;
   runs: { length: number };
   totalCost: number;
@@ -92,6 +97,7 @@ export interface BudgetEvaluation {
 
 export const toBudgetState = (goal: GoalItem, budget: BudgetEvaluation): GoalBudgetState => ({
   costLimitReached: budget.costLimitReached,
+  deadlinePassed: budget.deadlinePassed,
   maxRounds: goal.maxRounds,
   maxTotalCost: goal.maxTotalCost === null ? null : Number(goal.maxTotalCost),
   roundLimitReached: budget.roundLimitReached,

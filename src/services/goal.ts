@@ -27,6 +27,8 @@ class GoalService {
     createdByAgentId?: string;
     maxRounds?: number;
     maxTotalCost?: number;
+    /** The user's ask in their own words — shown on the seeded problem node. */
+    problemDescription?: string;
     projectId?: string;
     requirement?: string;
     title: string;
@@ -75,6 +77,7 @@ class GoalService {
   }) => lambdaClient.goal.decide.mutate(params);
 
   setBudget = async (params: {
+    deadline?: string | null;
     id: string;
     maxRounds?: number | null;
     maxTotalCost?: number | null;
@@ -87,6 +90,9 @@ class GoalService {
     priority?: number;
     title: string;
   }) => lambdaClient.goal.addNode.mutate(params);
+
+  updateRequirement = async (id: string, requirement: string) =>
+    lambdaClient.goal.updateRequirement.mutate({ id, requirement });
 }
 
 export const goalService = new GoalService();

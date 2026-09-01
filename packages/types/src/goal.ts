@@ -31,8 +31,30 @@ export interface GoalRecoveryPolicy {
   operationLeaseTimeoutMs?: number;
 }
 
+/**
+ * Calendar-time bounds for a long-horizon goal. Lives on the JSONB `config`
+ * column deliberately: attempts, rounds and dollars measure one agent run,
+ * but a goal that runs for months also needs "stop trying by this date" as a
+ * first-class budget unit, and that needs no schema of its own.
+ */
+export interface GoalSchedulePolicy {
+  /**
+   * ISO-8601 instant. Past it the coordinator stops dispatching new Work and
+   * pauses the goal — the temporal twin of `budget_exhausted`.
+   */
+  deadline?: string | null;
+}
+
 export interface GoalConfig {
+  /**
+   * How many of a goal's Tasks may be in flight at once. Independent Tasks are
+   * the common case — four bug fixes that share no code have no reason to run
+   * one after another — but an uncapped fan-out would spend the whole budget
+   * before the first result came back. Null/undefined uses the default.
+   */
+  maxConcurrentTasks?: number | null;
   recovery?: GoalRecoveryPolicy;
+  schedule?: GoalSchedulePolicy;
 }
 
 /**
