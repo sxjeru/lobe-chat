@@ -174,6 +174,11 @@ export const topicCommentKeys = {
 
 // ---- document comment ---------------------------------------------------
 export const documentCommentKeys = {
+  detail: def('documentComment:detail', (workspaceId: string | null, commentId: string) => [
+    'documentComment:detail',
+    workspaceId ?? '',
+    commentId,
+  ]),
   replies: def(
     'documentComment:replies',
     (workspaceId: string | null, rootCommentId: string, cursor?: string) => [
@@ -198,6 +203,15 @@ export const documentCommentKeys = {
   ),
 };
 
+// ---- document like ------------------------------------------------------
+export const documentLikeKeys = {
+  summary: def('documentLike:summary', (workspaceId: string | null, documentId: string) => [
+    'documentLike:summary',
+    workspaceId ?? '',
+    documentId,
+  ]),
+};
+
 export const isDocumentCommentKeyForEvent = (
   key: unknown,
   event: { documentId: string; rootCommentId?: string; workspaceId: string },
@@ -206,6 +220,9 @@ export const isDocumentCommentKeyForEvent = (
 
   if (key[0] === documentCommentKeys.summary.root) return key[1] === event.documentId;
   if (key[1] !== event.workspaceId) return false;
+  // Deep-link detail entries are few (at most a pinned root and reply) and events do not
+  // carry the comment id, so revalidate them on any comment event in the workspace.
+  if (key[0] === documentCommentKeys.detail.root) return true;
   if (key[0] === documentCommentKeys.threads.root) return key[2] === event.documentId;
   if (key[0] === documentCommentKeys.replies.root) {
     return !event.rootCommentId || key[2] === event.rootCommentId;
@@ -317,6 +334,9 @@ export const isTaskListKey = (key: unknown): boolean =>
 export const isScheduledTaskListKey = (key: unknown): boolean =>
   Array.isArray(key) && key[0] === 'task:scheduledList';
 
+export const isMyTaskListKey = (key: unknown): boolean =>
+  Array.isArray(key) && key[0] === 'task:myList';
+
 /**
  * Goal Graph reads. Keyed by the `goals` row id (not the carrier task's
  * identifier) because that is what every `goal.*` procedure takes.
@@ -394,6 +414,23 @@ export const taskKeys = {
    * heartbeat. Kept off `list` because it is a different result set entirely —
    * sharing the key would let one section's fetch overwrite the other's.
    */
+  /**
+   * The Tasks page's "My tasks" tab: work assigned to, or created by, the
+   * caller. Its own root for the same reason as `scheduledList` — a different
+   * result set from `list`, so a shared entry would let one tab's fetch
+   * overwrite the other's.
+   */
+  myList: def(
+    'task:myList',
+    (scope: 'assigned' | 'created', statuses?: string[], limit?: number, offset?: number) => [
+      'task:myList',
+      scope,
+      // Status narrowing is part of the identity: "hide completed" and "show
+      // all" are different server pages, not a client-side view of one page.
+      statuses ? [...statuses].sort().join(',') : 'all',
+      ...(limit === undefined && offset === undefined ? [] : [{ limit, offset }]),
+    ],
+  ),
   scheduledList: def(
     'task:scheduledList',
     (
@@ -1410,6 +1447,7 @@ export const swrKeys = {
   topic: topicKeys,
   topicComment: topicCommentKeys,
   documentComment: documentCommentKeys,
+  documentLike: documentLikeKeys,
   topicAction: topicActionKeys,
   user: userKeys,
   userMemory: userMemoryKeys,
