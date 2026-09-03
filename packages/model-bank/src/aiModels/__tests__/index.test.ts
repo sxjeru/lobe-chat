@@ -260,7 +260,7 @@ describe('Google Gemini 3.1 Flash Image models', () => {
           type: 'chat',
         }),
         expect.objectContaining({
-          enabled: true,
+          enabled: false,
           id: 'gemini-3.1-flash-image-preview:image',
           releasedAt: '2026-02-26',
           type: 'image',
