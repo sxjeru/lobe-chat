@@ -36,26 +36,6 @@ const mistralChatModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 262_144,
     description:
-      'Devstral 2 is an enterprise-level text model that excels at using tools to explore codebases, edit multiple files, and power software engineering agents.',
-    displayName: 'Devstral 2',
-    enabled: true,
-    family: 'devstral',
-    id: 'devstral-2512',
-    pricing: {
-      units: [
-        { name: 'textInput', rate: 0.4, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
-    releasedAt: '2025-12-09',
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-    },
-    contextWindowTokens: 262_144,
-    description:
       'Devstral Small 2 excels at using tools to explore code bases, edit multiple files, and power software engineering agents.',
     displayName: 'Devstral Small 2',
     family: 'devstral',
@@ -67,24 +47,6 @@ const mistralChatModels: AIChatModelCard[] = [
       ],
     },
     releasedAt: '2025-12-09',
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-    },
-    contextWindowTokens: 131_072,
-    description:
-      'Mistral Medium 3.1 delivers state-of-the-art performance at 8× lower cost and simplifies enterprise deployment.',
-    displayName: 'Mistral Medium 3.1',
-    family: 'mistral',
-    id: 'mistral-medium-2508',
-    pricing: {
-      units: [
-        { name: 'textInput', rate: 0.4, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
     type: 'chat',
   },
   {

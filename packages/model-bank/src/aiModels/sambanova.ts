@@ -1,5 +1,8 @@
 import type { AIChatModelCard } from '../types/aiModel';
 
+// https://cloud.sambanova.ai/plans/pricing
+// https://docs.sambanova.ai/docs/en/models/sambacloud-models
+
 const sambanovaChatModels: AIChatModelCard[] = [
   {
     abilities: {
@@ -10,15 +13,15 @@ const sambanovaChatModels: AIChatModelCard[] = [
     description:
       'MiniMax-M2.7 is a self-evolving foundation model with top-tier reasoning, coding, and agentic capabilities, delivering high throughput for production workloads.',
     displayName: 'MiniMax M2.7',
-    enabled: true,
     family: 'minimax',
     generation: 'minimax-m2.7',
     id: 'MiniMax-M2.7',
     maxOutput: 131_072,
     pricing: {
       units: [
-        { name: 'textInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2.4, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput_cacheRead', rate: 0.06, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
     type: 'chat',
@@ -32,14 +35,13 @@ const sambanovaChatModels: AIChatModelCard[] = [
     description:
       'DeepSeek-V3.1 is an upgraded version of DeepSeek-V3 with improved reasoning capabilities, better instruction following, and stronger multilingual support.',
     displayName: 'DeepSeek V3.1',
-    enabled: true,
     family: 'deepseek',
     generation: 'deepseek-v3.1',
     id: 'DeepSeek-V3.1',
     pricing: {
       units: [
-        { name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 4.5, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
     type: 'chat',
@@ -52,7 +54,6 @@ const sambanovaChatModels: AIChatModelCard[] = [
     description:
       'Llama 3.3 is the most advanced multilingual open-source Llama model, delivering near-405B performance at very low cost. It is Transformer-based and improved with SFT and RLHF for usefulness and safety. The instruction-tuned version is optimized for multilingual chat and beats many open and closed chat models on industry benchmarks. Knowledge cutoff: Dec 2023.',
     displayName: 'Meta Llama 3.3 70B Instruct',
-    enabled: true,
     family: 'llama',
     generation: 'llama-3.3',
     id: 'Meta-Llama-3.3-70B-Instruct',
@@ -82,8 +83,31 @@ const sambanovaChatModels: AIChatModelCard[] = [
     maxOutput: 65_536,
     pricing: {
       units: [
-        { name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 1.5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 0.22, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 0.59, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      vision: true,
+    },
+    contextWindowTokens: 1_000_000,
+    description:
+      'MiniMax-M3 is a frontier multimodal model with native image and video understanding, long-context reasoning, and strong coding and agentic capabilities.',
+    displayName: 'MiniMax M3',
+    enabled: true,
+    family: 'minimax',
+    generation: 'minimax-m3',
+    id: 'MiniMax-M3',
+    maxOutput: 131_072,
+    pricing: {
+      units: [
+        { name: 'textInput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2.4, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
     type: 'chat',
@@ -102,8 +126,8 @@ const sambanovaChatModels: AIChatModelCard[] = [
     id: 'DeepSeek-V3.2',
     pricing: {
       units: [
-        { name: 'textInput', rate: 0.3, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 4.5, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
     type: 'chat',
@@ -125,8 +149,8 @@ const sambanovaChatModels: AIChatModelCard[] = [
     maxOutput: 32_768,
     pricing: {
       units: [
-        { name: 'textInput', rate: 0.3, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 0.38, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 1.15, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
     type: 'chat',
