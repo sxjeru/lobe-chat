@@ -65,6 +65,7 @@ import {
   sql,
 } from 'drizzle-orm';
 
+import { clampToolIdentifier } from '@/utils/clampToolIdentifier';
 import { merge } from '@/utils/merge';
 import { sanitizeNullBytes } from '@/utils/sanitizeNullBytes';
 import { today } from '@/utils/time';
@@ -3219,10 +3220,10 @@ export class MessageModel {
     if (message.role === 'tool') {
       await runTimedStage(timing, `${timingPrefix}.plugin.insert`, () =>
         trx.insert(messagePlugins).values({
-          apiName: plugin?.apiName,
+          apiName: clampToolIdentifier(plugin?.apiName),
           arguments: sanitizeNullBytes(plugin?.arguments),
           id,
-          identifier: plugin?.identifier,
+          identifier: clampToolIdentifier(plugin?.identifier),
           intervention: pluginIntervention,
           state: sanitizeNullBytes(pluginState),
           toolCallId: message.tool_call_id,
@@ -3581,7 +3582,11 @@ export class MessageModel {
 
     return this.db
       .update(messagePlugins)
-      .set(value)
+      .set({
+        ...value,
+        apiName: clampToolIdentifier(value.apiName),
+        identifier: clampToolIdentifier(value.identifier),
+      })
       .where(and(eq(messagePlugins.id, id), this.pluginsOwnership()));
   };
 
