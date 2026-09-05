@@ -1,4 +1,5 @@
 import type { InitialGoalOverviewContext } from './stepContext';
+import type { WorkType } from './work';
 
 // ============================================
 // Goal — independent target entity (`goals` table)
@@ -260,7 +261,39 @@ export interface GoalGraphWorkVersionLink {
   id: string;
   nodeId: string;
   relation: GoalNodeWorkVersionRelation;
+  /**
+   * Display snapshot of the linked Work version, joined at read time so the
+   * graph can name a deliverable instead of counting it. Absent only when the
+   * version row is gone — the link is kept so the count stays honest.
+   */
+  work?: GoalGraphWorkVersionDisplay;
   workVersionId: string;
+}
+
+/**
+ * What a linked Work version shows without a second round-trip. Taken from the
+ * immutable version row rather than the live Work: the graph records what the
+ * task delivered at that moment, and a title edited later does not rewrite the
+ * goal's history.
+ */
+export interface GoalGraphWorkVersionDisplay {
+  /**
+   * Proof that a `document` Work is bound to an agent, and therefore openable
+   * in-app. It is the binding row's id, NOT a route parameter — the document
+   * route resolves {@link resourceId}.
+   */
+  agentDocumentId?: string;
+  /** Durable download target of a `file` Work, which keeps it out of `url`. */
+  fileUrl?: string;
+  identifier: string | null;
+  /** Canonical resource identity — the document id an in-app link addresses. */
+  resourceId: string | null;
+  status: string | null;
+  title: string | null;
+  type: WorkType;
+  /** Canonical http(s) open target, for Works that live outside the app. */
+  url: string | null;
+  workId: string;
 }
 
 export interface GoalGraphSnapshot {

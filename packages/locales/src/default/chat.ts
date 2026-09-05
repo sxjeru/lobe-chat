@@ -1993,6 +1993,11 @@ export default {
   'goalProcess.node.artifactsTooltip':
     '{{count}} work versions registered. Opening them needs a server read that does not exist yet.',
   'goalProcess.node.humanTouched': 'You took part in this task',
+  'goalProcess.deliverables.title': 'Deliverables',
+  'goalProcess.deliverables.empty':
+    'Nothing delivered yet. Documents, generated files and linked resources a task persists show up here — anything left only on a local path does not.',
+  'goalProcess.deliverables.from': 'From “{{title}}”',
+  'goalProcess.deliverables.untitled': 'Untitled',
   'goalProcess.findings.title': 'Findings',
   'goalProcess.findings.empty': 'No findings yet.',
   'goalProcess.findings.answers': 'Answers “{{title}}”',

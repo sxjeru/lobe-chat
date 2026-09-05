@@ -16,6 +16,7 @@ import type {
   MetricKind,
   TaskItem,
   TaskTopicHandoff,
+  WorkVersionEventItem,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { sql } from 'drizzle-orm';
@@ -117,6 +118,14 @@ export interface CreateGoalNodeInput {
 }
 
 /** Application service shared by CLI today and Graph UI/schedulers later. */
+/**
+ * Version events read per task run when harvesting deliverables. Generous
+ * because the cap applies to events rather than to Works: the newest N events
+ * of a run must still contain every Work it produced, even one revised many
+ * times over.
+ */
+const DELIVERABLE_EVENTS_PER_RUN = 200;
+
 export class GoalService {
   private readonly acceptanceService: AcceptanceService;
   private readonly goalModel: GoalModel;
@@ -1508,6 +1517,11 @@ export class GoalService {
       'The complete requirements for this Task are included here. Do not inspect unrelated agent documents to recover requirements. This Task carries its own Acceptance: run it inside this Task — drive the real product surface, capture the evidence, and submit it against your own criteria while you work. Submit evidence only; an independent verifier judges whether this Task is complete.',
       'Create implementation-level subtasks when useful. Finish the operation once the Current Task deliverable and its concrete evidence are ready; Acceptance verification will decide whether this Task is complete.',
       'Make the final delivery self-contained for an independent verifier that may not have workspace access. Include the relevant artifact contents or exact excerpts and the raw outputs of decisive verification commands; file paths and claims that checks passed are not sufficient evidence by themselves.',
+      // A path on the machine that happened to run the task is not a
+      // deliverable: the goal page cannot open it, the reviewer cannot read it,
+      // and /tmp does not survive the week. Only artifacts that reach the
+      // product are harvested onto the Goal Graph (see attachTaskDeliverables).
+      'Persist every deliverable inside the product, not only on the local disk. Write reports and analyses as agent documents, and produce generated files (pptx / xlsx / docx / pdf, …) in the operation workspace so they are uploaded and registered. A local path such as /tmp or a repository directory is a working location, not a delivery — anything left only there is unreviewable and is not attached to the Goal.',
       'Return the produced artifacts, evidence, key findings, and the recommended next action. Do not mark the overall Goal complete.',
     ]
       .filter(Boolean)
@@ -1638,6 +1652,69 @@ export class GoalService {
       .join('\n\n');
   };
 
+  /**
+   * Link what a task actually delivered to the node that ordered it.
+   *
+   * The task Work attached alongside is the execution container; these are its
+   * outputs — the documents and external resources the run registered. Without
+   * them the graph records that a task finished but not what it produced, and
+   * the deliverable survives only as a URL buried in the finding's prose.
+   *
+   * Harvested across every run of the task, not just the delivering one: a task
+   * that wrote its document in an earlier round and only revised it in the last
+   * still delivered that document. Works are deduplicated by identity and
+   * linked at their newest version, so a document refined across rounds is one
+   * deliverable with a history rather than several deliverables.
+   *
+   * `task` Works are deliberately excluded: the responsible task's own Work is
+   * the execution container and the caller already links it. `file` Works are
+   * opt-in at the registry (conversation lists do not want every exported
+   * file), but a goal's deliverables are exactly where a produced deck or PDF
+   * belongs, so they are requested explicitly here.
+   */
+  private attachTaskDeliverables = async (
+    goalId: string,
+    nodeId: string,
+    operationIds: string[],
+    effects: GoalAdvanceEffect[],
+  ) => {
+    if (operationIds.length === 0) return;
+
+    // The per-operation cap is applied to version EVENTS before this dedupes by
+    // Work identity, so the default of 20 lets a document revised twenty times
+    // push every other deliverable out of its own task's list.
+    const byOperation = await this.workModel.listByRootOperations({
+      includeFileWorks: true,
+      limit: DELIVERABLE_EVENTS_PER_RUN,
+      rootOperationIds: operationIds,
+    });
+
+    const newestByWork = new Map<string, WorkVersionEventItem>();
+    for (const item of Object.values(byOperation).flat()) {
+      if (item.type === 'task') continue;
+      const seen = newestByWork.get(item.id);
+      if (!seen || seen.version.createdAt < item.version.createdAt) newestByWork.set(item.id, item);
+    }
+
+    for (const item of newestByWork.values()) {
+      const link = await this.coordinatorGraph.attachWorkVersion(
+        goalId,
+        nodeId,
+        item.version.id,
+        'produced',
+      );
+      // `attachWorkVersion` is idempotent, so a re-settled task re-links the
+      // same versions silently; only a genuinely new link is worth an effect.
+      if (link)
+        effects.push({
+          detail: item.type,
+          nodeId,
+          targetId: item.id,
+          type: 'attached_work_version',
+        });
+    }
+  };
+
   private consumeCompletedTask = async (
     graph: GoalGraphSnapshot,
     nodeId: string,
@@ -1680,6 +1757,16 @@ export class GoalService {
         'produced',
       );
     }
+    // Every run of the task, not the ten `findWithHandoff` reads for the
+    // finding: an attempt budget above ten would otherwise strand a deliverable
+    // produced early and merely referenced later.
+    const allRuns = await this.taskTopicModel.findByTaskId(taskId);
+    await this.attachTaskDeliverables(
+      graph.goal.id,
+      nodeId,
+      allRuns.flatMap((topic) => (topic.operationId ? [topic.operationId] : [])),
+      effects,
+    );
     if (!existingFinding) {
       const handoff = latest?.handoff as TaskTopicHandoff | null;
       const finding = await this.coordinatorGraph.createNode(graph.goal.id, {
