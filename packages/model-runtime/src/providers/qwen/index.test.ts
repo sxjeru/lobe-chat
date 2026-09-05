@@ -106,6 +106,35 @@ describe('LobeQwenAI - custom features', () => {
       expect(calledPayload.reasoning_effort).toBe('medium');
     });
 
+    it.each(['qwen3.8-max', 'qwen3.8-max-preview', 'qwen3.8-max-0902'])(
+      'should prefer reasoning effort over the thinking budget for %s',
+      async (model) => {
+        await instance.chat({
+          messages: [{ content: 'Hello', role: 'user' }],
+          model,
+          reasoning_effort: 'medium',
+          thinking: { budget_tokens: 4096, type: 'enabled' },
+        });
+
+        const calledPayload = vi.mocked(instance['client'].chat.completions.create).mock
+          .calls[0][0];
+        expect(calledPayload).toMatchObject({ enable_thinking: true, reasoning_effort: 'medium' });
+        expect(JSON.stringify(calledPayload)).not.toContain('"thinking_budget":');
+      },
+    );
+
+    it('should retain a Qwen3.8 budget when no effort is supplied', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'qwen3.8-max',
+        thinking: { budget_tokens: 4096, type: 'enabled' },
+      });
+
+      const calledPayload = vi.mocked(instance['client'].chat.completions.create).mock.calls[0][0];
+      expect(calledPayload).toMatchObject({ enable_thinking: true, thinking_budget: 4096 });
+      expect(JSON.stringify(calledPayload)).not.toContain('"reasoning_effort":');
+    });
+
     it('should drop reasoning_effort when qwen3.8-max thinking is disabled', async () => {
       await instance.chat({
         messages: [{ content: 'Hello', role: 'user' }],
