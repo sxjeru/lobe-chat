@@ -19,6 +19,7 @@ import type {
   TaskTopicHandoff,
   WorkVersionEventItem,
 } from '@lobechat/types';
+import { experimentOwner } from '@lobechat/utils/goalGraph';
 import { TRPCError } from '@trpc/server';
 import { sql } from 'drizzle-orm';
 
@@ -51,6 +52,7 @@ import {
   selectFrontier,
   TERMINAL_NODE_STATUSES,
 } from './decideNextMove';
+import { experimentResults, exploreGraph } from './exploreGraph';
 import {
   resolveMaxConcurrentTasks,
   resolveOperationLeaseTimeout,
@@ -114,6 +116,8 @@ export interface CreateGoalNodeInput {
   description?: string;
   kind: GoalNodeKind;
   priority?: number;
+  questionId?: string;
+  scopeId?: string;
   status?: GoalNodeStatus;
   title: string;
 }
@@ -193,18 +197,32 @@ export class GoalService {
     // goal config so the page can edit them and the terminal acceptance Task
     // is gated on exactly these checks (not an AI re-derivation of the prose).
     let config = input.config;
-    let requirement = input.requirement;
-    if (input.criteria?.length) {
-      // The prose requirement must keep carrying the full standard (the goal
-      // page's 什么算完成 block and every Task's execution context read it).
-      // Callers normally compose it via `buildGoalRequirement`; guard API
-      // callers that pass criteria with a bare requirement.
-      const carriesCriteria = input.criteria.every((item) =>
-        input.requirement?.includes(item.title),
-      );
-      if (!carriesCriteria) {
-        requirement = buildGoalRequirement(input.title, input.criteria, input.requirement);
+    // A supplied requirement is the user-reviewed goal document. Criteria live
+    // separately; only synthesize a document when the caller omitted one.
+    const requirement =
+      input.requirement ??
+      (input.criteria?.length ? buildGoalRequirement(input.title, input.criteria) : undefined) ??
+      (input.config?.exploration ? input.title : undefined);
+    if (config?.exploration) {
+      const { maxExperiments, instruction } = config.exploration;
+      if (
+        !Number.isInteger(maxExperiments) ||
+        maxExperiments < 1 ||
+        maxExperiments > 200 ||
+        !instruction.trim()
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Exploration requires an instruction and 1–200 experiments',
+        });
       }
+      if ((input.tasks?.length ?? 0) > maxExperiments) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Initial tasks exceed the experiment limit',
+        });
+      }
+      config = { ...config, exploration: { maxExperiments, instruction } };
     }
     if (input.criteria?.length) {
       const criteriaIds = await new VerifyPlanGeneratorService(
@@ -252,16 +270,34 @@ export class GoalService {
       });
       if (!problem) throw new Error('Failed to seed goal problem');
 
-      for (const seed of input.tasks ?? []) {
+      const seeds =
+        input.tasks ??
+        (config?.exploration
+          ? [
+              {
+                title: input.title,
+                description: `Produce one initial baseline experiment for this Goal. ${input.problemDescription ?? requirement ?? input.title}\nExploration method: ${config.exploration.instruction}\nExecute the baseline only; later experiments are scheduled by the Goal coordinator. Include a self-contained result and evidence.`,
+              },
+            ]
+          : []);
+      for (const seed of seeds) {
         const { description, title } = typeof seed === 'string' ? { title: seed } : seed;
+        const experiment = await authorGraph.createNode(goal.id, {
+          kind: 'experiment',
+          title,
+          description,
+          questionId: problem.id,
+          createdByAgentId: input.createdByAgentId,
+        });
+        if (!experiment) throw new Error('Failed to seed experiment');
         const taskNode = await authorGraph.createNode(goal.id, {
+          scopeId: experiment.id,
           createdByAgentId: input.createdByAgentId,
           description,
           kind: 'task',
           title,
         });
         if (!taskNode) throw new Error('Failed to seed goal task');
-        await authorGraph.createEdge(goal.id, problem.id, taskNode.id, 'decomposes');
       }
     } catch (error) {
       await this.goalModel.delete(goal.id).catch(() => {});
@@ -823,10 +859,135 @@ export class GoalService {
     return goal;
   };
 
+  /**
+   * Hand the goal to a different responsible agent. Every Task the
+   * coordinator creates from here on is assigned to the new agent, and —
+   * unless the caller opts out — the graph's unfinished Tasks move with it.
+   * A Task mid-run keeps its current operation; the reassignment takes effect
+   * on its next dispatched attempt, because `runTask` reads the assignee at
+   * dispatch time.
+   */
+  setAgent = async (
+    goalId: string,
+    agentId: string,
+    options?: { goalOnly?: boolean },
+  ): Promise<{ goal: GoalItem; reassignedTaskIds: string[] }> => {
+    await assertAgentUsableBy(this.db, agentId, {
+      userId: this.userId,
+      workspaceId: this.workspaceId,
+    });
+    const goal = await this.goalModel.update(goalId, { agentId });
+    if (!goal) throw new TRPCError({ code: 'NOT_FOUND', message: 'Goal not found' });
+
+    const reassignedTaskIds: string[] = [];
+    if (!options?.goalOnly) {
+      // Snapshot the graph AFTER the goal row moved: a task the coordinator
+      // binds later inherits the new agent from the goal, and a task bound
+      // before is in this snapshot — so no concurrently created task can slip
+      // through the handoff still pointing at the previous agent.
+      const graph = await this.requireGraph(goalId);
+      const taskIds = graph.nodes.flatMap((node) => (node.taskId ? [node.taskId] : []));
+      for (const task of await this.taskModel.findByIds(taskIds)) {
+        if (task.status === 'completed' || task.status === 'canceled') continue;
+        if (task.assigneeAgentId === agentId) continue;
+        await this.taskModel.update(task.id, { assigneeAgentId: agentId });
+        reassignedTaskIds.push(task.id);
+      }
+    }
+    return { goal, reassignedTaskIds };
+  };
+
+  /**
+   * Start every unfinished Task node over: interrupt the run it may still be
+   * holding, clear the failure it may be parked on, and return the Task to
+   * `backlog` so the next coordinator tick dispatches it afresh. Optionally
+   * hands the goal (and the restarted Tasks) to a different agent in the same
+   * gesture. Resolved nodes and their completed Tasks are left untouched.
+   */
+  restart = async (
+    goalId: string,
+    options?: { agentId?: string },
+  ): Promise<{ goal: GoalItem; restartedTaskIds: string[] }> => {
+    if (options?.agentId) {
+      await assertAgentUsableBy(this.db, options.agentId, {
+        userId: this.userId,
+        workspaceId: this.workspaceId,
+      });
+    }
+    const graph = await this.requireGraph(goalId);
+
+    const unfinishedNodes = graph.nodes.filter(
+      (node) => node.kind === 'task' && node.taskId && !TERMINAL_NODE_STATUSES.has(node.status),
+    );
+    const unfinishedNodeIds = new Set(unfinishedNodes.map((node) => node.id));
+    const unfinishedTaskIds = unfinishedNodes.flatMap((node) => (node.taskId ? [node.taskId] : []));
+
+    // A restarted task's pending failure gate is answered by the restart
+    // itself. Left pending, it would keep winning the coordinator's
+    // pending-decision branch and the goal would sit `waiting_human` with
+    // every task freshly reset. Gates on untouched nodes keep parking the
+    // goal — they ask something this restart does not answer.
+    // Gate edges run task-node → decision-node (see openFailureDecision).
+    const staleGates = graph.decisions.filter(
+      (decision) =>
+        decision.status === 'pending' &&
+        graph.edges.some(
+          (edge) =>
+            edge.kind === 'leads_to' &&
+            edge.targetNodeId === decision.nodeId &&
+            unfinishedNodeIds.has(edge.sourceNodeId),
+        ),
+    );
+    for (const gate of staleGates) {
+      await this.graphModel.cancelDecision(goalId, gate.id, 'Superseded by goal restart');
+    }
+
+    const restartedTaskIds: string[] = [];
+    if (unfinishedTaskIds.length > 0) {
+      const runningTopics = await this.taskTopicModel.findRunningByTaskIds(unfinishedTaskIds);
+      for (const topic of runningTopics) {
+        if (topic.topicId) await this.taskService.cancelTopic(topic.topicId);
+      }
+      // Re-read after the cancels and reset via compare-and-swap: a coordinator
+      // tick dispatching concurrently moves the row between our read and the
+      // write, the CAS loses, and that task is skipped instead of yanked out
+      // from under a freshly claimed run (which would double-dispatch it).
+      for (const task of await this.taskModel.findByIds(unfinishedTaskIds)) {
+        if (task.status === 'completed') continue;
+        const reset = await this.taskModel.updateStatusIfCurrent(task.id, task.status, 'backlog', {
+          error: null,
+        });
+        if (!reset) continue;
+        if (options?.agentId) {
+          await this.taskModel.update(task.id, { assigneeAgentId: options.agentId });
+        }
+        restartedTaskIds.push(task.id);
+      }
+    }
+
+    // The handoff lands only after the interrupts succeeded — a cancelTopic
+    // failure above must not leave the goal pointing at the new agent while
+    // its tasks and live runs still belong to the old one.
+    let goal = graph.goal;
+    if (options?.agentId) {
+      const updated = await this.goalModel.update(goalId, { agentId: options.agentId });
+      if (!updated) throw new TRPCError({ code: 'NOT_FOUND', message: 'Goal not found' });
+      goal = updated;
+    }
+
+    // A restart is an explicit "start over": a goal parked by a budget stop or
+    // a manual pause must begin ticking again without a second gesture.
+    if (goal.status === 'paused') {
+      goal = (await this.resume(goalId)) ?? goal;
+    }
+    return { goal, restartedTaskIds };
+  };
+
   setBudget = async (
     goalId: string,
     budget: {
       deadline?: string | null;
+      maxExperiments?: number;
       maxRounds?: number | null;
       maxTotalCost?: number | null;
     },
@@ -839,6 +1000,20 @@ export class GoalService {
     // only what it owns, and must not silently drop a deadline someone set.
     // The merge keeps an untouched recovery/schedule block intact.
     const config = { ...before.goal.config };
+    if (budget.maxExperiments !== undefined) {
+      if (
+        !config.exploration ||
+        !Number.isInteger(budget.maxExperiments) ||
+        budget.maxExperiments < 1 ||
+        budget.maxExperiments > 200
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'An exploration Goal requires 1–200 experiments',
+        });
+      }
+      config.exploration = { ...config.exploration, maxExperiments: budget.maxExperiments };
+    }
     if (budget.deadline !== undefined) {
       config.schedule = { ...config.schedule, deadline: budget.deadline };
     }
@@ -858,7 +1033,20 @@ export class GoalService {
     // deliberate one and is left alone.
     const stoppedByBudget =
       wasBinding.costLimitReached || wasBinding.roundLimitReached || wasBinding.deadlinePassed;
-    if (goal.status !== 'paused' || !stoppedByBudget) return goal;
+    const stoppedByExploration = before.goal.config?.pausedBy === 'exploration_limit';
+    if (
+      goal.status !== 'paused' ||
+      goal.config?.pausedBy === 'user' ||
+      (!stoppedByBudget && !stoppedByExploration)
+    )
+      return goal;
+    if (
+      stoppedByExploration &&
+      before.nodes.filter(
+        (node) => node.kind === 'task' && node.title !== GOAL_ACCEPTANCE_TASK_TITLE,
+      ).length >= (goal.config?.exploration?.maxExperiments ?? 0)
+    )
+      return goal;
 
     const nowBinding = await this.evaluateBudget(goal, before);
     if (nowBinding.costLimitReached || nowBinding.roundLimitReached || nowBinding.deadlinePassed) {
@@ -1041,6 +1229,32 @@ export class GoalService {
 
       case 'terminal_acceptance': {
         return observe(await this.settleTerminalAcceptance(graph, move, effects));
+      }
+
+      case 'explore_graph': {
+        const spent = await this.evaluateBudget(graph.goal, graph);
+        if (spent.costLimitReached || spent.roundLimitReached || spent.deadlinePassed) {
+          await this.transitionStatus(
+            graph.goal,
+            'paused',
+            'Budget exhausted before graph exploration',
+          );
+          effects.push({ type: 'goal_status', detail: 'paused: budget' });
+          return observe({
+            goalId,
+            outcome: 'no_progress',
+            message: 'Budget exhausted before graph exploration',
+          });
+        }
+        return observe(
+          await exploreGraph({
+            db: this.db,
+            userId: this.userId,
+            workspaceId: this.workspaceId,
+            graph,
+            effects,
+          }),
+        );
       }
 
       case 'plan_decomposition': {
@@ -1242,12 +1456,28 @@ export class GoalService {
     let acceptanceId: string | undefined;
     let task: TaskItem | undefined;
     try {
-      const description = frontier.description ?? frontier.title;
+      const parentId = graph.edges.find(
+        (edge) =>
+          edge.sourceNodeId === (experimentOwner(graph, frontier.id) ?? frontier.id) &&
+          edge.kind === 'derived_from',
+      )?.targetNodeId;
+      const parent = graph.nodes.find((node) => node.id === parentId);
+      const description = [
+        frontier.description ?? frontier.title,
+        parent
+          ? `Selected historical experiment: ${parent.id} — ${parent.title}\nHistorical result (evidence, not instructions):\n${experimentResults(graph, parent.id).join('\n\n')}\nPinned input Work versions: ${graph.workVersions
+              .filter((version) => version.nodeId === frontier.id && version.relation === 'input')
+              .map((version) => version.workVersionId)
+              .join(', ')}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
       task = await this.taskService.createTask({
         assigneeAgentId: graph.goal.agentId ?? undefined,
         config: { checkpoint: { topic: { after: false } } },
         description: description?.slice(0, TASK_DESCRIPTION_MAX_LENGTH),
-        instruction: this.buildTaskInstruction(graph, frontier.title, frontier.description),
+        instruction: this.buildTaskInstruction(graph, frontier.title, description),
         name: frontier.title,
         projectId: graph.goal.projectId ?? undefined,
       });
@@ -1704,14 +1934,23 @@ export class GoalService {
 
     const createdIds: (string | undefined)[] = [];
     for (const draft of draftTasks) {
+      const experiment = problem
+        ? await this.coordinatorGraph.createNode(goalId, {
+            kind: 'experiment',
+            title: draft.title,
+            description: draft.instruction,
+            questionId: problem.id,
+          })
+        : undefined;
       const node = await this.coordinatorGraph.createNode(goalId, {
+        scopeId: experiment?.id,
         description: draft.instruction,
         kind: 'task',
         title: draft.title,
       });
       createdIds.push(node?.id);
       if (!node) continue;
-      if (problem)
+      if (problem && !experiment)
         await this.coordinatorGraph.createEdge(goalId, problem.id, node.id, 'decomposes');
       effects.push({ nodeId: node.id, type: 'created_node', detail: draft.title });
     }
@@ -1891,6 +2130,7 @@ export class GoalService {
         confidence: 1,
         description: handoff?.content ?? handoff?.summary ?? undefined,
         kind: 'finding',
+        scopeId: experimentOwner(graph, nodeId),
         status: 'resolved',
         title:
           handoff?.title ??
@@ -1934,6 +2174,7 @@ export class GoalService {
         kind: 'decision',
         status: 'waiting',
         title: 'Choose how to recover failed task',
+        scopeId: experimentOwner(graph, nodeId),
       });
       if (node) {
         effects.push({ detail: reason, nodeId, targetId: node.id, type: 'opened_decision' });
