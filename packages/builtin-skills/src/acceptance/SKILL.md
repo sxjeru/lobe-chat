@@ -1,6 +1,6 @@
 ---
 name: acceptance
-version: 0.4.1
+version: 0.4.3
 description: >
   End-to-end verification and self-evidence for a delivery in any repository,
   with or without a preconfigured verify plan. Discover an existing plan when
@@ -118,9 +118,39 @@ substitute a private agent plugin.
 
 ## Optional user-journey flows
 
+Before authoring checks, identify the independently reviewable user tasks in the
+requirement. Use those tasks as business groups, not the PR title or test surface.
+For example, reassignment, scheduled continuation, and failure recovery can be
+separate groups when the delivery covers all three; do not impose these groups
+on unrelated work. Each check should have an outcome the user can accept or
+reject independently. Keep shared entry/accessibility checks separate and avoid
+repeating their expectations across business checks.
+
 When acceptance depends on a sequence of user states, publish its graph during
-planning, before implementation or verification begins. Keep the checklist paths above for independent checks;
+planning, before implementation or verification begins. Keep the checklist paths
+above for independent checks;
 a graph is optional and does not replace evidence or human review.
+
+For flow-based plans, **each flow's title is its checks' default checklist category**.
+Publish independent user journeys as separate flows in the same acceptance/run;
+use subflows for actual composed journeys. An umbrella flow containing checks
+for several independent tasks collapses them into one checklist group. Edges
+must describe real user transitions, not artificial links added to make unrelated
+checks reachable. Start at the user entry and follow the journey through outcomes
+and recovery; UUIDs identify nodes and must not encode business order. Read back
+the published plan and inspect its groups and reading order before execution.
+
+For an existing acceptance that only needs different checklist groups, use
+`lh acceptance regroup <acceptanceId> --file groups.json`. Read the acceptance
+bundle first; write `{ expectedVersion, groups: [{ title, checkItemIds }] }`,
+using the exact union `checks[].id` values and
+`acceptance.metadata.checkGrouping.version` (0 when absent). The groups replace
+the current presentation grouping; an empty list restores plan categories.
+Unassigned checks keep their plan category. This preserves check IDs, numbering,
+evidence and review history without creating a round. It does not change flow
+transitions or verification conditions. Do not move execution nodes or start a
+new round just to reorganize the checklist; those operations have different
+execution semantics.
 
 1. Use the named acceptance (or create one with `lh acceptance create --help`).
    Write a JSON file with `definition: { title, entryNodeId, nodes, edges }`.
@@ -208,22 +238,26 @@ excuse below was made in a real round.
 | "One more config edit and the env will boot" / "I'll mock it" / "I'll drive the rest myself"           | Timebox. Inventory running instances, probe for the real capability before mocking (a mock that records nothing is not in the path), re-delegate a dead subagent's remaining steps, revert experiments and ask. (M17)           |
 | "The fix is in and tests pass — verified"                                                              | Reproduce the failure's precondition first, then verify with it held. A run that cannot fail proves nothing; "reproduces sometimes" means an unnamed precondition. When the mocked seam is the suspect, drop the mock. (M31)    |
 
-## Pick the surface by what you changed
+## Pick the surface by the user-visible outcome
 
-Match the change to the cheapest surface that can prove it; escalate only if
-needed.
+Match the requirement to the cheapest surface that can prove the complete outcome,
+not merely the layer containing the code change. A backend fix for missing cards,
+stale lists, navigation, or another visible behavior still requires the consuming
+UI, its actual data response, and inspected screenshots. Database assertions and
+passing tests support that evidence; they do not replace it.
 
 | What your task changed                                      | Surface                                               | Guide                                                  |
 | ----------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------ |
-| Backend / CLI / library / data logic                        | **CLI** — stdout as `text`, zero UI flakiness         | [surfaces/cli.md](surfaces/cli.md)                     |
+| Backend / CLI / library / data logic with no UI outcome     | **CLI** — stdout as `text`, zero UI flakiness         | [surfaces/cli.md](surfaces/cli.md)                     |
 | Web app frontend / styles / interactions                    | **Web** (agent-browser → running web app)             | [surfaces/web.md](surfaces/web.md)                     |
 | New/changed API **plus** the UI consuming it                | **Web**, full-stack (agent-browser + network capture) | [surfaces/web.md](surfaces/web.md#web-full-stack)      |
 | Desktop-only behavior (native windows, IPC, packaged shell) | **Electron** (agent-browser `--cdp`)                  | [surfaces/electron.md](surfaces/electron.md)           |
 | Native macOS app / OS chrome agent-browser can't reach      | **Native** (osascript + screencapture, local macOS)   | [surfaces/native.md](surfaces/native.md)               |
 | Native iOS behavior, gestures, device-size layout           | **iOS Simulator** (AXe/native CLI + `simctl`)         | [surfaces/ios-simulator.md](surfaces/ios-simulator.md) |
 
-- **Don't open a browser for a backend change**; command output as `text` is the
-  strongest, cheapest proof. Use **Electron** only when the criterion depends on
+- **Use CLI alone only when the required outcome has no UI surface.** If a visible
+  outcome cannot be exercised, report that acceptance as incomplete instead of
+  narrowing it to data checks. Use **Electron** only when the criterion depends on
   desktop-only code; iOS is driven by a Simulator HID/AX CLI, never host mouse —
   mark the case `blocked` if the CLI cannot express the gesture.
 - **Structured data uses native visualizations** (`cases[].datasets` +
@@ -247,6 +281,21 @@ sufficient description. This also applies when a text file is stored inline.
 Shared rules for every artifact — media types, provenance, file vs inline,
 safety — are in [evidence.md](references/evidence.md).
 
+## Keep checklist explanations brief
+
+Write each check's `observation` and inline explanation in the user's language,
+usually 1–3 short sentences: what was done, what happened, and any limitation
+needed to judge that outcome. Do not paste the execution report into the check.
+Omit repeated titles, verdict labels, SHA/port/ID headers, environment boilerplate,
+and round-history explanations. Put shared setup and revision details once in
+the round report; keep commands, traces, raw output, and detailed reasoning in
+separate evidence attachments. Briefly disclose a limitation in the check when
+it changes the verdict; concision must not hide missing verification.
+
+Example: “转派后，新 Agent 收到原对话上下文并创建了独立话题。刷新后消息仍保留。”
+For a failure, name the unmet outcome directly, without recounting the debugging
+process. Keep required evidence complete; shorten its presentation, not the work.
+
 ## Final handoff (mandatory)
 
 Before declaring the task done, prove coverage: for each check with
@@ -261,10 +310,11 @@ surface; append `?r=<roundIndex>` for this round's fixed snapshot.
 Put no images, local paths, local file links, or internal run-page paths in the
 chat reply.
 
-```text
-Acceptance:   https://app.lobehub.com/acceptance/<acceptanceId>
+Write the link as a plain-text line, never inside a fenced or inline code block — the
+chat client only linkifies plain text, and a code block makes it unclickable:
+
+Acceptance: <https://app.lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)
 Coverage: 2/2 criteria, all required evidence uploaded
-```
 
 ## Portability rules
 
