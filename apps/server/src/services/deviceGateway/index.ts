@@ -38,6 +38,7 @@ import type {
   DeviceProjectFileIndexResult,
   DeviceProjectFileSearchResult,
   DeviceRenameProjectFileResult,
+  DeviceUnavailableErrorData,
   DeviceWriteProjectFileResult,
   HeterogeneousAgentModelCatalog,
   ProjectSkillMeta,
@@ -512,7 +513,16 @@ export class DeviceGateway {
     deviceId: string;
     env?: Record<string, string>;
     timeout?: number;
-    type: 'codebuddy' | 'cursor' | 'droid' | 'grok-build' | 'opencode' | 'pi' | 'qoder' | 'trae';
+    type:
+      | 'codebuddy'
+      | 'cursor'
+      | 'devin'
+      | 'droid'
+      | 'grok-build'
+      | 'opencode'
+      | 'pi'
+      | 'qoder'
+      | 'trae';
     userId: string;
     workspaceId?: string;
   }): Promise<HeterogeneousAgentModelCatalog> {
@@ -1396,7 +1406,7 @@ export class DeviceGateway {
     workspaceId?: string;
     /** Topic/run workspace forwarded to the device for hetero ingest. */
     ingestWorkspaceId?: string;
-  }): Promise<{ error?: string; success: boolean }> {
+  }): Promise<{ error?: string; errorData?: DeviceUnavailableErrorData; success: boolean }> {
     const client = this.getClient();
     if (!client) return { error: 'GATEWAY_NOT_CONFIGURED', success: false };
 

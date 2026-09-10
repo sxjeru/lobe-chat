@@ -20,7 +20,7 @@ import type {
   TaskTopicHandoff,
   WorkVersionEventItem,
 } from '@lobechat/types';
-import { experimentOwner } from '@lobechat/utils/goalGraph';
+import { experimentOwner, provenanceParentId } from '@lobechat/utils/goalGraph';
 import { TRPCError } from '@trpc/server';
 import { sql } from 'drizzle-orm';
 
@@ -62,6 +62,7 @@ import {
   VERIFY_SETTLE_GRACE_MS,
 } from './recoveryPolicy';
 import { GoalSupervisorService } from './supervisor';
+import { claimGoalTask } from './taskClaim';
 import { TaskRecoveryCoordinator } from './taskRecoveryCoordinator';
 import {
   type GoalTickOptions,
@@ -1576,11 +1577,7 @@ export class GoalService {
     let acceptanceId: string | undefined;
     let task: TaskItem | undefined;
     try {
-      const parentId = graph.edges.find(
-        (edge) =>
-          edge.sourceNodeId === (experimentOwner(graph, frontier.id) ?? frontier.id) &&
-          edge.kind === 'derived_from',
-      )?.targetNodeId;
+      const parentId = provenanceParentId(graph, frontier.id);
       const parent = graph.nodes.find((node) => node.id === parentId);
       const description = [
         frontier.description ?? frontier.title,
@@ -1719,6 +1716,17 @@ export class GoalService {
       };
     }
 
+    // Nothing failed: somebody settled the Task while this advance was deciding.
+    // Opening a gate would ask them to judge their own decision.
+    if (recovery.outcome === 'settled') {
+      return {
+        goalId: graph.goal.id,
+        message: `Task ${task.identifier} was settled while recovery was being decided`,
+        nodeId,
+        outcome: 'no_progress',
+        taskId: task.id,
+      };
+    }
     const exhaustedReason =
       recovery.outcome === 'exhausted-cost'
         ? 'Goal cost budget was exhausted'
@@ -1783,12 +1791,10 @@ export class GoalService {
       ).countRunningTasks(goalId);
       if (inFlight >= resolveMaxConcurrentTasks(graph.goal)) return 'at-capacity' as const;
 
-      return new TaskModel(tx, this.userId, this.workspaceId).updateStatusIfCurrent(
-        task.id,
-        task.status,
-        'running',
-        { error: null, startedAt: new Date() },
-      );
+      return claimGoalTask(new TaskModel(tx, this.userId, this.workspaceId), task, 'running', {
+        error: null,
+        startedAt: new Date(),
+      });
     });
 
     if (claimed === 'stopped')
@@ -2000,6 +2006,17 @@ export class GoalService {
       };
     }
 
+    // Nothing failed: somebody settled the Task while this advance was deciding.
+    // Opening a gate would ask them to judge their own decision.
+    if (recovery.outcome === 'settled') {
+      return {
+        goalId: graph.goal.id,
+        message: `Task ${task.identifier} was settled while recovery was being decided`,
+        nodeId,
+        outcome: 'no_progress',
+        taskId: task.id,
+      };
+    }
     const reason =
       recovery.outcome === 'exhausted-cost'
         ? 'Goal cost budget was exhausted after an operation was abandoned'

@@ -1,4 +1,19 @@
 export default {
+  'marketSubmission.entry': 'Publish',
+  'marketSubmission.title': 'Publish to Market',
+  'marketSubmission.submit': 'Publish',
+  'marketSubmission.confirm':
+    '“{{name}}” will become a public agent when published to Market. Make sure its profile and prompt contain no private information or secrets.',
+  'marketSubmission.required': 'Add an agent name and prompt before publishing.',
+  'marketSubmission.success':
+    'Submitted. Your agent is under review and will appear in Market after approval.',
+  'marketSubmission.failed': 'Could not submit. Please try again.',
+  'marketSubmission.linkFailed':
+    'Submitted, but could not save the Market link locally ({{identifier}}). Keep this identifier and avoid resubmitting as a new agent.',
+  'marketPublish.status.published': 'Published',
+  'marketPublish.status.unpublished': 'Unpublished',
+  'marketPublish.status.archived': 'Archived',
+  'marketPublish.status.deprecated': 'Deprecated',
   'completionSound.title': 'In-app completion sound',
   'completionSound.enabled': 'Play completion sound',
   'completionSound.desc':
@@ -682,6 +697,8 @@ export default {
   'devices.share.visibilityTag.public': 'Workspace',
   'devices.status.offline': 'Offline',
   'devices.status.online': 'Online',
+  'devices.status.onlineConnections_one': 'Online · {{count}} connection',
+  'devices.status.onlineConnections_other': 'Online · {{count}} connections',
   'devices.title': 'My Devices',
   'devices.visibility.publish': 'Publish to Workspace',
   'devices.visibility.publishConfirmTitle': 'Publish this device to the workspace?',

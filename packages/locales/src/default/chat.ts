@@ -648,6 +648,8 @@ export default {
   'heteroAgent.executionTarget.noneDesc': 'No device enabled',
   'heteroAgent.executionTarget.offline': 'Offline',
   'heteroAgent.executionTarget.online': 'Online',
+  'heteroAgent.executionTarget.onlineConnections_one': 'Online · {{count}} connection',
+  'heteroAgent.executionTarget.onlineConnections_other': 'Online · {{count}} connections',
   'heteroAgent.executionTarget.reconnect': 'Reconnect',
   'heteroAgent.executionTarget.reconnectFailed':
     'Could not reconnect this device. Make sure the desktop app is running, then try again.',
@@ -1004,6 +1006,17 @@ export default {
   'droidInstallGuide.menuNotification.title': 'Factory Droid CLI not found',
   'droidInstallGuide.reason': 'LobeHub could not start Factory Droid: {{message}}',
   'droidInstallGuide.title': 'Install Factory Droid CLI',
+  'devinInstallGuide.actions.openDocs': 'Open Install Guide',
+  'devinInstallGuide.actions.openSystemTools': 'Open System Tools',
+  'devinInstallGuide.afterInstall':
+    'After installing, run `devin auth login`, then retry your message or click Re-detect in System Tools.',
+  'devinInstallGuide.desc':
+    'Devin needs the Devin CLI to run locally. Install it and make sure the `devin` command is available in your PATH.',
+  'devinInstallGuide.installWithBrew': 'Windows PowerShell',
+  'devinInstallGuide.installWithNpm': 'macOS / Linux / WSL',
+  'devinInstallGuide.menuNotification.title': 'Devin CLI not found',
+  'devinInstallGuide.reason': 'LobeHub could not start Devin: {{message}}',
+  'devinInstallGuide.title': 'Install Devin CLI',
   'grokBuildInstallGuide.actions.openDocs': 'Open Install Guide',
   'grokBuildInstallGuide.actions.openSystemTools': 'Open System Tools',
   'grokBuildInstallGuide.afterInstall':
@@ -1083,6 +1096,7 @@ export default {
   'newCodexAgent': 'Add Codex',
   'newCursorAgent': 'Add Cursor',
   'newDroidAgent': 'Add Factory Droid',
+  'newDevinAgent': 'Add Devin',
   'newGrokBuildAgent': 'Add Grok Build',
   'newKimiCodeAgent': 'Add Kimi Code',
   'newOpenCodeAgent': 'Add OpenCode',
@@ -1174,6 +1188,7 @@ export default {
   'connectAgent.providerDesc.codex': 'OpenAI coding agent CLI',
   'connectAgent.providerDesc.cursor': 'Cursor coding agent CLI',
   'connectAgent.providerDesc.droid': 'Factory coding agent CLI',
+  'connectAgent.providerDesc.devin': 'Cognition coding agent CLI',
   'connectAgent.providerDesc.grok-build': 'xAI coding agent CLI',
   'connectAgent.providerDesc.amp': 'Sourcegraph coding agent CLI',
   'connectAgent.providerDesc.kimi-code': 'Moonshot AI coding agent CLI',
@@ -2510,8 +2525,8 @@ export default {
   'viewSwitcher.page': 'Page',
   'viewSwitcher.task': 'Task',
   'workflow.failedSuffix': '(failed)',
-  'workflow.summaryAcrossTools': 'across {{count}} tools',
-  'workflow.summaryCallsLead': '{{count}} calls: {{tools}}',
+  'workflow.summaryCallsTotal_one': '{{count}} call',
+  'workflow.summaryCallsTotal_other': '{{count}} calls',
   'workflow.summaryFailed': '{{count}} failed',
   'workflow.thoughtForDuration': 'Thought for {{duration}}',
   'workflow.toolDisplayName.activateDevice': 'Activated device',
@@ -2758,6 +2773,8 @@ export default {
   'workingPanel.localFile.publish.success': 'Published',
   'workingPanel.localFile.publish.tooLarge': 'This page is too large to publish ({{size}} bytes).',
   'workingPanel.localFile.publish.tooMany': 'This page references too many local files to publish.',
+  'workingPanel.localFile.publish.unsupported':
+    'These file types cannot be published and will be skipped: {{list}}',
   'workingPanel.localFile.publish.unresolvedLocals':
     'This page still points at local files that were not packed, so those assets would break after publish.',
   'workingPanel.localFile.publish.version': 'Publish this version',
