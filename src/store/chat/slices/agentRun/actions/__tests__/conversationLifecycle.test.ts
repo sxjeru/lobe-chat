@@ -1973,6 +1973,7 @@ describe('ConversationLifecycle actions', () => {
             model: expect.any(String),
             provider: expect.any(String),
             metadata: {
+              executionConfig: { inheritWorkspaceScope: true },
               repos: [selectedRepo],
               workingDirectory: selectedRepo,
               workingDirectoryConfig: { path: selectedRepo, repoType: 'github' },
@@ -1985,6 +1986,7 @@ describe('ConversationLifecycle actions', () => {
               model: expect.any(String),
               provider: expect.any(String),
               metadata: {
+                executionConfig: { inheritWorkspaceScope: true },
                 repos: [selectedRepo],
                 workingDirectory: selectedRepo,
                 workingDirectoryConfig: { path: selectedRepo, repoType: 'github' },
@@ -2074,6 +2076,11 @@ describe('ConversationLifecycle actions', () => {
         // run executes in); the config keeps the SOURCE repo, which is what
         // By-Project groups on.
         const expectedMetadata = {
+          executionConfig: {
+            boundDeviceId: deviceId,
+            executionTarget: 'local',
+            inheritWorkspaceScope: true,
+          },
           workingDirectory: worktreePath,
           workingDirectoryConfig: {
             git: { activeWorktree: worktreePath },
@@ -2140,6 +2147,11 @@ describe('ConversationLifecycle actions', () => {
           expect.objectContaining({
             optimisticTopic: expect.objectContaining({
               metadata: {
+                executionConfig: {
+                  boundDeviceId: deviceId,
+                  executionTarget: 'device',
+                  inheritWorkspaceScope: true,
+                },
                 workingDirectory: '/repo/default',
                 workingDirectoryConfig: { path: '/repo/default' },
               },
@@ -2193,6 +2205,11 @@ describe('ConversationLifecycle actions', () => {
           expect.objectContaining({
             newTopic: expect.objectContaining({
               metadata: {
+                executionConfig: {
+                  boundDeviceId: deviceId,
+                  executionTarget: 'local',
+                  inheritWorkspaceScope: true,
+                },
                 workingDirectory: '/repo/lobehub',
                 workingDirectoryConfig: { path: '/repo/lobehub' },
               },
@@ -2245,7 +2262,15 @@ describe('ConversationLifecycle actions', () => {
 
         expect(executeGatewayAgentSpy).toHaveBeenCalledWith(
           expect.objectContaining({
-            optimisticTopic: expect.not.objectContaining({ metadata: expect.anything() }),
+            optimisticTopic: expect.objectContaining({
+              metadata: {
+                executionConfig: {
+                  boundDeviceId: deviceId,
+                  executionTarget: 'local',
+                  inheritWorkspaceScope: true,
+                },
+              },
+            }),
           }),
         );
       });
@@ -2340,6 +2365,11 @@ describe('ConversationLifecycle actions', () => {
             expect.objectContaining({
               newTopic: expect.objectContaining({
                 metadata: {
+                  executionConfig: {
+                    boundDeviceId: HETERO_DEVICE_ID,
+                    executionTarget: 'local',
+                    inheritWorkspaceScope: true,
+                  },
                   workingDirectory: '/repo/device-default',
                   workingDirectoryConfig: { path: '/repo/device-default' },
                 },

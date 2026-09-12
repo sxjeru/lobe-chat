@@ -122,6 +122,11 @@ export const styles = createStaticStyles(({ css }) => ({
    * the dot, which read as a smudge rather than as a node on the line.
    */
   eventDot: css`
+    /* Same reason as the message box: the rail is the entry's absolutely
+       positioned pseudo-element, so an unpositioned dot paints under it and the
+       line cuts straight across the circle. */
+    position: relative;
+
     display: inline-flex;
     flex: none;
     align-items: center;
@@ -140,6 +145,22 @@ export const styles = createStaticStyles(({ css }) => ({
     flex: none;
     font-size: 12px;
     color: ${cssVar.colorTextTertiary};
+  `,
+  /** The timestamp doubles as the permalink: quiet until you reach for it. */
+  timeLink: css`
+    cursor: pointer;
+
+    padding: 0;
+    border: none;
+
+    background: none;
+
+    transition: color ${cssVar.motionDurationFast};
+
+    &:hover {
+      color: ${cssVar.colorText};
+      text-decoration: underline;
+    }
   `,
   panelBody: css`
     padding-block-start: 6px;

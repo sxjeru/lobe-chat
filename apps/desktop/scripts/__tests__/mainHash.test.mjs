@@ -141,6 +141,32 @@ describe('source main hash', () => {
     }
   });
 
+  it('canonicalizes graph paths before walking package boundaries', async () => {
+    await put('package.json', '{"private":true}');
+    const node = (id) => ({
+      configFiles: [],
+      defines: {},
+      nodes: new Map([
+        [
+          id,
+          {
+            ast: undefined,
+            dynamicImports: [],
+            entry: false,
+            external: false,
+            id,
+            imports: [],
+            retained: false,
+          },
+        ],
+      ]),
+    });
+    const canonical = await hash({ graph: [node(path.join(root, 'package.json'))] });
+    const relative = `${root}/apps/desktop/src/main/../../../../package.json`;
+
+    expect((await hash({ graph: [node(relative)] })).mainHash).toBe(canonical.mainHash);
+  });
+
   it('tracks Cloud runtime sources and dependency declarations without the whole Cloud revision', async () => {
     const cloud = `${root}-cloud`;
     try {
@@ -392,11 +418,11 @@ describe('workspace Vite graph', () => {
     expect((await hash()).mainHash).not.toBe(call.mainHash);
   });
 
-  it('rejects bundled npm code resolved outside the frozen Desktop installation', async () => {
+  it('requires bundled npm code to be pinned by the Desktop lockfile', async () => {
     await mkdir(path.join(root, 'apps/desktop/node_modules'), { recursive: true });
     await put(
       'node_modules/floating/package.json',
-      '{"name":"floating","type":"module","main":"index.js"}',
+      '{"name":"floating","version":"1.0.0","type":"module","main":"index.js"}',
     );
     await put('node_modules/floating/index.js', 'export const value = 1;');
     await put(
@@ -412,7 +438,11 @@ describe('workspace Vite graph', () => {
       },
       ssr: { noExternal: true },
     });
-    await expect(hash({ graph: [graph] })).rejects.toThrow("outside Desktop's locked installation");
+    await expect(hash({ graph: [graph] })).rejects.toThrow(
+      'not pinned by apps/desktop/pnpm-lock.yaml: floating@1.0.0',
+    );
+    await put('apps/desktop/pnpm-lock.yaml', 'lockfileVersion: 9\npackages:\n  floating@1.0.0:\n');
+    expect((await hash({ graph: [graph] })).mainHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('tracks star forwarding, cycles and CommonJS without dropping runtime dependencies', async () => {

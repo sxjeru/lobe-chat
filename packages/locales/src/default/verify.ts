@@ -72,9 +72,6 @@ export default {
   'flow.diff.fields.condition': 'Condition',
   'flow.diff.fields.required': 'Required',
 
-  'flow.viewResults': 'View results',
-  'flow.viewPlan': 'View steps',
-  'flow.results': 'Verification results',
   'flow.closeResults': 'Close results',
   'flow.resultHistory': '{{count}} verification records',
   'flow.latestResult': 'Latest result',
@@ -184,6 +181,9 @@ export default {
   'acceptance.comments.title': 'Discussion',
   'acceptance.comments.moreActions': 'More actions',
   'acceptance.comments.placeholder': 'Say something about this delivery…',
+  'acceptance.comments.removeOthers': 'Remove',
+  'acceptance.comments.removeOthersConfirm':
+    "Remove someone else's comment? It disappears from the discussion.",
   'acceptance.comments.replyPlaceholder': 'Reply…',
   'acceptance.comments.send': 'Send',
   'acceptance.comments.reply': 'Reply',
@@ -239,6 +239,7 @@ export default {
   'acceptance.comments.author.former': 'Former member',
   'acceptance.comments.author.deactivated': 'Deactivated',
   'acceptance.comments.loadFailed': 'Failed to load the discussion. Please refresh.',
+  'acceptance.comments.copyLinkHint': '{{time}} · click to copy this comment’s link',
   'acceptance.comments.createFailed': 'Failed to post the comment. Please try again.',
   'acceptance.comments.deleteFailed': 'Failed to delete the comment. Please try again.',
   'acceptance.comments.updateFailed': 'Failed to update the comment. Please try again.',
@@ -407,14 +408,6 @@ export default {
   'acceptance.roundStatus.repairing': 'Repairing',
   'acceptance.roundStatus.uncertain': 'Verify uncertain',
   'acceptance.roundStatus.verifying': 'In progress',
-  'acceptance.sharedNotice.commentableDescription':
-    'You can browse every check and its evidence and join the discussion, but only the author can act on this acceptance.',
-  'acceptance.sharedNotice.readOnlyDescription':
-    'You can browse every check and its evidence, but only the author can act on this acceptance.',
-  'acceptance.sharedNotice.reviewableDescription':
-    'You can browse every check and its evidence, and review them on behalf of your workspace.',
-  'acceptance.sharedNotice.title': 'Shared with you',
-  'acceptance.sharedNotice.titleWithName': 'Shared by {{name}}',
   'acceptance.stats.failed': '{{count}} failed',
   'acceptance.stats.notExecuted': '{{count}} not executed',
   'acceptance.stats.passed': '{{count}} passed',
@@ -469,7 +462,6 @@ export default {
   'acceptance.surface.other': 'Other',
   'acceptance.titleFallback': 'Acceptance',
   'acceptance.verdict.inProgress': 'Acceptance in progress',
-  'acceptance.verdict.latestAt': 'last verified {{time}}',
   'acceptance.viewFullReport': 'View full report',
   'acceptance.workspace.actions.delete': 'Delete',
   'acceptance.workspace.actions.markAccepted': 'Mark as accepted',
