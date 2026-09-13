@@ -539,6 +539,20 @@ describe('convertOpenAIMessages', () => {
     expect((result[0] as any).reasoning_content).toBe('some reasoning content');
   });
 
+  it('should preserve reasoning field when it is a string (e.g. Cerebras Qwen)', async () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: 'Hello',
+        reasoning: 'some reasoning string',
+      },
+    ] as any;
+
+    const result = await convertOpenAIMessages(messages);
+
+    expect((result[0] as any).reasoning).toBe('some reasoning string');
+  });
+
   describe('tool messages with image parts', () => {
     it('should flatten the tool message to text and re-attach images as a user message', async () => {
       vi.mocked(parseDataUri).mockReturnValue({ type: 'url', base64: null, mimeType: null });

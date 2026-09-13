@@ -380,6 +380,7 @@ describe('recent direct-provider models', () => {
     ['xai', 'grok-4.6', 'grok4_6ReasoningEffort'],
     ['qwen', 'qwen3.8-max', 'qwen38ReasoningEffort'],
     ['qwen', 'qwen3.8-max-0902', 'qwen38ReasoningEffort'],
+    ['cerebras', 'qwen-3.8-27b', 'qwen38ReasoningEffort'],
   ])('exposes %s/%s with its reasoning controls', (providerId, id, reasoningParam) => {
     const model = LOBE_DEFAULT_MODEL_LIST.find(
       (entry) => entry.providerId === providerId && entry.id === id,

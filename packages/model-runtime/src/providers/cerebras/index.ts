@@ -19,6 +19,8 @@ export const params = {
         reasoning,
         reasoning_effort,
         effort,
+        preserveThinking,
+        clear_thinking,
         // Extract reasoning_format so it doesn't leak into ...rest and get sent twice
         reasoning_format: _incomingReasoningFormat,
         ...rest
@@ -78,7 +80,17 @@ export const params = {
             max: 'high',
           };
           cerebrasReasoningParams.reasoning_effort = (effortVal && effortMap[effortVal]) || 'high';
-          cerebrasReasoningParams.reasoning_format = _incomingReasoningFormat || 'parsed';
+          const resolvedFormat =
+            _incomingReasoningFormat && _incomingReasoningFormat !== 'hidden'
+              ? _incomingReasoningFormat
+              : 'parsed';
+          cerebrasReasoningParams.reasoning_format = resolvedFormat;
+        }
+
+        if (typeof clear_thinking === 'boolean') {
+          cerebrasReasoningParams.clear_thinking = clear_thinking;
+        } else if (typeof preserveThinking === 'boolean') {
+          cerebrasReasoningParams.clear_thinking = !preserveThinking;
         }
       }
 
@@ -90,17 +102,27 @@ export const params = {
       const messages = ((rest.messages as any[]) || []).map((msg: any) => {
         if (msg.role !== 'assistant') return msg;
 
-        const { reasoning_content, ...msgRest } = msg;
-        if (!reasoning_content) return msg;
+        const { reasoning_content, reasoning: msgReasoning, ...msgRest } = msg;
+        const priorReasoning =
+          typeof reasoning_content === 'string'
+            ? reasoning_content
+            : typeof msgReasoning?.content === 'string'
+              ? msgReasoning.content
+              : typeof msgReasoning === 'string'
+                ? msgReasoning
+                : undefined;
+        if (!priorReasoning) return msg;
 
         const existingContent = typeof msgRest.content === 'string' ? msgRest.content : '';
         let newContent: string;
         if (isGlm) {
-          newContent = `<think>${reasoning_content}</think>${existingContent}`;
+          newContent = `<think>${priorReasoning}</think>${existingContent}`;
         } else if (isGptOss) {
-          newContent = `${reasoning_content}${existingContent}`;
+          newContent = `${priorReasoning}${existingContent}`;
+        } else if (isQwen) {
+          return { ...msgRest, reasoning: priorReasoning };
         } else {
-          // Gemma 4 / Qwen: drop reasoning_content so only final-answer content remains
+          // Gemma 4: docs don't specify a retention format; drop reasoning so only final-answer content remains
           return msgRest;
         }
 

@@ -324,6 +324,18 @@ describe('LobeCerebrasAI - custom features', () => {
         expect(calledPayload.reasoning_effort).toBe('low');
       });
 
+      it('should map reasoning_effort: xhigh to high for Qwen 3.8 27B', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          reasoning_effort: 'xhigh',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.reasoning_format).toBe('parsed');
+        expect(calledPayload.reasoning_effort).toBe('high');
+      });
+
       it('should handle Qwen 3.8 27B with thinking disabled (reasoning_effort: none)', async () => {
         await instance.chat({
           messages: [{ content: 'Test', role: 'user' }],
@@ -336,7 +348,7 @@ describe('LobeCerebrasAI - custom features', () => {
         expect(calledPayload.reasoning_format).toBeUndefined();
       });
 
-      it('should drop reasoning_content for Qwen assistant messages', async () => {
+      it('should map reasoning_content to reasoning field for Qwen assistant messages', async () => {
         await instance.chat({
           messages: [
             { content: 'Hello', role: 'user' },
@@ -349,8 +361,124 @@ describe('LobeCerebrasAI - custom features', () => {
         const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
         expect(calledPayload.messages[1]).toEqual({
           content: 'Hi there',
+          reasoning: 'thinking about reply',
           role: 'assistant',
         });
+      });
+
+      it('should preserve reasoning field for Qwen assistant messages', async () => {
+        await instance.chat({
+          messages: [
+            { content: 'Hello', role: 'user' },
+            { content: 'Hi there', reasoning: 'thinking about reply', role: 'assistant' } as any,
+            { content: 'Next question', role: 'user' },
+          ],
+          model: 'qwen-3.8-27b',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.messages[1]).toEqual({
+          content: 'Hi there',
+          reasoning: 'thinking about reply',
+          role: 'assistant',
+        });
+      });
+
+      it('should unpack reasoning object with content for Qwen assistant messages', async () => {
+        await instance.chat({
+          messages: [
+            { content: 'Hello', role: 'user' },
+            {
+              content: 'Hi there',
+              reasoning: { content: 'thinking from LobeHub store' },
+              role: 'assistant',
+            } as any,
+            { content: 'Next question', role: 'user' },
+          ],
+          model: 'qwen-3.8-27b',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.messages[1]).toEqual({
+          content: 'Hi there',
+          reasoning: 'thinking from LobeHub store',
+          role: 'assistant',
+        });
+      });
+
+      it('should unpack reasoning object with content for GLM assistant messages', async () => {
+        await instance.chat({
+          messages: [
+            { content: 'Hello', role: 'user' },
+            {
+              content: 'Hi there',
+              reasoning: { content: 'glm thinking' },
+              role: 'assistant',
+            } as any,
+            { content: 'Next question', role: 'user' },
+          ],
+          model: 'glm-4',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.messages[1]).toEqual({
+          content: '<think>glm thinking</think>Hi there',
+          role: 'assistant',
+        });
+      });
+
+      it('should unpack reasoning object with content for GPT-OSS assistant messages', async () => {
+        await instance.chat({
+          messages: [
+            { content: 'Hello', role: 'user' },
+            {
+              content: 'Hi there',
+              reasoning: { content: 'gpt-oss thinking' },
+              role: 'assistant',
+            } as any,
+            { content: 'Next question', role: 'user' },
+          ],
+          model: 'gpt-oss-120b',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.messages[1]).toEqual({
+          content: 'gpt-oss thinkingHi there',
+          role: 'assistant',
+        });
+      });
+
+      it('should map preserveThinking=false to clear_thinking=true for Qwen', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          preserveThinking: false,
+        } as any);
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.clear_thinking).toBe(true);
+      });
+
+      it('should map preserveThinking=true to clear_thinking=false for Qwen', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          preserveThinking: true,
+        } as any);
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.clear_thinking).toBe(false);
+      });
+
+      it('should fallback to parsed reasoning_format if hidden is requested for Qwen', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          reasoning_format: 'hidden',
+        } as any);
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.reasoning_format).toBe('parsed');
       });
 
       it('should map reasoning field to reasoning_content for non-streaming response transformation', () => {

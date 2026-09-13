@@ -266,6 +266,8 @@ export const convertOpenAIMessages = async (
       if (msg.reasoning_content !== undefined) result.reasoning_content = msg.reasoning_content;
       // MiniMax uses reasoning_details for historical thinking, so forward it unchanged
       if (msg.reasoning_details !== undefined) result.reasoning_details = msg.reasoning_details;
+      // Cerebras and other providers use reasoning string for historical thinking
+      if (typeof msg.reasoning === 'string') result.reasoning = msg.reasoning;
 
       // For passback-requiring families routed via any OpenAI-compatible runtime
       // (including custom user providers that bypass a dedicated handlePayload),

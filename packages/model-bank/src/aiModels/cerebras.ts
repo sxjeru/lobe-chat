@@ -23,7 +23,7 @@ const cerebrasModels: AIChatModelCard[] = [
       ],
     },
     settings: {
-      extendParams: ['reasoningEffort'],
+      extendParams: ['qwen38ReasoningEffort', 'preserveThinking'],
     },
     type: 'chat',
   },
