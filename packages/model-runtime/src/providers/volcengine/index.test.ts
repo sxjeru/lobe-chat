@@ -101,6 +101,34 @@ describe('LobeVolcengineAI - custom features', () => {
       expect(calledPayload.reasoning_effort).toBe('max');
     });
 
+    it('should map glm-5-3-flash thinking disabled to minimal reasoning_effort', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'glm-5-3-flash',
+        thinking: {
+          type: 'disabled',
+        },
+      });
+
+      const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+      expect(calledPayload.thinking).toEqual({ type: 'disabled' });
+      expect(calledPayload.reasoning_effort).toBe('minimal');
+    });
+
+    it('should map glm-5-3-flash thinking enabled without reasoning_effort to high reasoning_effort', async () => {
+      await instance.chat({
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'glm-5-3-flash-260828',
+        thinking: {
+          type: 'enabled',
+        },
+      });
+
+      const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+      expect(calledPayload.thinking).toEqual({ type: 'enabled' });
+      expect(calledPayload.reasoning_effort).toBe('high');
+    });
+
     it('should fallback reasoning_effort max to high for deepseek-v4 under responses path (enabledSearch: true)', async () => {
       // Mock the Responses API client call
       vi.spyOn(instance['client'].responses, 'create').mockResolvedValue(

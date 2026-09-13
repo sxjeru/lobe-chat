@@ -318,6 +318,44 @@ describe('vendor provider cards', () => {
     );
     expect(glm53Flash?.settings?.searchImpl).toBe('params');
   });
+
+  it('exposes volcengine/glm-5-3-flash with deployment name, abilities and pricing', () => {
+    const glm53Flash = LOBE_DEFAULT_MODEL_LIST.find(
+      (m) => m.providerId === 'volcengine' && m.id === 'glm-5-3-flash',
+    );
+
+    expect(glm53Flash).toBeDefined();
+    expect(glm53Flash).toMatchObject({
+      abilities: {
+        functionCall: true,
+        reasoning: true,
+        search: true,
+        structuredOutput: true,
+        video: true,
+        vision: true,
+      },
+      config: {
+        deploymentName: 'glm-5-3-flash-260828',
+      },
+      contextWindowTokens: 1_048_576,
+      displayName: 'GLM-5.3-Flash',
+      family: 'glm',
+      generation: 'glm-5.3',
+      id: 'glm-5-3-flash',
+      maxOutput: 131_072,
+      organization: 'Zhipu',
+      releasedAt: '2026-08-28',
+      type: 'chat',
+    });
+    expect(glm53Flash?.pricing?.units).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'textInput', rate: 0.8 }),
+        expect.objectContaining({ name: 'textOutput', rate: 2.8 }),
+        expect.objectContaining({ name: 'textInput_cacheRead', rate: 0.23 }),
+      ]),
+    );
+    expect(glm53Flash?.settings?.extendParams).toContain('glm5_3ReasoningEffort');
+  });
 });
 
 describe('recent direct-provider models', () => {

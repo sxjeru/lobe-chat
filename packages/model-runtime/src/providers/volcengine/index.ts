@@ -9,7 +9,11 @@ import { handleVolcengineVideoWebhook } from './video/handleCreateVideoWebhook';
 const isVolcengineReasoningEffortModel = (model: string) => {
   const normalizedModel = model.toLowerCase();
 
-  return normalizedModel.includes('deepseek-v4') || normalizedModel.includes('glm-5-2');
+  return (
+    normalizedModel.includes('deepseek-v4') ||
+    normalizedModel.includes('glm-5-2') ||
+    normalizedModel.includes('glm-5-3')
+  );
 };
 
 /**

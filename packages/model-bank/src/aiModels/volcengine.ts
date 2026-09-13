@@ -279,6 +279,48 @@ const doubaoChatModels: AIChatModelCard[] = [
       reasoning: true,
       search: true,
       structuredOutput: true,
+      video: true,
+      vision: true,
+    },
+    config: {
+      deploymentName: 'glm-5-3-flash-260828',
+    },
+    contextWindowTokens: 1_048_576,
+    description:
+      'GLM-5.3-Flash is Zhipu AI’s first native multimodal model in the GLM-5 series on Volcano Ark. Built on a hybrid sparse and linear attention architecture, it achieves higher intelligence than GLM-5.2 at ultra-low cost. Its visual capabilities are natively integrated into the coding loop for observing interfaces and testing results, with support for a 1M-token context window and long-horizon agent workflows.',
+    displayName: 'GLM-5.3-Flash',
+    family: 'glm',
+    generation: 'glm-5.3',
+    id: 'glm-5-3-flash',
+    maxOutput: 131_072,
+    organization: 'Zhipu',
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput', rate: 0.8, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 2.8, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput_cacheRead', rate: 0.23, strategy: 'fixed', unit: 'millionTokens' },
+        {
+          lookup: { prices: { '1h': 0.017 }, pricingParams: ['ttl'] },
+          name: 'textInput_cacheWrite',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2026-08-28',
+    settings: {
+      extendParams: ['glm5_3ReasoningEffort'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
+      structuredOutput: true,
     },
     config: {
       deploymentName: 'glm-5-2-260617',
