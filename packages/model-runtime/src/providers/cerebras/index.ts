@@ -32,6 +32,7 @@ export const params = {
       const isGlm = lowerModel.includes('glm');
       const isGemma4 = lowerModel.includes('gemma-4');
       const isGptOss = lowerModel.includes('gpt-oss');
+      const isQwen = lowerModel.includes('qwen');
 
       const cerebrasReasoningParams: Record<string, unknown> = {};
 
@@ -64,12 +65,28 @@ export const params = {
             (effortVal && effortMap[effortVal]) || 'medium';
           cerebrasReasoningParams.reasoning_format = _incomingReasoningFormat || 'parsed';
         }
+      } else if (isQwen) {
+        if (isThinkingDisabled) {
+          cerebrasReasoningParams.reasoning_effort = 'none';
+        } else {
+          const effortMap: Record<string, string> = {
+            low: 'low',
+            minimal: 'low',
+            medium: 'medium',
+            high: 'high',
+            xhigh: 'high',
+            max: 'high',
+          };
+          cerebrasReasoningParams.reasoning_effort = (effortVal && effortMap[effortVal]) || 'high';
+          cerebrasReasoningParams.reasoning_format = _incomingReasoningFormat || 'parsed';
+        }
       }
 
       // --- Reasoning context retention ---
       // Cerebras does not accept a standalone `reasoning_content` field.
       // Per docs: inject prior reasoning into the `content` of assistant messages.
       // GLM: wrap in <think>...</think> tags. GPT-OSS: prepend directly.
+      // Qwen: send as `reasoning` field on assistant message.
       const messages = ((rest.messages as any[]) || []).map((msg: any) => {
         if (msg.role !== 'assistant') return msg;
 
@@ -83,7 +100,7 @@ export const params = {
         } else if (isGptOss) {
           newContent = `${reasoning_content}${existingContent}`;
         } else {
-          // Gemma 4: docs don't specify a retention format; drop reasoning_content
+          // Gemma 4 / Qwen: drop reasoning_content so only final-answer content remains
           return msgRest;
         }
 

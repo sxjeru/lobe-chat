@@ -301,6 +301,58 @@ describe('LobeCerebrasAI - custom features', () => {
         expect(calledPayload.reasoning_effort).toBeUndefined();
       });
 
+      it('should handle Qwen 3.8 27B default reasoning settings (reasoning_format: parsed, reasoning_effort: high)', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.reasoning_format).toBe('parsed');
+        expect(calledPayload.reasoning_effort).toBe('high');
+      });
+
+      it('should handle Qwen 3.8 27B with custom reasoning effort (reasoning_effort: low)', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          reasoning_effort: 'low',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.reasoning_format).toBe('parsed');
+        expect(calledPayload.reasoning_effort).toBe('low');
+      });
+
+      it('should handle Qwen 3.8 27B with thinking disabled (reasoning_effort: none)', async () => {
+        await instance.chat({
+          messages: [{ content: 'Test', role: 'user' }],
+          model: 'qwen-3.8-27b',
+          thinking: { type: 'disabled' },
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.reasoning_effort).toBe('none');
+        expect(calledPayload.reasoning_format).toBeUndefined();
+      });
+
+      it('should drop reasoning_content for Qwen assistant messages', async () => {
+        await instance.chat({
+          messages: [
+            { content: 'Hello', role: 'user' },
+            { content: 'Hi there', reasoning_content: 'thinking about reply', role: 'assistant' },
+            { content: 'Next question', role: 'user' },
+          ],
+          model: 'qwen-3.8-27b',
+        });
+
+        const calledPayload = (instance['client'].chat.completions.create as any).mock.calls[0][0];
+        expect(calledPayload.messages[1]).toEqual({
+          content: 'Hi there',
+          role: 'assistant',
+        });
+      });
+
       it('should map reasoning field to reasoning_content for non-streaming response transformation', () => {
         const mockCompletion = {
           choices: [

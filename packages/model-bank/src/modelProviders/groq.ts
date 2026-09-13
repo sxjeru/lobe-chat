@@ -3,7 +3,7 @@ import type { ModelProviderCard } from '../types';
 // ref https://console.groq.com/docs/tool-use
 const Groq: ModelProviderCard = {
   chatModels: [],
-  checkModel: 'llama-3.1-8b-instant',
+  checkModel: 'openai/gpt-oss-20b',
   description:
     'Groq’s LPU inference engine delivers standout benchmark performance with exceptional speed and efficiency, setting a high bar for low-latency, cloud-based LLM inference.',
   id: 'groq',

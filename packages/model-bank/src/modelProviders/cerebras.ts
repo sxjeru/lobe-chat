@@ -2,7 +2,7 @@ import type { ModelProviderCard } from '../types';
 
 const Cerebras: ModelProviderCard = {
   chatModels: [],
-  checkModel: 'llama3.1-8b',
+  checkModel: 'gpt-oss-120b',
   description:
     'Cerebras is an inference platform built on its CS-3 system, focused on ultra-low latency and high-throughput LLM service for real-time workloads like code generation and agent tasks.',
   id: 'cerebras',

@@ -9,6 +9,32 @@ const cerebrasModels: AIChatModelCard[] = [
     },
     contextWindowTokens: 131_072,
     description:
+      "Alibaba's 27B dense multimodal model for agentic coding, tool use, research, and long-running workflows. It accepts text and image inputs and supports configurable reasoning.",
+    displayName: 'Qwen 3.8 27B',
+    enabled: true,
+    family: 'qwen',
+    generation: 'qwen3.8',
+    id: 'qwen-3.8-27b',
+    maxOutput: 40_960,
+    pricing: {
+      units: [
+        { name: 'textInput', rate: 0.99, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 1.49, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    settings: {
+      extendParams: ['reasoningEffort'],
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      vision: true,
+    },
+    contextWindowTokens: 131_072,
+    description:
       'This model excels at multimodal reasoning across screenshots, documents, diagrams, and design assets. Ideal for visual agentic workflows, image-aware copilots, and teams migrating from closed multimodal APIs to an open model.',
     displayName: 'Gemma 4 31B',
     enabled: true,

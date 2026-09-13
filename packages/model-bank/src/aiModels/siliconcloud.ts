@@ -37,31 +37,6 @@ const siliconcloudChatModels: AIChatModelCard[] = [
     abilities: {
       functionCall: true,
       reasoning: true,
-      vision: true,
-    },
-    contextWindowTokens: 262_144,
-    description:
-      'Nex-N2 is an agentic thinking model that adaptively decides when and how deeply to reason. It handles coding, search, and tool tasks through a unified thinking paradigm with strong generalization capabilities.',
-    displayName: 'Nex-N2-Pro',
-    family: 'nex',
-    generation: 'nex-n2',
-    id: 'nex-agi/Nex-N2-Pro',
-    organization: 'Nex-AGI',
-    pricing: {
-      currency: 'CNY',
-      units: [
-        { name: 'textInput_cacheRead', rate: 0.175, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textInput', rate: 1.75, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 7, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
-    releasedAt: '2026-06-03',
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-      reasoning: true,
     },
     contextWindowTokens: 1_048_576,
     description:
@@ -245,56 +220,6 @@ const siliconcloudChatModels: AIChatModelCard[] = [
     releasedAt: '2026-04-17',
     settings: {
       extendParams: ['enableReasoning', 'reasoningBudgetToken32k'],
-    },
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-      reasoning: true,
-      vision: true,
-    },
-    contextWindowTokens: 262_144,
-    description:
-      'Qwen3.5-397B-A17B is the latest vision-language model in the Qwen3.5 series, using a Mixture-of-Experts (MoE) architecture with 397B total parameters and 17B active parameters. It natively supports 256K context length with extensibility to approximately 1M tokens, supports 201 languages, and provides unified vision-language understanding, tool calling, and reasoning capabilities.',
-    displayName: 'Qwen3.5 397B A17B',
-    family: 'qwen',
-    generation: 'qwen3.5',
-    id: 'Qwen/Qwen3.5-397B-A17B',
-    organization: 'Qwen',
-
-    pricing: {
-      currency: 'CNY',
-      units: [
-        {
-          lookup: {
-            prices: {
-              '[0, 0.128]': 0.8,
-              '[0.128, infinity]': 2,
-            },
-            pricingParams: ['textInput'],
-          },
-          name: 'textInput',
-          strategy: 'lookup',
-          unit: 'millionTokens',
-        },
-        {
-          lookup: {
-            prices: {
-              '[0, 0.128]': 4.8,
-              '[0.128, infinity]': 12,
-            },
-            pricingParams: ['textInput'],
-          },
-          name: 'textOutput',
-          strategy: 'lookup',
-          unit: 'millionTokens',
-        },
-      ],
-    },
-    releasedAt: '2026-02-16',
-    settings: {
-      extendParams: ['enableReasoning', 'reasoningBudgetToken'],
     },
     type: 'chat',
   },
@@ -519,55 +444,6 @@ const siliconcloudChatModels: AIChatModelCard[] = [
     settings: {
       extendParams: ['enableReasoning', 'reasoningBudgetToken'],
     },
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-      reasoning: true,
-    },
-    contextWindowTokens: 192_000,
-    description:
-      'MiniMax-M2.5 is the latest large language model developed by MiniMax, trained through large-scale reinforcement learning across hundreds of thousands of complex, real-world environments. Featuring an MoE architecture with 229 billion parameters, it achieves industry-leading performance in tasks such as programming, agent tool-calling, search, and office scenarios.',
-    displayName: 'MiniMax-M2.5',
-    family: 'minimax',
-    generation: 'minimax-m2.5',
-    id: 'MiniMaxAI/MiniMax-M2.5',
-    pricing: {
-      currency: 'CNY',
-      units: [
-        { name: 'textInput_cacheRead', rate: 0.21, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textInput', rate: 2.1, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 8.4, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
-    releasedAt: '2026-02-13',
-    settings: {
-      extendParams: ['reasoningBudgetToken'],
-    },
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-      reasoning: true,
-    },
-    contextWindowTokens: 192_000,
-    description:
-      'MiniMax-M2.5 is the latest large language model developed by MiniMax, trained through large-scale reinforcement learning across hundreds of thousands of complex, real-world environments. Featuring an MoE architecture with 229 billion parameters, it achieves industry-leading performance in tasks such as programming, agent tool-calling, search, and office scenarios.',
-    displayName: 'MiniMax-M2.5 (Pro)',
-    family: 'minimax',
-    generation: 'minimax-m2.5',
-    id: 'Pro/MiniMaxAI/MiniMax-M2.5',
-    pricing: {
-      currency: 'CNY',
-      units: [
-        { name: 'textInput_cacheRead', rate: 0.21, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textInput', rate: 2.1, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 8.4, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
-    releasedAt: '2026-02-13',
     type: 'chat',
   },
   {
