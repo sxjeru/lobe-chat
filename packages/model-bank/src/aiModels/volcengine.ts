@@ -123,9 +123,9 @@ const doubaoChatModels: AIChatModelCard[] = [
       search: true,
     },
     config: {
-      deploymentName: 'doubao-seed-2-1-pro-260628',
+      deploymentName: 'doubao-seed-2-1-pro-260915',
     },
-    contextWindowTokens: 256_000,
+    contextWindowTokens: 1_048_576,
     description:
       "Doubao-Seed-2.1-pro is ByteDance's new generation flagship Agent general model, optimized for coding, agentic planning, and long-chain task execution with native multimodal understanding.",
     displayName: 'Doubao Seed 2.1 Pro',
@@ -133,7 +133,7 @@ const doubaoChatModels: AIChatModelCard[] = [
     family: 'doubao',
     generation: 'doubao-2.1',
     id: 'doubao-seed-2.1-pro',
-    maxOutput: 128_000,
+    maxOutput: 262_144,
     pricing: {
       currency: 'CNY',
       units: [
@@ -148,7 +148,7 @@ const doubaoChatModels: AIChatModelCard[] = [
         },
       ],
     },
-    releasedAt: '2026-06-23',
+    releasedAt: '2026-09-15',
     settings: {
       extendParams: ['gpt5ReasoningEffort'],
       searchImpl: 'params',
@@ -192,6 +192,46 @@ const doubaoChatModels: AIChatModelCard[] = [
     releasedAt: '2026-06-23',
     settings: {
       extendParams: ['gpt5ReasoningEffort'],
+      searchImpl: 'params',
+    },
+    type: 'chat',
+  },
+  {
+    abilities: {
+      functionCall: true,
+      reasoning: true,
+      search: true,
+      structuredOutput: true,
+      vision: true,
+    },
+    config: {
+      deploymentName: 'deepseek-v4-1-flash-260910',
+    },
+    contextWindowTokens: 1_048_576,
+    description:
+      'DeepSeek-V4.1-Flash is DeepSeek’s lightweight multimodal MoE model on Volcano Ark, featuring a Causal-Encoder-Decoder asymmetric architecture, native vision understanding, and low inference cost with a 1M-token context window.',
+    displayName: 'DeepSeek V4.1 Flash',
+    family: 'deepseek',
+    generation: 'deepseek-v4.1',
+    id: 'deepseek-v4-1-flash',
+    maxOutput: 393_216,
+    pricing: {
+      currency: 'CNY',
+      units: [
+        { name: 'textInput_cacheRead', rate: 0.04, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'textOutput', rate: 8, strategy: 'fixed', unit: 'millionTokens' },
+        {
+          lookup: { prices: { '1h': 0.017 }, pricingParams: ['ttl'] },
+          name: 'textInput_cacheWrite',
+          strategy: 'lookup',
+          unit: 'millionTokens',
+        },
+      ],
+    },
+    releasedAt: '2026-09-10',
+    settings: {
+      extendParams: ['deepseekV4GAReasoningEffort'],
       searchImpl: 'params',
     },
     type: 'chat',

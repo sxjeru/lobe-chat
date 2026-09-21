@@ -53,32 +53,6 @@ const groqChatModels: AIChatModelCard[] = [
     abilities: {
       functionCall: true,
       reasoning: true,
-      vision: true,
-    },
-    contextWindowTokens: 131_072,
-    description:
-      'Qwen3.6 27B is an open-source dense model with strong performance in reasoning, coding, and general capabilities. It supports thinking mode by default, offering balanced performance and efficiency.',
-    displayName: 'Qwen3.6 27B',
-    family: 'qwen',
-    generation: 'qwen3.6',
-    id: 'qwen/qwen3.6-27b',
-    maxOutput: 16_384,
-    pricing: {
-      units: [
-        { name: 'textInput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
-        { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
-      ],
-    },
-    releasedAt: '2026-04-23',
-    settings: {
-      extendParams: ['enableReasoning'],
-    },
-    type: 'chat',
-  },
-  {
-    abilities: {
-      functionCall: true,
-      reasoning: true,
     },
     contextWindowTokens: 196_608,
     description:
