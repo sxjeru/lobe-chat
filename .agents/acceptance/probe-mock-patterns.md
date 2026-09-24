@@ -1477,8 +1477,12 @@ would have landed in the production account.
 **Works:** prefix local invocations with
 `env -u LOBEHUB_JWT -u LOBEHUB_SERVER -u LOBEHUB_OPERATION_ID -u LOBEHUB_TOPIC_ID -u LOBEHUB_ASSISTANT_MESSAGE_ID`,
 run `electron-dev.sh` as `env -u ELECTRON_RUN_AS_NODE .agents/acceptance/scripts/electron-dev.sh start`,
-then set the isolated home/server explicitly. Publish steps (ingest) strip
-`LOBEHUB_JWT` as well so the stored `~/.lobehub` login is used.
+then set the isolated home/server explicitly. Keep those changes scoped to local
+test subprocesses. For publication, follow
+[Publish auth preflight](PROCESS.md#publish-auth-preflight): retain a known
+production credential and check its precedence; strip `LOBEHUB_JWT` only when
+deliberately selecting a different, known production credential. Do not assume
+a stored `~/.lobehub` login exists.
 
 `holds-while: pickAuthSource precedence LOBEHUB_JWT > flags > LOBEHUB_CLI_API_KEY > stored (apps/cli/src/auth/source.ts); Electron honors ELECTRON_RUN_AS_NODE.`
 
@@ -2640,7 +2644,9 @@ had to take down.
 response at the CDP Fetch layer and leave the product's own guard logic intact:
 
 ```js
-await send('Fetch.enable', { patterns: [{ urlPattern: '*listDevices*', requestStage: 'Response' }] });
+await send('Fetch.enable', {
+  patterns: [{ urlPattern: '*listDevices*', requestStage: 'Response' }],
+});
 // in Fetch.requestPaused: getResponseBody → text.replace(/"online":true/g, '"online":false') → fulfillRequest
 ```
 
@@ -2649,7 +2655,7 @@ fulfilled body is truncated. The interception dies with the CDP connection, so a
 later HMR re-fetch brings the device back online and the banner disappears —
 keep one script alive for the whole capture rather than attaching per step.
 
-The run-status tray needs a *real* operation, not a DOM stub:
+The run-status tray needs a _real_ operation, not a DOM stub:
 
 ```js
 const { useChatStore } = await import('http://localhost:<vitePort>/src/store/chat/index.ts');
@@ -2675,7 +2681,7 @@ the code as the variable.
 Vite server, letting HMR settle between measurements — same route, same data,
 same viewport, same injected state. In a shared working tree take the "after"
 copy with `cp` first and restore from it (never `git stash`, see
-[[feedback_no_git_stash_shared_worktrees]] in the user memory); recover the
+\[\[feedback\_no\_git\_stash\_shared\_worktrees]] in the user memory); recover the
 "before" with `git show HEAD:<path>`. When the tree sits on an unrelated branch,
 write the PR branch's exact file content in for the capture and record the
 sha256 of both sides in the evidence.

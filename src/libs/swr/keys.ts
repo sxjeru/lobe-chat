@@ -842,6 +842,11 @@ export const deviceKeys = {
     (workspaceId: string | null, deviceId: string, path?: string, cursor?: string) =>
       ['device:browseDirectory', workspaceId, deviceId, path, cursor] as const,
   ),
+  tunnels: def('device:tunnels', (workspaceId: string | null, deviceId: string) => [
+    'device:tunnels',
+    workspaceId,
+    deviceId,
+  ]),
   gitAheadBehind: def('device:gitAheadBehind', (deviceId: string, path: string) => [
     'device:gitAheadBehind',
     deviceId,
@@ -1235,11 +1240,25 @@ export const inboxKeys = {
 // ---- share (shared agent / topic / page) ---------------------------------
 export const shareKeys = {
   agentInfo: def('share:agentInfo', (slugOrId: string) => ['share:agentInfo', slugOrId]),
+  /** Candidates for the creator-side AGENT share skill picker, keyed by agentId. */
+  agentShareGrantableSkills: def('share:agentShareGrantableSkills', (agentId: string) => [
+    'share:agentShareGrantableSkills',
+    agentId,
+  ]),
   // Creator-side share status keyed by agentId (visitor side uses `agentInfo`).
   agentShareStats: def('share:agentShareStats', (agentId: string) => [
     'share:agentShareStats',
     agentId,
   ]),
+  agentShareEligibleWorks: def(
+    'share:agentShareEligibleWorks',
+    (agentId: string, offset: number, includeWorkIds: readonly string[]) => [
+      'share:agentShareEligibleWorks',
+      agentId,
+      offset,
+      includeWorkIds,
+    ],
+  ),
   agentShareStatus: def('share:agentShareStatus', (agentId: string) => [
     'share:agentShareStatus',
     agentId,
