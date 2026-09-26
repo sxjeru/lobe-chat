@@ -81,6 +81,10 @@ export default {
   'agentDocument.emptyTitle': 'No document open',
   'agentDocument.linkCopied': 'Link copied',
   'agentDocument.openAsPage': 'Open as full page',
+  'agentDocument.portal.viewAll': 'View all documents',
+  'agentDocument.portal.titlePlaceholder': 'Untitled document',
+  'agentDocument.portal.chatWithDocument': 'Chat to edit',
+  'agentDocument.portal.export': 'Export',
   'agentNotFound.desc':
     'This agent does not exist or is no longer accessible — it may have been deleted or set to private by its owner.',
   'permission.configAccess.agentChatOnly':
@@ -2942,6 +2946,8 @@ export default {
   'workingPanel.files.showInReview': 'Show in Review',
   'workingPanel.files.showInSystem': 'Reveal in Folder',
   'workingPanel.files.title': 'Files',
+  'workingPanel.files.truncatedNotice':
+    'Some expanded folders are too large to list fully — only the first entries are shown',
   'workingPanel.files.views.changes': 'Git Changes',
   'workingPanel.files.views.project': 'Project',
   'workingPanel.files.views.title': 'File View',
@@ -3146,6 +3152,7 @@ export default {
   'internalLink.preview.acceptanceRounds_other': '{{count}} verification rounds',
   'internalLink.preview.agent': 'Agent',
   'internalLink.preview.document': 'Page',
+  'internalLink.preview.goal': 'Goal',
   'internalLink.preview.task': 'Task',
   'internalLink.preview.verify': 'Verification report',
   'internalLink.preview.verifyCounts':
