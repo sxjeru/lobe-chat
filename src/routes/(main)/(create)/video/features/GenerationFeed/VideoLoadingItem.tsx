@@ -2,7 +2,7 @@
 
 import { LoadingOutlined } from '@ant-design/icons';
 import { Block, Center } from '@lobehub/ui';
-import { Progress, Spin } from 'antd';
+import { Progress, Spin } from '@lobehub/ui/base-ui';
 import { memo } from 'react';
 
 import { MAX_ESTIMATED_PROGRESS, useEstimatedProgress } from '@/hooks/useEstimatedProgress';

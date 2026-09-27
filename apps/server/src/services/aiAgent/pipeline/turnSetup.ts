@@ -356,6 +356,8 @@ export interface TurnSetupResult {
   assistantMessageId: string;
   canUseDevice: boolean;
   deviceAccessReason: DeviceAccessReason;
+  /** The agent a builder run edits — from the request, else recovered from the builder topic. */
+  editingAgentId?: string;
   effectiveRequestedDeviceId?: string;
   heterogeneousProvider?: NonNullable<AgentConfigWithId['agencyConfig']>['heterogeneousProvider'];
   heteroType: HeterogeneousAgentType;
@@ -366,6 +368,11 @@ export interface TurnSetupResult {
   /** Topic-pinned model + reasoning effort for a heterogeneous run (reused topics only). */
   pinnedHeterogeneousTopicModel?: HeterogeneousTopicPin;
   provider: string;
+  /**
+   * The request's device, or — when it named none — the device a reused topic
+   * is bound to. Use this instead of the raw request value downstream.
+   */
+  requestedDeviceId?: string;
   requestTriggerMetadata: {
     agentDispatch?: { kind: 'callAgent'; visibility: 'internal' };
     steer?: true;
@@ -427,15 +434,17 @@ export const setupTurn = async (
   } = input;
 
   let topicId = appContext?.topicId;
+  let editingAgentId = appContext?.editingAgentId;
 
   const isFixedExecutionTargetSelection =
     !!deps.workspaceId && agentConfig.agencyConfig?.executionTargetSelectionPolicy === 'fixed';
   const isFixedDeviceTarget =
     isFixedExecutionTargetSelection && agentConfig.agencyConfig?.executionTarget === 'device';
-  const effectiveRequestedDeviceId = isFixedExecutionTargetSelection
-    ? undefined
-    : requestedDeviceId;
-  const topicBoundDeviceId = isFixedDeviceTarget
+  // `let`: a reused topic that already ran on a machine supplies the device
+  // when the request names none (see the reuse branch below).
+  let resolvedRequestedDeviceId = requestedDeviceId;
+  let effectiveRequestedDeviceId = isFixedExecutionTargetSelection ? undefined : requestedDeviceId;
+  let topicBoundDeviceId = isFixedDeviceTarget
     ? agentConfig.agencyConfig?.boundDeviceId
     : isFixedExecutionTargetSelection
       ? undefined
@@ -479,7 +488,7 @@ export const setupTurn = async (
     // association exists only at run time: a topic written without it can
     // never be attributed afterwards, which is why it is stamped even though
     // nothing filters on it yet.
-    const { editingAgentId, editingGroupId } = appContext ?? {};
+    const { editingGroupId } = appContext ?? {};
     const metadata =
       cronJobId ||
       operationTaskId ||
@@ -611,6 +620,25 @@ export const setupTurn = async (
       };
     }
 
+    // A conversation stays on the machine it already ran on: its cwd and CLI
+    // session live there, so the agent-level target (the default for NEW
+    // topics) must not move a later turn elsewhere. An explicit request device
+    // (the picker's in-process preset, a task/sub-agent override) and a fixed
+    // workspace target still win. `auto` opted into picking a fresh online
+    // device every run, so an earlier pick never pins it.
+    const topicPinnedDeviceId = canUseTopicPin ? existingTopic?.metadata?.boundDeviceId : undefined;
+    if (
+      !requestedDeviceId &&
+      topicPinnedDeviceId &&
+      !isFixedExecutionTargetSelection &&
+      agentConfig.agencyConfig?.executionTarget !== 'auto'
+    ) {
+      resolvedRequestedDeviceId = topicPinnedDeviceId;
+      effectiveRequestedDeviceId = topicPinnedDeviceId;
+      topicBoundDeviceId = topicPinnedDeviceId;
+      log('execAgent: routing topic %s to its bound device %s', topicId, topicPinnedDeviceId);
+    }
+
     // Re-assert the share restriction after topic overrides are applied.
     // Heterogeneous agents are not available for shared visitor runs.
     if (shareGate && isHeterogeneousAgentModelId(model)) {
@@ -618,6 +646,16 @@ export const setupTurn = async (
         code: 'FORBIDDEN',
         message: ChatErrorType.ShareHeterogeneousAgentUnsupported,
       });
+    }
+
+    // A builder conversation edits exactly one agent, stamped on the topic when
+    // it was created. Continuations rebuilt from the durable operation (approval
+    // or askUserQuestion resumes) arrive without `editingAgentId`; recover it
+    // here so the run origin still carries the target instead of leaving the
+    // builder tools with nothing to write to.
+    if (appContext?.scope === 'agent_builder' && !editingAgentId) {
+      editingAgentId = existingTopic?.metadata?.editingAgentId ?? undefined;
+      log('execAgent: recovered editingAgentId=%s from topic %s', editingAgentId, topicId);
     }
   }
 
@@ -875,6 +913,7 @@ export const setupTurn = async (
     assistantMessageId: assistantMessageRecord.id,
     canUseDevice,
     deviceAccessReason,
+    editingAgentId,
     effectiveRequestedDeviceId,
     heteroType,
     heterogeneousProvider,
@@ -883,6 +922,7 @@ export const setupTurn = async (
     model,
     pinnedHeterogeneousTopicModel,
     provider,
+    requestedDeviceId: resolvedRequestedDeviceId,
     requestTriggerMetadata,
     runAttachments,
     selfMessageIds,
