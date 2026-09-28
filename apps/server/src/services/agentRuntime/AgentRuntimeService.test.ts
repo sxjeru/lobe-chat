@@ -633,6 +633,52 @@ describe('AgentRuntimeService', () => {
       );
     });
 
+    it('waits for dependent records before dispatch without losing the prepared context', async () => {
+      let release!: () => void;
+      const prepared = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const onOperationCreated = vi.fn<(operationId: string) => Promise<void>>(
+        async () => prepared,
+      );
+      const initialContext = {
+        ...mockParams.initialContext,
+        payload: {
+          assistantMessageId: 'repair-assistant',
+          parentMessageId: 'verify-card',
+        },
+      } as OperationCreationParams['initialContext'];
+      const creation = service.createOperation({
+        ...mockParams,
+        initialContext,
+        onOperationCreated,
+      });
+      try {
+        await vi.waitFor(() =>
+          expect(onOperationCreated).toHaveBeenCalledWith(mockParams.operationId),
+        );
+        expect(mockQueueService.scheduleMessage).not.toHaveBeenCalled();
+      } finally {
+        release();
+      }
+      await creation;
+      expect(mockQueueService.scheduleMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ context: initialContext }),
+      );
+    });
+
+    it('does not dispatch when dependent record preparation fails', async () => {
+      await expect(
+        service.createOperation({
+          ...mockParams,
+          onOperationCreated: async () => {
+            throw new Error('Plan unavailable');
+          },
+        }),
+      ).rejects.toThrow('Plan unavailable');
+      expect(mockQueueService.scheduleMessage).not.toHaveBeenCalled();
+    });
+
     it('should create operation successfully with autoStart=false', async () => {
       const params = { ...mockParams, autoStart: false };
 
@@ -1273,6 +1319,61 @@ describe('AgentRuntimeService', () => {
         }),
         expect.objectContaining({
           payload: { parentMessageId: 'tool-msg-2' },
+          phase: 'user_input',
+        }),
+      );
+    });
+
+    // Approving a callSubAgent starts a resume op that seeds its assistant
+    // placeholder, runs the tool, then parks on the deferred sub-agent. The
+    // resumed turn must fill that seed; a second assistant left the seed as an
+    // empty "…" branch that hid the real answer.
+    it('fills the seeded assistant placeholder when resuming from an async tool', async () => {
+      const parkedState = {
+        ...mockState,
+        interruption: {
+          canResume: true,
+          interruptedAt: new Date().toISOString(),
+          reason: 'async_tool',
+        },
+        pendingAssistantMessageId: 'seeded-assistant-1',
+        pendingToolsCalling: [
+          {
+            apiName: 'callSubAgent',
+            arguments: '{}',
+            id: 'tool-call-1',
+            identifier: 'lobe-agent',
+            type: 'builtin',
+          },
+        ],
+        status: 'waiting_for_async_tool',
+      };
+      const refreshedMessages = [
+        { content: 'research', id: 'user-msg-1', role: 'user' },
+        {
+          id: 'assistant-msg-1',
+          role: 'assistant',
+          tools: [{ id: 'tool-call-1', result_msg_id: 'tool-msg-1' }],
+        },
+      ];
+      const mockRuntime = {
+        step: vi.fn().mockResolvedValue({
+          events: [],
+          newState: { ...parkedState, pendingToolsCalling: [], status: 'done', stepCount: 2 },
+          nextContext: null,
+        }),
+      };
+
+      mockCoordinator.loadAgentState.mockResolvedValue(parkedState);
+      vi.spyOn(service as any, 'refreshMessagesFromDB').mockResolvedValue(refreshedMessages);
+      vi.spyOn(service as any, 'createAgentRuntime').mockReturnValue({ runtime: mockRuntime });
+
+      await service.executeStep({ ...mockParams, resumeAsyncTool: true });
+
+      expect(mockRuntime.step).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          payload: { assistantMessageId: 'seeded-assistant-1', parentMessageId: 'tool-msg-1' },
           phase: 'user_input',
         }),
       );
@@ -2504,6 +2605,57 @@ describe('AgentRuntimeService', () => {
         expect(mockCoordinator.markInterrupted).not.toHaveBeenCalled();
       },
     );
+
+    describe('running operation whose runtime state is gone', () => {
+      let settleStale: MockInstance<AgentOperationModel['settleStaleRunning']>;
+
+      beforeEach(() => {
+        mockCoordinator.loadAgentState.mockResolvedValue(null);
+        settleStale = vi.spyOn(AgentOperationModel.prototype, 'settleStaleRunning');
+      });
+
+      afterEach(() => {
+        settleStale.mockRestore();
+      });
+
+      it('retires a dead operation so the stop is confirmed', async () => {
+        const updatedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+        findOperation.mockResolvedValue({
+          id: 'op-dead',
+          status: 'running',
+          updatedAt,
+        } as Awaited<ReturnType<AgentOperationModel['findById']>>);
+        settleStale.mockResolvedValue(true);
+
+        expect(await service.interruptOperation('op-dead')).toBe(true);
+        expect(settleStale).toHaveBeenCalledWith('op-dead', expect.any(Date));
+        const staleBefore = settleStale.mock.calls[0][1];
+        expect(staleBefore.getTime()).toBeGreaterThan(updatedAt.getTime());
+        expect(staleBefore.getTime()).toBeLessThan(Date.now() - 5 * 60 * 1000);
+      });
+
+      it('keeps refusing while the lease is fresh', async () => {
+        findOperation.mockResolvedValue({
+          id: 'op-live',
+          status: 'running',
+          updatedAt: new Date(Date.now() - 60 * 1000),
+        } as Awaited<ReturnType<AgentOperationModel['findById']>>);
+
+        expect(await service.interruptOperation('op-live')).toBe(false);
+        expect(settleStale).not.toHaveBeenCalled();
+      });
+
+      it('keeps refusing when a heartbeat wins the retirement race', async () => {
+        findOperation.mockResolvedValue({
+          id: 'op-race',
+          status: 'running',
+          updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+        } as Awaited<ReturnType<AgentOperationModel['findById']>>);
+        settleStale.mockResolvedValue(false);
+
+        expect(await service.interruptOperation('op-race')).toBe(false);
+      });
+    });
   });
 
   // Stream events at step / operation boundaries should carry the canonical
@@ -3533,6 +3685,24 @@ describe('AgentRuntimeService', () => {
           pluginState: expect.objectContaining({ status: 'error' }),
         }),
       );
+    });
+
+    // A watchdog-abandoned child's reloaded state has no error; the abandon
+    // hand-off passes it explicitly. Without it the parent got a bare "(error).".
+    it('explains a watchdog-abandoned child from the hand-off error message', async () => {
+      await service.completeSubAgentBridge({
+        ...bridgeParams,
+        errorMessage: 'Operation abandoned: inactivity_watchdog',
+        finalState: { ...childState, error: undefined } as any,
+        reason: 'error',
+      });
+
+      const call = updateToolMessage.mock.calls.at(-1)?.[1];
+      expect(call.content).toBe(
+        'Sub-agent did not complete (error): the sub-agent stopped making progress and the platform ended it (inactivity_watchdog). ' +
+          'Anything it already did (searches, pages read, documents written) is kept in its thread.',
+      );
+      expect(call.pluginError).toEqual({ message: 'Operation abandoned: inactivity_watchdog' });
     });
 
     it('truncates an oversized child error so it cannot bloat the parent context', async () => {

@@ -95,6 +95,7 @@ import {
 import type { LobeChatDatabase, Transaction } from '../type';
 import { sanitizeBm25Query } from '../utils/bm25';
 import { notCopiedTranscript } from '../utils/copiedTranscript';
+import { notFileBackedPlaceholder } from '../utils/fileBackedPlaceholder';
 import { genEndDateWhere, genRangeWhere, genStartDateWhere, genWhere } from '../utils/genWhere';
 import { idGenerator } from '../utils/idGenerator';
 import { inJsonStringArray } from '../utils/inJsonStringArray';
@@ -266,10 +267,13 @@ export interface QueryMessagesOptions {
 }
 
 export interface TopicTranscriptMessage {
+  agentId: string | null;
   content: string | null;
   createdAt: Date;
+  error: ChatMessageError | null;
   id: string;
   messageGroupId: string | null;
+  metadata: MessageMetadata | null;
   parentId: string | null;
   role: string;
   threadId: string | null;
@@ -1382,6 +1386,9 @@ export class MessageModel {
     const [items, totalResult] = await Promise.all([
       this.db
         .select({
+          agentId: messages.agentId,
+          error: messages.error,
+          metadata: messages.metadata,
           content: messages.content,
           createdAt: messages.createdAt,
           id: messages.id,
@@ -1405,6 +1412,8 @@ export class MessageModel {
     return {
       items: items.map(({ tools, ...message }) => ({
         ...message,
+        error: message.error as ChatMessageError | null,
+        metadata: message.metadata as MessageMetadata | null,
         tools: Array.isArray(tools) ? (tools as ChatToolPayload[]) : null,
       })),
       total: totalResult[0]?.count ?? 0,
@@ -1929,7 +1938,7 @@ export class MessageModel {
         this.db
           .select(fileDocumentColumns)
           .from(documents)
-          .where(inArray(documents.fileId, fileIds))
+          .where(and(inArray(documents.fileId, fileIds), notFileBackedPlaceholder()))
           .orderBy(...fileDocumentsOrder),
       { fileCount: fileIds.length },
     );
@@ -2314,7 +2323,7 @@ export class MessageModel {
       const documentsList = await this.db
         .select(fileDocumentColumns)
         .from(documents)
-        .where(inArray(documents.fileId, fileIds))
+        .where(and(inArray(documents.fileId, fileIds), notFileBackedPlaceholder()))
         .orderBy(...fileDocumentsOrder);
 
       documentsMap = toFileDocumentsMap(documentsList);
@@ -3933,6 +3942,47 @@ export class MessageModel {
       type: row.type ?? 'default',
       userId: row.userId,
     }));
+  };
+
+  /**
+   * The `state` of the most recent call to one tool API in a topic that
+   * produced any — a failed or aborted call leaves no state. Lets a tool read
+   * back what an earlier call in the same conversation produced, e.g. the group
+   * a builder conversation last created with `createGroup`.
+   *
+   * Scoped like a message query for the same branch: without `threadId` only
+   * the main conversation counts; with it, the thread plus the parent messages
+   * its type inherits — never a sibling thread.
+   */
+  findLatestPluginStateInTopic = async (params: {
+    apiName: string;
+    identifier: string;
+    threadId?: string | null;
+    topicId: string;
+  }): Promise<Record<string, any> | undefined> => {
+    const threadCondition = params.threadId
+      ? await this.buildThreadQueryCondition(params.threadId)
+      : isNull(messages.threadId);
+
+    const [row] = await this.db
+      .select({ state: messagePlugins.state })
+      .from(messagePlugins)
+      .innerJoin(messages, eq(messagePlugins.id, messages.id))
+      .where(
+        and(
+          eq(messages.topicId, params.topicId),
+          threadCondition,
+          eq(messagePlugins.identifier, params.identifier),
+          eq(messagePlugins.apiName, params.apiName),
+          isNotNull(messagePlugins.state),
+          this.ownership(),
+          this.pluginsOwnership(),
+        ),
+      )
+      .orderBy(desc(messages.createdAt), desc(messages.id))
+      .limit(1);
+
+    return row?.state ?? undefined;
   };
 
   /**

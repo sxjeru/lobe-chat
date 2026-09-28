@@ -59,6 +59,8 @@ export interface ExecRunContext {
    * ordinary (non-share) run.
    */
   shareGate?: AgentShareGate;
+  /** The group a reused Group Agent Builder topic was opened on — see `TurnSetupResult`. */
+  topicEditingGroupId?: string;
   /** Topic id — guaranteed to exist by the time pipeline stages run. */
   topicId: string;
   trigger?: string;
@@ -175,6 +177,8 @@ export interface InternalExecAgentParams extends ExecAgentParams {
    * instead of answering itself. Mirrors the client runtime's mention wiring.
    */
   mentionedAgents?: RuntimeMentionedAgent[];
+  /** Prepare dependent records after the operation is persisted, before any execution dispatch. */
+  onOperationCreated?: (operationId: string) => Promise<void>;
   /** Parent message ID to continue from. Only takes effect when resume is true */
   parentMessageId?: string;
   queueRetries?: number;
