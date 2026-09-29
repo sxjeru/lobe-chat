@@ -43,7 +43,7 @@ import {
   type ExecVirtualSubAgentParams,
   type UIChatMessage,
 } from '@lobechat/types';
-import { RequestTrigger } from '@lobechat/types';
+import { ChatErrorType, RequestTrigger } from '@lobechat/types';
 import { isRecord } from '@lobechat/utils/object';
 import debug from 'debug';
 import urlJoin from 'url-join';
@@ -57,6 +57,7 @@ import { MessageModel } from '@/database/models/message';
 import { UserModel } from '@/database/models/user';
 import { type LobeChatDatabase } from '@/database/type';
 import { appEnv } from '@/envs/app';
+import { isDeviceCapablePlan, isDeviceLockedPlan } from '@/helpers/executionTarget';
 import { type AgentRuntimeCoordinatorOptions } from '@/server/modules/AgentRuntime';
 import { AgentRuntimeCoordinator, createStreamEventManager } from '@/server/modules/AgentRuntime';
 import { runMayUseDevice } from '@/server/modules/AgentRuntime/executors/resolveRunActiveDeviceId';
@@ -302,6 +303,60 @@ const formatErrorForMetadata = (error: unknown): Record<string, any> | undefined
   return { message: String(error) };
 };
 
+const SUB_AGENT_CREDIT_ERROR_TYPES = new Set<string>([
+  ChatErrorType.FreePlanLimit,
+  ChatErrorType.InsufficientBudgetForModel,
+  ChatErrorType.SubscriptionPlanLimit,
+]);
+
+/**
+ * A child stopped by the cost-admission gate fails with the bare message
+ * "Budget exceeded", which reads like a per-sub-agent allowance. The parent
+ * then retries or fans out more sub-agents against the same limit. Say which
+ * limit it is and who can lift it.
+ *
+ * Mirrors the bot reply copy (`bot/replyTemplate.ts`): the payer is not
+ * addressed as "you" and figures are never quoted, because a bot run is billed
+ * to its owner while the parent's reply may reach a shared channel.
+ */
+const formatSubAgentCreditErrorReason = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') return;
+  const { body, errorType, type } = error as {
+    body?: { budget?: { budgetTypeAtError?: unknown } };
+    errorType?: unknown;
+    type?: unknown;
+  };
+  const creditType = [type, errorType].find(
+    (value): value is string =>
+      typeof value === 'string' && SUB_AGENT_CREDIT_ERROR_TYPES.has(value),
+  );
+  if (!creditType) return;
+
+  const budgetType = body?.budget?.budgetTypeAtError;
+  // InsufficientBudgetForModel means the allowance still has credits, just not
+  // enough for this model's estimated cost — a cheaper model may still fit, so
+  // the no-retry claim only holds for the same model (bot/replyTemplate gives
+  // the same "switch to a less expensive model" advice).
+  const modelCostShortfall = creditType === ChatErrorType.InsufficientBudgetForModel;
+  const shortfall = modelCostShortfall ? "can't cover this model's estimated cost" : 'are used up';
+  const limit =
+    budgetType === 'workspace'
+      ? `the workspace's shared LobeHub credits ${shortfall}; a workspace admin has to add credits`
+      : budgetType === 'workspace_member'
+        ? `this member's workspace credit allowance ${modelCostShortfall ? shortfall : 'is used up'}; a workspace admin has to raise it`
+        : modelCostShortfall
+          ? "the account's LobeHub credits are too low for this model; the account owner has to top up or upgrade"
+          : "the account's LobeHub plan limit was reached or the plan does not cover this model; the account owner has to upgrade the plan";
+
+  const advice = modelCostShortfall
+    ? 'This limit is shared by every sub-agent and by this conversation, so retrying or dispatching more sub-agents on the same model will not get past it; a sub-agent that runs on a less expensive model may still fit. ' +
+      'Otherwise finish with what you already have and tell the user about the limit.'
+    : 'This limit is shared by every sub-agent and by this conversation, so retrying or dispatching more sub-agents will not get past it. ' +
+      'Finish with what you already have and tell the user about the limit.';
+
+  return `stopped by a LobeHub billing limit (${creditType}): ${limit}. ${advice}`;
+};
+
 /**
  * Extract a short, human-readable reason string from a failed operation's
  * `state.error`, for inlining into the tool-result `content` a parent agent
@@ -312,6 +367,9 @@ const formatErrorForMetadata = (error: unknown): Record<string, any> | undefined
  * error still rides on `pluginError`; this is just the readable summary.
  */
 const formatSubAgentErrorReason = (error: unknown): string | undefined => {
+  const creditReason = formatSubAgentCreditErrorReason(error);
+  if (creditReason) return creditReason;
+
   const message = formatErrorForMetadata(error)?.message;
   if (typeof message !== 'string') return undefined;
   const trimmed = message.trim();
@@ -629,6 +687,14 @@ export class AgentRuntimeService {
   // ==================== Operation Interruption ====================
 
   /**
+   * Whether someone already asked this run to stop (the interrupt sentinel is
+   * set), even though it may still be finishing its current step.
+   */
+  async isOperationInterrupted(operationId: string): Promise<boolean> {
+    return this.coordinator.isInterrupted(operationId);
+  }
+
+  /**
    * Interrupt a running agent operation by setting its state to 'interrupted'.
    * The agent will stop at the next step boundary (cannot abort an in-flight LLM call).
    * Works with both Redis and InMemory state managers via the coordinator abstraction.
@@ -693,6 +759,16 @@ export class AgentRuntimeService {
   }
 
   /**
+   * Whether the client that started this operation declared it handles
+   * `member_runtime_end`. An unknown or expired operation reads as `false`, so
+   * a continuation then keeps the verbatim terminal every client understands.
+   */
+  async acceptsMemberRuntimeEnd(operationId: string): Promise<boolean> {
+    const metadata = await this.coordinator.getOperationMetadata(operationId).catch(() => null);
+    return metadata?.acceptsMemberRuntimeEnd === true;
+  }
+
+  /**
    * Record whether the client still holds user messages queued behind a run.
    * Only the run's owner may flag it; an unknown or foreign operation is a
    * no-op, so a caller cannot touch another user's run by guessing its id.
@@ -725,6 +801,52 @@ export class AgentRuntimeService {
   /** Load the authoritative runtime state for a deterministic intervention continuation. */
   async loadInterventionContinuationState(operationId: string): Promise<AgentState | null> {
     return this.coordinator.loadAgentState(operationId);
+  }
+
+  /**
+   * The completion bridge of a group member run: from its runtime snapshot
+   * while it lives, else from the durable copy recorded on the operation row
+   * at start. Undefined for any run that is not a group member.
+   */
+  async loadGroupMemberBridge(operationId: string): Promise<
+    | {
+        agentId: string;
+        bridge: Omit<GroupActionMemberBridgeParams, 'operationId' | 'reason'>;
+        groupId?: string;
+        threadId?: string;
+        topicId?: string;
+      }
+    | undefined
+  > {
+    const state = await this.coordinator.loadAgentState(operationId);
+    if (state) {
+      const origin = state.origin;
+      const bridge = state.host?.hooks?.find((hook) => hook.id === 'group-member-bridge')?.webhook
+        ?.body as Omit<GroupActionMemberBridgeParams, 'operationId' | 'reason'> | undefined;
+      if (origin?.lineage?.orchestrationRole !== 'member' || !origin.agentId || !bridge) {
+        return undefined;
+      }
+      return {
+        agentId: origin.agentId,
+        bridge,
+        groupId: origin.groupId ?? undefined,
+        threadId: origin.threadId ?? undefined,
+        topicId: origin.topicId ?? undefined,
+      };
+    }
+
+    const row = await this.agentOperationModel.findById(operationId);
+    const bridge = (row?.metadata as Record<string, unknown> | null | undefined)
+      ?.groupMemberBridge as
+      Omit<GroupActionMemberBridgeParams, 'operationId' | 'reason'> | undefined;
+    if (!row?.agentId || !bridge) return undefined;
+    return {
+      agentId: row.agentId,
+      bridge,
+      groupId: row.chatGroupId ?? undefined,
+      threadId: row.threadId ?? undefined,
+      topicId: row.topicId ?? undefined,
+    };
   }
 
   /**
@@ -959,6 +1081,7 @@ export class AgentRuntimeService {
    */
   async createOperation(params: OperationCreationParams): Promise<OperationCreationResult> {
     const {
+      acceptsMemberRuntimeEnd,
       activeDeviceId,
       activeDeviceScope,
       operationId,
@@ -1008,6 +1131,11 @@ export class AgentRuntimeService {
     // ends of the persistence lifecycle (start row here, terminal update
     // in dispatchHooks) and swallows DB errors so runtime startup is never
     // blocked.
+    // A group member's completion bridge lives in the runtime snapshot, which
+    // expires (2h). Keep a durable copy on the row so a late approval or a
+    // stop can still reach the member's supervisor (`loadGroupMemberBridge`).
+    const groupMemberBridge = hooks?.find((hook) => hook.id === 'group-member-bridge')?.webhook
+      ?.body as Omit<GroupActionMemberBridgeParams, 'operationId' | 'reason'> | undefined;
     const operationStartPersisted = await this.completionLifecycle.recordStart({
       agentId: appContext?.agentId ?? null,
       appContext: {
@@ -1024,13 +1152,14 @@ export class AgentRuntimeService {
       // Persist the Agent Signal run marker on the operation row so server-side
       // self-iteration tools can read it back (operation.metadata.agentSignal) at tool-call
       // time — the trimmed appContext above intentionally drops it.
-      ...(appContext?.agentSignal || interventionResolution
+      ...(appContext?.agentSignal || interventionResolution || groupMemberBridge
         ? {
             metadata: {
               ...(appContext?.agentSignal ? { agentSignal: appContext.agentSignal } : {}),
               ...(interventionResolution
                 ? { agentInterventionContinuation: interventionResolution }
                 : {}),
+              ...(groupMemberBridge ? { groupMemberBridge } : {}),
             },
           }
         : {}),
@@ -1048,6 +1177,13 @@ export class AgentRuntimeService {
       throw new Error(
         `Failed to durably persist intervention continuation ${operationId} before dispatch`,
       );
+    }
+
+    // A member's durable bridge is what a Stop or a late approval falls back
+    // to once the runtime snapshot expires; a member without it could strand
+    // its supervisor, so fail the start instead.
+    if (groupMemberBridge && !operationStartPersisted) {
+      throw new Error(`Failed to durably persist group member ${operationId} before dispatch`);
     }
 
     if (interventionResolution) {
@@ -1224,6 +1360,7 @@ export class AgentRuntimeService {
       const mirrorToOperationId =
         appContext?.orchestrationRole === 'member' ? (parentOperationId ?? undefined) : undefined;
       await this.coordinator.createAgentOperation(operationId, {
+        acceptsMemberRuntimeEnd,
         agentConfig,
         // Persisted so a queue worker that never ran this op's init still
         // applies the owner-configured visitor redaction policy instead of the
@@ -2108,7 +2245,21 @@ export class AgentRuntimeService {
         // id through the same gate, so binding one here for a forbidden run buys
         // nothing and puts the device's working directory and system info into
         // the prompt variables (`serverCallLlmContextBuilder`).
-        if (!currentState.binding?.device?.id && runMayUseDevice(currentState)) {
+        //
+        // A run whose plan still leaves the device open (unrouted, not locked)
+        // keeps the remote-device picker for its whole lifetime, so it must keep
+        // following it: re-read on every step and let the latest activation win.
+        // Binding only once made every later `activateDevice` report success
+        // while local tools stayed on the first device.
+        const executionPlan = currentState.plan?.execution;
+        const deviceStillSelectable =
+          !!executionPlan &&
+          isDeviceCapablePlan(executionPlan) &&
+          !isDeviceLockedPlan(executionPlan);
+        if (
+          (!currentState.binding?.device?.id || deviceStillSelectable) &&
+          runMayUseDevice(currentState)
+        ) {
           // Interventions and async resumes can change tool rows after the
           // entry snapshot. Those paths still need a fresh device read.
           const canReuseEntryMessages =
@@ -2121,7 +2272,7 @@ export class AgentRuntimeService {
             currentState,
             canReuseEntryMessages ? stepEntryMessages : undefined,
           );
-          if (deviceContext) {
+          if (deviceContext && deviceContext.activeDeviceId !== currentState.binding?.device?.id) {
             currentState.binding = {
               ...currentState.binding,
               device: {
@@ -3700,6 +3851,20 @@ export class AgentRuntimeService {
     } = params;
     const failed = reason === 'error' || reason === 'interrupted' || reason === 'timeout';
 
+    // Members answer to the supervisor's approval mode, so a member can park on
+    // a tool that needs the user's approval. That segment fires `onComplete`
+    // (so the approval surfaces), but the member has not answered yet: leave its
+    // anchor pending and the supervisor parked. The approval continuation
+    // inherits this bridge hook and reports the member's real outcome.
+    if (reason === 'waiting_for_human') {
+      log(
+        '[%s] group-member bridge: member parked for human approval, holding parent %s',
+        operationId,
+        parentOperationId,
+      );
+      return false;
+    }
+
     const finalState =
       params.finalState ?? (await this.coordinator.loadAgentState(operationId)) ?? undefined;
 
@@ -3949,7 +4114,7 @@ export class AgentRuntimeService {
   private async refreshMessagesFromDB(state: AgentState): Promise<AgentState['messages']> {
     const dbMessages = await this.queryMessagesFromDB(state);
 
-    const { flatList } = parse(dbMessages);
+    const { flatList } = parse(dbMessages, undefined, { threadId: state.origin?.threadId });
     return flatList as AgentState['messages'];
   }
 
@@ -3961,7 +4126,7 @@ export class AgentRuntimeService {
    */
   private async resolveLastAssistantMessageFromDB(state: AgentState): Promise<unknown> {
     const dbMessages = await this.queryMessagesFromDB(state);
-    const { flatList } = parse(dbMessages);
+    const { flatList } = parse(dbMessages, undefined, { threadId: state.origin?.threadId });
     const lastAssistant = findLastAssistantMessage(normalizeCompletionMessages(flatList));
     const lastAssistantId = typeof lastAssistant?.id === 'string' ? lastAssistant.id : undefined;
 
@@ -4069,7 +4234,7 @@ export class AgentRuntimeService {
                 fileService!.getFullFileUrl(file.url),
               )
             : messages;
-          const { flatList } = parse(resolved);
+          const { flatList } = parse(resolved, undefined, { threadId: state.origin?.threadId });
           if (flatList.length > 0) state.messages = flatList as AgentState['messages'];
         } catch (error) {
           console.error('[queryStepEntryMessages] Failed to hydrate runtime messages: %O', error);
