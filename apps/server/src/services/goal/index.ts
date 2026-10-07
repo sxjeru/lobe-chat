@@ -27,6 +27,7 @@ import type {
   TaskTopicHandoff,
   WorkVersionEventItem,
 } from '@lobechat/types';
+import { isAgentOperationInFlight } from '@lobechat/types';
 import { experimentOwner, provenanceParentId } from '@lobechat/utils/goalGraph';
 import { TRPCError } from '@trpc/server';
 import { sql } from 'drizzle-orm';
@@ -68,12 +69,14 @@ import {
 import { experimentResults, exploreGraph } from './exploreGraph';
 import { answeredProblem, GoalManagerService, problemKey } from './manager';
 import {
+  classifyRunFailure,
   countConsecutiveDeviceOfflineRuns,
   DEFAULT_MANAGER_MAX_TURNS,
   DEVICE_OFFLINE_GATE_REASON,
   isDeviceUnavailableFailure,
   managerTurnsSpent,
   nextDeviceOfflineRetryAt,
+  QUOTA_RESET_MARGIN_MS,
   resolveMaxConcurrentTasks,
   resolveOperationLeaseTimeout,
   resolveTaskMaxSteps,
@@ -98,6 +101,7 @@ import {
   normalizeUnderstanding,
   UNDERSTANDING_CONFIDENCE,
 } from './understanding';
+import { GoalWaitService } from './wait';
 
 const TASK_NODE_CLAIM_TTL_MS = 5 * 60 * 1000;
 /**
@@ -260,37 +264,11 @@ export class GoalService {
      */
     localRun?: { agentId: string; topicId: string },
   ): Promise<{ graph: GoalGraphSnapshot; turnToken: string }> => {
-    const operation = await new AgentOperationModel(
-      this.db,
-      this.userId,
-      this.workspaceId,
-    ).findOwnOperationById(operationId);
-    let agentId: string;
-    let topicId: string;
-    if (operation) {
-      if (operation.status !== 'running')
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: 'The conversation run has already ended',
-        });
-      if (!operation.agentId || !operation.topicId)
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Only a conversation run with an agent can create a goal it supervises',
-        });
-      agentId = operation.agentId;
-      topicId = operation.topicId;
-    } else {
-      const topic = localRun
-        ? await new TopicModel(this.db, this.userId, this.workspaceId).findOwnTopicById(
-            localRun.topicId,
-          )
-        : undefined;
-      if (!localRun || !topic || topic.agentId !== localRun.agentId)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation run not found' });
-      agentId = localRun.agentId;
-      topicId = topic.id;
-    }
+    const { agentId, topicId } = await this.resolveTopicRun(
+      operationId,
+      localRun,
+      'Only a run in a topic with an agent can create a goal it supervises',
+    );
 
     const created = await this.create({
       ...input,
@@ -312,6 +290,107 @@ export class GoalService {
       await this.goalModel.delete(created.goal.id).catch(() => {});
       throw error;
     }
+  };
+
+  /**
+   * The agent and topic of the run with this id, taken from the server's
+   * operation row; never from the caller while that row exists. A local desktop
+   * run has no row, so its env-provided topic and agent are accepted only when
+   * the topic is the caller's and belongs to that agent.
+   */
+  private resolveTopicRun = async (
+    operationId: string,
+    localRun: { agentId: string; topicId: string } | undefined,
+    noAgentMessage: string,
+  ): Promise<{ agentId: string; topicId: string }> => {
+    const operation = await new AgentOperationModel(
+      this.db,
+      this.userId,
+      this.workspaceId,
+    ).findOwnOperationById(operationId);
+    if (operation) {
+      if (operation.status !== 'running')
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'The conversation run has already ended',
+        });
+      if (!operation.agentId || !operation.topicId)
+        throw new TRPCError({ code: 'BAD_REQUEST', message: noAgentMessage });
+      return { agentId: operation.agentId, topicId: operation.topicId };
+    }
+    const topic = localRun
+      ? await new TopicModel(this.db, this.userId, this.workspaceId).findOwnTopicById(
+          localRun.topicId,
+        )
+      : undefined;
+    if (!localRun || !topic || topic.agentId !== localRun.agentId)
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Run not found' });
+    return { agentId: localRun.agentId, topicId: topic.id };
+  };
+
+  /**
+   * Attach an existing goal to the topic of the run with this id, so it
+   * is supervised from there exactly as if it had been created there with
+   * `/goal`: the topic's agent becomes the goal agent, the topic
+   * becomes its `topic` subject and management topic. Graph, Tasks,
+   * budgets and status are kept. A change of goal agent moves unfinished Tasks
+   * the way `setAgent` does (unless `goalOnly`, or the goal has a dedicated
+   * executor). Returns a `turnToken` when the binding run was adopted as a
+   * planning turn.
+   */
+  bindTopic = async (
+    goalId: string,
+    operationId: string,
+    options?: {
+      force?: boolean;
+      goalOnly?: boolean;
+      /** A local desktop run's topic; see `resolveTopicRun`. */
+      localRun?: { agentId: string; topicId: string };
+    },
+  ) => {
+    const { agentId, topicId } = await this.resolveTopicRun(
+      operationId,
+      options?.localRun,
+      'Only a run in a topic with an agent can supervise a goal',
+    );
+    // A run row names its topic, but the topic must still be the caller's and
+    // the run's agent's: the binding makes that agent plan into it.
+    const topic = await new TopicModel(this.db, this.userId, this.workspaceId).findOwnTopicById(
+      topicId,
+    );
+    if (!topic || topic.agentId !== agentId)
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Topic not found' });
+    await assertAgentUsableBy(this.db, agentId, {
+      userId: this.userId,
+      workspaceId: this.workspaceId,
+    });
+
+    // One transaction: the agent change and the Task moves it implies commit
+    // together. Committed apart, a failed move left the goal already on the new
+    // agent, and the retry — seeing no agent change — never moved the Tasks.
+    const { bound, reassignedTaskIds } = await this.db.transaction(async (tx) => {
+      const bound = await new GoalManagerService(tx, this.userId, this.workspaceId).bindTopic(
+        goalId,
+        { agentId, operationId, topicId },
+        { force: options?.force },
+      );
+      const reassignedTaskIds =
+        bound.previousAgentId === agentId
+          ? []
+          : await new GoalService(tx, this.userId, this.workspaceId).followGoalAgent(
+              bound.goal,
+              agentId,
+              options?.goalOnly,
+            );
+      return { bound, reassignedTaskIds };
+    });
+    return {
+      graph: await this.requireGraph(goalId),
+      previousSubject: bound.previousSubject,
+      reassignedTaskIds,
+      topicId,
+      turnToken: bound.turnToken,
+    };
   };
 
   create = async (input: CreateGoalGraphInput): Promise<GoalGraphSnapshot> => {
@@ -571,6 +650,21 @@ export class GoalService {
       value: input.value,
     });
 
+    const manager = goal.config?.managerState;
+    if (
+      manager?.wait &&
+      point &&
+      new Date(point.observedAt).getTime() >= Date.parse(manager.startedAt)
+    ) {
+      await new GoalWaitService(this.db, this.userId, this.workspaceId).deliver(goalId, {
+        waitToken: manager.token,
+        eventId: point.id,
+        type: 'metric.observed',
+        key: input.key,
+        reference: series.id,
+        summary: `${input.key} = ${input.value} at ${point.observedAt}`,
+      });
+    }
     return { point, series, shouldAdvance: await this.reopenIfMeasurementCleared(goalId) };
   };
 
@@ -1194,15 +1288,23 @@ export class GoalService {
       this.workspaceId,
     ).moveConversationTo(goalId, agentId);
 
-    const reassignedTaskIds =
-      options?.goalOnly || goal.config?.taskAgentId
-        ? []
-        : await this.reassignUnfinishedTasks(goalId, agentId);
+    const reassignedTaskIds = await this.followGoalAgent(goal, agentId, options?.goalOnly);
     return {
       goal: migrated ? ((await this.goalModel.findById(goalId)) ?? goal) : goal,
       reassignedTaskIds,
     };
   };
+
+  /**
+   * After the goal agent changed: when that agent also does the goal's Tasks,
+   * unfinished ones follow it unless the caller keeps them (`goalOnly`). A goal
+   * with a dedicated executor keeps its Tasks there.
+   */
+  private followGoalAgent = async (
+    goal: Pick<GoalItem, 'config' | 'id'>,
+    agentId: string,
+    goalOnly?: boolean,
+  ) => (goalOnly || goal.config?.taskAgentId ? [] : this.reassignUnfinishedTasks(goal.id, agentId));
 
   /**
    * Route the goal's Tasks to a dedicated executor, or back to the goal agent
@@ -2144,17 +2246,16 @@ export class GoalService {
         });
       }
 
-      // The measured half of acceptance stopped the goal short of its delivery
-      // contract. Nothing to create and nothing to settle — the next
-      // observation is what moves it, which can be days away.
-      //
-      // Park it for the same reason `no_frontier` does: a `running` goal that
-      // always reports `no_progress` is picked by every sweep forever, and a
-      // long-horizon goal waiting on a measurement would sit in that state for
-      // its whole life — enough of them crowd genuinely stranded goals out of
-      // the newest-first scan limit. `recordObservation` resumes it when a
-      // measurement actually clears the gate.
+      // Managed Goals reconsider the same contract after a shortfall. Unmanaged
+      // Goals park until an observation clears the gate, keeping them out of
+      // the sweep while they have no action to take.
       case 'measured_acceptance': {
+        const replanning = await new GoalManagerService(
+          this.db,
+          this.userId,
+          this.workspaceId,
+        ).reconsiderAcceptance(graph, move.message);
+        if (replanning) return observe(replanning);
         await this.setPauseReason(goalId, 'measured_acceptance');
         await this.transitionStatus(graph.goal, 'paused', move.message);
         effects.push({ type: 'goal_status', detail: 'paused' });
@@ -2245,7 +2346,9 @@ export class GoalService {
           }
 
           case 'failure_decision': {
-            const waiting = await this.waitForDevice(graph, acting!.id, task, effects);
+            const waiting =
+              (await this.waitForDevice(graph, acting!.id, task, effects)) ??
+              (await this.waitForQuotaReset(graph, acting!.id, task, effects));
             if (waiting) return observe(waiting);
             const supervision = await new GoalSupervisorService(
               this.db,
@@ -2988,6 +3091,70 @@ export class GoalService {
   };
 
   /**
+   * Hold a Task whose run a usage window refused until that window reopens.
+   *
+   * An external Agent past its session limit refuses every run until the reset
+   * its error reports. The supervisor used to read that as "spending requires
+   * user action" and open a gate, which then waited on a person to press Retry
+   * long after the window had reset. The coordinator now waits out the reset
+   * itself and retries through the ordinary recovery path, which charges the
+   * attempt as before. That bounds a window that keeps refusing.
+   */
+  private waitForQuotaReset = async (
+    graph: GoalGraphSnapshot,
+    nodeId: string,
+    task: TaskItem,
+    effects: GoalAdvanceEffect[],
+  ): Promise<GoalTickResult | undefined> => {
+    if (task.status !== 'paused') return;
+    const [latest] = await this.taskTopicModel.findWithHandoff(task.id, 1);
+    if (!latest?.operationId) return;
+    const operation = await new AgentOperationModel(
+      this.db,
+      this.userId,
+      this.workspaceId,
+    ).findById(latest.operationId);
+    const failure = classifyRunFailure(operation?.error, task.error ?? '');
+    if (failure.kind !== 'quota_reset') return;
+    const retryAt = failure.resetsAt! + QUOTA_RESET_MARGIN_MS;
+    if (retryAt <= Date.now()) {
+      // The retry is a paid run, and recovery only checks the Task's own attempts
+      // and cost. Past the Goal's deadline, rounds or spend it is not this path's
+      // to start: ordinary failure handling takes it, and that gates it.
+      const budget = await this.evaluateBudget(graph.goal, graph);
+      if (budget.costLimitReached || budget.roundLimitReached || budget.deadlinePassed) return;
+      return this.resumeAbandonedTaskRecovery(graph, nodeId, task, effects);
+    }
+    // The sweep would get here too, but only on its own cadence; the reset is a
+    // known time, so ask for that tick directly. One wake per Goal: the claim
+    // fails while an earlier-or-equal wake is still pending. A reset further out
+    // than the queue's longest delay is re-armed when the capped wake fires.
+    const target = new Date(retryAt).toISOString();
+    const armed = GoalWaitService.arm(target);
+    // Claim on the reset itself, not on `armedUntil`: that rounds the delay up to
+    // whole seconds from each tick's own clock, so two ticks before the same reset
+    // would read as different wakes. Only a capped wake stores its earlier fire time.
+    const capped = Date.parse(armed.armedUntil) < retryAt;
+    if (
+      await new GoalModel(this.db, this.userId, this.workspaceId).armQuotaRetryWake(
+        graph.goal.id,
+        capped ? armed.armedUntil : target,
+      )
+    )
+      await new GoalWaitService(this.db, this.userId, this.workspaceId).schedule(
+        graph.goal.id,
+        armed.delay,
+      );
+    return {
+      goalId: graph.goal.id,
+      message: `Task ${task.identifier} is waiting for its usage window to reset at ${new Date(retryAt).toISOString()}`,
+      nodeId,
+      outcome: 'waiting_external',
+      taskId: task.id,
+    };
+  };
+
+  /**
    * The offline retry schedule. Offline runs are not charged to the attempt
    * budget, so this is what bounds them: each consecutive one pushes the next
    * retry further out (see `nextDeviceOfflineRetryAt`), and once the offline
@@ -3693,14 +3860,6 @@ export class GoalService {
   };
 }
 
-/** Operation states that still own their run; the lease path reclaims them, not this. */
-const IN_FLIGHT_OPERATION_STATUSES = new Set([
-  'idle',
-  'running',
-  'waiting_for_async_tool',
-  'waiting_for_human',
-]);
-
 /**
  * Whether a Task topic is still `running` although its run has already ended.
  *
@@ -3720,7 +3879,9 @@ const isOrphanedRun = async (
   staleBefore: Date,
 ): Promise<boolean> => {
   const operation = await operationModel.findById(operationId);
-  if (!operation || IN_FLIGHT_OPERATION_STATUSES.has(operation.status)) return false;
+  // Still-owned states (including a run parked for a client) are the lease
+  // path's to reclaim, not this.
+  if (!operation || isAgentOperationInFlight(operation.status)) return false;
   const endedAt = operation.completedAt ?? operation.updatedAt;
   return new Date(endedAt) < staleBefore;
 };
