@@ -722,11 +722,6 @@ export const ragEvalKeys = {
 };
 
 // ---- device -------------------------------------------------------------
-export const trashKeys = {
-  countByType: def('trash:countByType', () => ['trash:countByType']),
-  list: def('trash:list', (resourceType?: string | null) => ['trash:list', resourceType ?? 'all']),
-};
-
 export const deviceKeys = {
   cliUpdateState: def('device:cliUpdateState', (workspaceId: string | null, deviceId: string) => [
     'device:cliUpdateState',
@@ -1490,7 +1485,6 @@ export const swrKeys = {
   documentComment: documentCommentKeys,
   documentLike: documentLikeKeys,
   topicAction: topicActionKeys,
-  trash: trashKeys,
   user: userKeys,
   userMemory: userMemoryKeys,
   verify: verifyKeys,
