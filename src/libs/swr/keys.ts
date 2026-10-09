@@ -721,18 +721,6 @@ export const ragEvalKeys = {
   ]),
 };
 
-// ---- knowledge base -----------------------------------------------------
-export const knowledgeBaseKeys = {
-  item: def('knowledgeBase:item', (id: string) => ['knowledgeBase:item', id]),
-  list: def(
-    'knowledgeBase:list',
-    (workspaceId?: string | null, visibility?: 'private' | 'public') => {
-      const base = workspaceId ? ['knowledgeBase:list', workspaceId] : ['knowledgeBase:list'];
-      return visibility ? [...base, visibility] : base;
-    },
-  ),
-};
-
 // ---- device -------------------------------------------------------------
 export const trashKeys = {
   countByType: def('trash:countByType', () => ['trash:countByType']),
@@ -1475,7 +1463,6 @@ export const swrKeys = {
   image: imageKeys,
   imessage: imessageKeys,
   inbox: inboxKeys,
-  knowledgeBase: knowledgeBaseKeys,
   localFile: localFileKeys,
   message: messageKeys,
   messenger: messengerKeys,
