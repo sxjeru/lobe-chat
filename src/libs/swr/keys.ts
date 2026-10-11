@@ -136,36 +136,6 @@ export const topicKeys = {
   ]),
 };
 
-// ---- topic comment ------------------------------------------------------
-export const topicCommentKeys = {
-  detail: def('topicComment:detail', (commentId: string) => ['topicComment:detail', commentId]),
-  replies: def(
-    'topicComment:replies',
-    (workspaceId: string | null, rootCommentId: string, cursor?: string) => [
-      'topicComment:replies',
-      workspaceId ?? '',
-      rootCommentId,
-      cursor ?? '',
-    ],
-  ),
-  summary: def('topicComment:summary', (topicId: string) => ['topicComment:summary', topicId]),
-  threads: def(
-    'topicComment:threads',
-    (workspaceId: string | null, topicId: string, messageId?: string, cursor?: string) => [
-      'topicComment:threads',
-      workspaceId ?? '',
-      topicId,
-      messageId ?? '',
-      cursor ?? '',
-    ],
-  ),
-  warmup: def('topicComment:warmup', (workspaceId: string, topicId: string) => [
-    'topicComment:warmup',
-    workspaceId,
-    topicId,
-  ]),
-};
-
 // ---- acceptance comment -------------------------------------------------
 export const acceptanceCommentKeys = {
   list: def('acceptanceComment:list', (acceptanceId: string) => [
@@ -309,12 +279,14 @@ export const isMyTaskListKey = (key: unknown): boolean =>
   Array.isArray(key) && key[0] === 'task:myList';
 
 /**
- * Goal Graph reads. Keyed by the `goals` row id (not the carrier task's
- * identifier) because that is what every `goal.*` procedure takes.
+ * Goal reads that have no local-first projection: the pending queues are live
+ * "what needs you" feeds, and the topic link is a discovery poll.
+ *
+ * The goal list, the home roll-up, the graph snapshot and the metric series
+ * used to live here — they are `@lobechat/replica` resources now (see
+ * `src/store/goal/projection.ts`), so their sync keys are not SWR cache keys.
  */
 export const goalKeys = {
-  graph: def('goal:graph', (goalId: string) => ['goal:graph', goalId]),
-  metricSeries: def('goal:metricSeries', (goalId: string) => ['goal:metricSeries', goalId]),
   /** Clarifications waiting on the user across every goal they own. */
   pendingClarifications: def('goal:pendingClarifications', () => ['goal:pendingClarifications']),
   /** Gates and sign-offs waiting on the user across every goal, for the approval island. */
@@ -324,12 +296,6 @@ export const goalKeys = {
 };
 
 export const taskKeys = {
-  /**
-   * The home rail's cross-agent goal roll-up. Scoped by cache scope like the
-   * other home feeds — goals are workspace rows, so a list left over from the
-   * previous workspace holds ids this one cannot open.
-   */
-  homeGoals: def('task:homeGoals', (scope: string) => ['task:homeGoals', scope]),
   /**
    * Home's automated-task roll-up: the tasks that fire on a schedule or a
    * heartbeat. Kept off `list` because it is a different result set entirely —
@@ -447,31 +413,27 @@ export const aiModelKeys = {
 };
 
 // ---- image generation ---------------------------------------------------
+// The topic list and the per-topic batches live in `@lobechat/replica`
+// resources now (see `src/store/image/slices/*/projection.ts`); only the
+// generation-status poll is still an SWR key.
 export const imageKeys = {
-  generationBatches: def('image:generationBatches', (topicId: string) => [
-    'image:generationBatches',
-    topicId,
-  ]),
   generationStatus: def('image:generationStatus', (generationId: string, asyncTaskId?: string) => [
     'image:generationStatus',
     generationId,
     asyncTaskId,
   ]),
-  generationTopics: def('image:generationTopics', () => ['image:generationTopics']),
 };
 
 // ---- video generation ---------------------------------------------------
+// The topic list and the per-topic batches live in `@lobechat/replica`
+// resources now (see `src/store/video/slices/*/projection.ts`); only the
+// generation-status poll is still an SWR key.
 export const videoKeys = {
-  generationBatches: def('video:generationBatches', (topicId: string) => [
-    'video:generationBatches',
-    topicId,
-  ]),
   generationStatus: def('video:generationStatus', (generationId: string, asyncTaskId?: string) => [
     'video:generationStatus',
     generationId,
     asyncTaskId,
   ]),
-  generationTopics: def('video:generationTopics', () => ['video:generationTopics']),
 };
 
 // ---- serverConfig -------------------------------------------------------
@@ -481,7 +443,7 @@ export const serverConfigKeys = {
 
 // ---- discover (marketplace) ---------------------------------------------
 // NOTE: discover/eval/ragEval/knowledgeBase/device/userMemory/agentKnowledge/
-// agentBot/file prefixes are deliberately kept OUT of `CACHE_TIERS`
+// file prefixes are deliberately kept OUT of `CACHE_TIERS`
 // (see localStorageProvider.ts) so this key-convergence introduces no new
 // persistence — they stay memory-only exactly as before.
 export const discoverKeys = {
@@ -599,17 +561,6 @@ export const discoverKeys = {
     locale,
     params,
   ]),
-  providerDetail: def('discover:providerDetail', (locale: string, identifier: string) => [
-    'discover:providerDetail',
-    locale,
-    identifier,
-  ]),
-  providerIdentifiers: def('discover:providerIdentifiers', () => ['discover:providerIdentifiers']),
-  providerList: def('discover:providerList', (locale: string, params: unknown) => [
-    'discover:providerList',
-    locale,
-    params,
-  ]),
   skillCategories: def('discover:skillCategories', (locale: string, params: unknown) => [
     'discover:skillCategories',
     locale,
@@ -682,8 +633,6 @@ export const evalKeys = {
   datasetRuns: def('eval:datasetRuns', (datasetId: string) => ['eval:datasetRuns', datasetId]),
   datasetsAll: def('eval:datasetsAll', () => ['eval:datasetsAll']),
   datasets: def('eval:datasets', (benchmarkId: string) => ['eval:datasets', benchmarkId]),
-  experimentDetail: def('eval:experimentDetail', (id: string) => ['eval:experimentDetail', id]),
-  experiments: def('eval:experiments', () => ['eval:experiments']),
   runDetail: def('eval:runDetail', (id: string) => ['eval:runDetail', id]),
   runResults: def('eval:runResults', (id: string) => ['eval:runResults', id]),
   runs: def('eval:runs', (benchmarkId?: string) => ['eval:runs', benchmarkId]),
@@ -870,10 +819,6 @@ export const toolKeys = {
   ]),
   composioConnections: def('tool:composioConnections', () => ['tool:composioConnections']),
   installedPlugins: def('tool:installedPlugins', () => ['tool:installedPlugins']),
-  uninstalledBuiltins: def('tool:uninstalledBuiltins', (workspaceId: string | null | undefined) => [
-    'tool:uninstalledBuiltins',
-    workspaceId,
-  ]),
 };
 
 // ---- global -------------------------------------------------------------
@@ -894,15 +839,8 @@ export const agentKnowledgeKeys = {
   ),
 };
 
-// ---- agent bot ----------------------------------------------------------
-export const agentBotKeys = {
-  platformDefinitions: def('agentBot:platformDefinitions', () => ['agentBot:platformDefinitions']),
-  providers: def('agentBot:providers', (agentId: string) => ['agentBot:providers', agentId]),
-};
-
 // ---- file ---------------------------------------------------------------
 export const fileKeys = {
-  knowledgeItems: def('file:knowledgeItems', (params: unknown) => ['file:knowledgeItems', params]),
   ttsFile: def('file:ttsFile', (messageId: string) => ['file:ttsFile', messageId]),
 };
 
@@ -1024,18 +962,6 @@ const acceptanceListKeyParts = ({ filter, projectId, scope, source }: Acceptance
 ];
 
 export const verifyKeys = {
-  acceptanceBundle: def('verify:acceptanceBundle', (acceptanceId: string) => [
-    'verify:acceptanceBundle',
-    acceptanceId,
-  ]),
-  acceptanceBySubject: def(
-    'verify:acceptanceBySubject',
-    (subjectType: string, subjectId: string) => [
-      'verify:acceptanceBySubject',
-      subjectType,
-      subjectId,
-    ],
-  ),
   /** Statuses for a known subject set. Ids are sorted+joined so the key is order-free. */
   acceptanceStatuses: def(
     'verify:acceptanceStatuses',
@@ -1375,13 +1301,6 @@ export const userKeys = {
   checkTrace: def('user:checkTrace', () => ['user:checkTrace']),
   initState: def('user:initState', () => ['user:initState']),
 };
-export const builtinAgentKeys = {
-  init: def('builtinAgent:init', (slug: string, scope: string) => [
-    'builtinAgent:init',
-    slug,
-    scope,
-  ]),
-};
 export const imessageKeys = {
   bridgeStatus: def('imessage:bridgeStatus', () => ['imessage:bridgeStatus']),
 };
@@ -1411,7 +1330,6 @@ export const matchDomain =
  */
 export const swrKeys = {
   agent: agentConfigKeys,
-  agentBot: agentBotKeys,
   agentBuilder: agentBuilderKeys,
   agentDocument: agentDocumentSWRKeys,
   agentHome: agentHomeKeys,
@@ -1421,7 +1339,6 @@ export const swrKeys = {
   aiModel: aiModelKeys,
   auth: authKeys,
   brief: briefKeys,
-  builtinAgent: builtinAgentKeys,
   changelog: changelogKeys,
   cron: cronKeys,
   device: deviceKeys,
@@ -1463,7 +1380,6 @@ export const swrKeys = {
   thread: threadKeys,
   tool: toolKeys,
   topic: topicKeys,
-  topicComment: topicCommentKeys,
   acceptanceComment: acceptanceCommentKeys,
   documentComment: documentCommentKeys,
   documentLike: documentLikeKeys,
