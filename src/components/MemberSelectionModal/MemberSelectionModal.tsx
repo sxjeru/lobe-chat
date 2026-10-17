@@ -1,11 +1,21 @@
 'use client';
 
 import { agentDisplayName } from '@lobechat/types';
-import { Flexbox, List, SearchBar, Tooltip } from '@lobehub/ui';
-import { ActionIcon, Avatar, Button, Checkbox, Switch, Text } from '@lobehub/ui/base-ui';
+import {
+  ActionIcon,
+  Avatar,
+  Button,
+  Checkbox,
+  createStaticStyles,
+  cx,
+  Flexbox,
+  List,
+  SearchBar,
+  Switch,
+  Text,
+  Tooltip,
+} from '@lobehub/ui';
 import { useHover } from 'ahooks';
-import { List as AntdList } from 'antd';
-import { createStaticStyles, cx } from 'antd-style';
 import { X } from 'lucide-react';
 import { type ChangeEvent } from 'react';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
@@ -28,7 +38,7 @@ const AvailableAgentItem = memo<{
   styles: any;
   t: any;
 }>(({ agent, isSelected, onToggle, styles, cx, t }) => {
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
   const isHovering = useHover(ref);
 
   const _agentId = agent.config?.id;
@@ -40,7 +50,7 @@ const AvailableAgentItem = memo<{
   if (!_agentId) return null;
 
   return (
-    <AntdList.Item className={cx(styles.listItem)} ref={ref} onClick={() => onToggle(_agentId)}>
+    <div className={cx(styles.listItem)} ref={ref} onClick={() => onToggle(_agentId)}>
       <Flexbox horizontal align="center" gap={12} width="100%">
         <Checkbox
           checked={isSelected}
@@ -65,7 +75,7 @@ const AvailableAgentItem = memo<{
           )}
         </Flexbox>
       </Flexbox>
-    </AntdList.Item>
+    </div>
   );
 });
 
@@ -295,8 +305,8 @@ const MemberSelectionModal = memo<MemberSelectionModalProps>(
             ),
             description,
             key: agentId,
+            label: title,
             showAction: true,
-            title,
           };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -396,28 +406,22 @@ const MemberSelectionModal = memo<MemberSelectionModalProps>(
                   variant={searchTerm ? 'empty' : 'noAvailable'}
                 />
               ) : (
-                <AntdList
-                  dataSource={filteredAvailableAgents}
-                  split={false}
-                  renderItem={(agent) => {
-                    const agentId = agent.config?.id;
-                    if (!agentId) return null;
+                filteredAvailableAgents.map((agent) => {
+                  const agentId = agent.config?.id;
+                  if (!agentId) return null;
 
-                    const isSelected = selectedAgents.includes(agentId);
-
-                    return (
-                      <AvailableAgentItem
-                        agent={agent}
-                        cx={cx}
-                        isSelected={isSelected}
-                        key={agentId}
-                        styles={styles}
-                        t={t}
-                        onToggle={handleAgentToggle}
-                      />
-                    );
-                  }}
-                />
+                  return (
+                    <AvailableAgentItem
+                      agent={agent}
+                      cx={cx}
+                      isSelected={selectedAgents.includes(agentId)}
+                      key={agentId}
+                      styles={styles}
+                      t={t}
+                      onToggle={handleAgentToggle}
+                    />
+                  );
+                })
               )}
             </Flexbox>
           </Flexbox>
@@ -469,7 +473,10 @@ const MemberSelectionModal = memo<MemberSelectionModalProps>(
                 {selectedAgentListItems.length === 0 ? (
                   <AgentSelectionEmpty variant="noSelected" />
                 ) : (
-                  <List items={selectedAgentListItems} />
+                  <List
+                    items={selectedAgentListItems}
+                    styles={{ item: { paddingInlineEnd: 56 } }}
+                  />
                 )}
               </Flexbox>
             </Flexbox>

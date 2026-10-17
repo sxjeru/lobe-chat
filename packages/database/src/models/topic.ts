@@ -1,5 +1,6 @@
 import { AGENT_SHARE_VISITOR_TOPIC_LIST_LIMIT } from '@lobechat/const';
 import type {
+  AgentOperationStatus,
   ChatTopicMetadata,
   ChatTopicStatus,
   DBMessageItem,
@@ -7,6 +8,7 @@ import type {
   TopicRankItem,
   TopicScheduledRun,
 } from '@lobechat/types';
+import { parseTopicScheduledRun } from '@lobechat/types';
 import type { TimingSink } from '@lobechat/utils';
 import {
   getDurationMs,
@@ -41,6 +43,7 @@ import type { TopicItem } from '../schemas';
 import {
   agentOperations,
   agents,
+  chatGroups,
   messagePlugins,
   messages,
   threads,
@@ -54,8 +57,17 @@ import { markCopiedMessageMetadata } from '../utils/copyMessagesInDatabase';
 import { genEndDateWhere, genRangeWhere, genStartDateWhere, genWhere } from '../utils/genWhere';
 import { idGenerator } from '../utils/idGenerator';
 import { inJsonStringArray } from '../utils/inJsonStringArray';
+import { searchableMessage } from '../utils/searchableMessage';
 import { notShareVisitorTopic } from '../utils/shareVisitor';
+import {
+  isTrashed,
+  notTrashed,
+  restoreStamp,
+  type SoftDeleteOptions,
+  trashStamp,
+} from '../utils/softDelete';
 import { buildWorkspacePayload, buildWorkspaceWhere } from '../utils/workspace';
+import { topicMetadataWithCreator } from './topicCreator';
 import { recomputeTopicUsage } from './topicUsage';
 
 type OnboardingSessionMetadataPatch = Partial<NonNullable<ChatTopicMetadata['onboardingSession']>>;
@@ -73,6 +85,32 @@ type TopicMetadataPatch = Omit<Partial<ChatTopicMetadata>, 'onboardingSession'> 
  */
 const LAST_MESSAGE_PREVIEW_LENGTH = 2000;
 const TASK_CALLBACK_RESERVATION_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * The device a topic runs on: the one its in-flight run was dispatched to,
+ * else the one its turns are pinned to. The live dispatch wins because a run
+ * does not always follow the pin — an `auto` target, an explicit request
+ * device or a fixed workspace target can send it elsewhere. The `deviceId`
+ * filter of `TopicModel.queryTopics` applies the same precedence in SQL.
+ */
+export const getTopicDeviceId = (
+  metadata: Pick<ChatTopicMetadata, 'boundDeviceId' | 'runningOperation'> | null | undefined,
+): string | undefined => metadata?.runningOperation?.deviceId ?? metadata?.boundDeviceId;
+
+/**
+ * Whether a turn start currently holds the topic's short start reservation.
+ * A writer that changes where the topic runs must respect it as it would a
+ * `runningOperation`: the reserving turn may already have resolved its target.
+ */
+export const hasLiveTaskCallbackReservation = (
+  metadata: Pick<ChatTopicMetadata, 'taskCallbackReservation'> | null | undefined,
+  now = Date.now(),
+): boolean => {
+  const reservation = metadata?.taskCallbackReservation;
+  if (!reservation) return false;
+  const reservedAt = Date.parse(reservation.reservedAt);
+  return Number.isFinite(reservedAt) && now - reservedAt < TASK_CALLBACK_RESERVATION_TTL_MS;
+};
 /**
  * How long an operation that still claims `running` / `idle` may hold the topic
  * against a background start before it is treated as abandoned.
@@ -96,13 +134,41 @@ const LIVE_OPERATION_STATUSES = new Set([
   'running',
   'waiting_for_human',
   'waiting_for_async_tool',
+  'waiting_for_client',
 ]);
 /** Parked states are exempt from the abandoned-age backstop — see above. */
 const UNBOUNDED_OPERATION_STATUSES = new Set(['waiting_for_human', 'waiting_for_async_tool']);
 
+/**
+ * Operation statuses in which the server is still driving the run, so a
+ * client-reported end must not clear its topic marker. `waiting_for_human` is
+ * excluded on purpose: a run parked for approval is stream-terminal for the
+ * client, which settles it to stop the spinner.
+ */
+const CLIENT_UNSETTLEABLE_OPERATION_STATUSES = new Set<AgentOperationStatus>([
+  'running',
+  'waiting_for_async_tool',
+  'waiting_for_client',
+]);
+
+export interface SettleRunningOperationOptions {
+  /**
+   * Refuse to clear a marker whose operation row is still `running` /
+   * `waiting_for_async_tool`. Set for client-reported settles, which can be
+   * triggered by an early or mirrored terminal event.
+   */
+  rejectInFlightOperation?: boolean;
+}
+
 export interface TopicListItem extends TopicItem {
   /** The topic's last non-empty assistant reply, truncated with a trailing `…`. Only set when `queryTopics` is called with `withLastMessage`. */
   lastAssistantMessage?: string | null;
+  /**
+   * Visibility of the agent/group this topic belongs to — `'private'` marks a
+   * conversation that must stay out of shared/team listings even though the
+   * viewer may own it. Null for legacy rows with no resolvable parent.
+   */
+  parentVisibility?: 'private' | 'public' | null;
   /**
    * When the topic's current run started (`agent_operations.startedAt` of its
    * latest top-level running operation). Only computed for `running` topics;
@@ -124,6 +190,8 @@ export interface VisitorRunningOperation {
   heteroType?: string | null;
   operationId: string;
   scope?: string;
+  /** Liveness/elapsed-time stamp — see `useGatewayReconnect`'s `startedAt`. */
+  startedAt?: string;
   threadId?: string | null;
 }
 
@@ -170,8 +238,9 @@ const pickVisitorRunningOperation = (
   const runningOperation = metadata?.runningOperation;
   if (!runningOperation) return null;
 
-  const { assistantMessageId, operationId, scope, threadId, heteroType } = runningOperation;
-  return { assistantMessageId, heteroType, operationId, scope, threadId };
+  const { assistantMessageId, heteroType, operationId, scope, startedAt, threadId } =
+    runningOperation;
+  return { assistantMessageId, heteroType, operationId, scope, startedAt, threadId };
 };
 
 export interface CreateTopicParams {
@@ -182,6 +251,10 @@ export interface CreateTopicParams {
   metadata?: ChatTopicMetadata;
   /** Pinned model snapshot, persisted to the top-level `topics.model` column. */
   model?: string | null;
+  /** Owning business project, independent of the execution directory. */
+  projectId?: string | null;
+  /** Project directory this conversation is pinned to as its execution context. */
+  projectWorkingDirectoryId?: string | null;
   provider?: string | null;
   /**
    * Agent-share visitor topics carry the CREATOR's `userId` (billing/data
@@ -415,10 +488,23 @@ export class TopicModel {
    * Raw workspace/user scope, WITHOUT the visitor exclusion. Backing store for
    * both {@link ownership} and {@link mine}, and the escape hatch for methods
    * that must see visitor rows independent of the instance flag
-   * ({@link queryBySender} / {@link countBySender} / {@link countVisitors}).
+   * ({@link queryBySender} / {@link countBySender} / {@link countShareVisitors}).
    */
   private workspaceScope = () =>
     buildWorkspaceWhere({ userId: this.userId, workspaceId: this.workspaceId }, topics);
+
+  /**
+   * {@link workspaceScope} without the recycle-bin filter, still excluding
+   * share-visitor topics — restore / trash lookups / purge internals only.
+   */
+  private trashScope = () =>
+    and(
+      buildWorkspaceWhere(
+        { includeTrashed: true, userId: this.userId, workspaceId: this.workspaceId },
+        topics,
+      ),
+      this.notShareVisitor(),
+    );
 
   private ownership = () => and(this.workspaceScope(), this.notShareVisitor());
 
@@ -430,7 +516,7 @@ export class TopicModel {
    *
    * `mine()` deliberately does NOT AND {@link notShareVisitor} — it is the
    * per-user variant of {@link workspaceScope} and the share-scoped methods
-   * ({@link queryBySender} / {@link countBySender} / {@link countVisitors})
+   * ({@link queryBySender} / {@link countBySender} / {@link countShareVisitors})
    * layer their own `senderId` predicate on top of it. Creator-facing
    * destructive sweeps that reach for `mine()` still get the visitor
    * exclusion by AND-ing {@link notShareVisitor} themselves.
@@ -453,7 +539,6 @@ export class TopicModel {
    * it — and use {@link mine} (which skips this helper).
    */
   private notShareVisitor = () => (this.includeShareVisitor ? undefined : notShareVisitorTopic());
-  // **************** Query *************** //
 
   query = async ({
     agentId,
@@ -501,13 +586,15 @@ export class TopicModel {
     const firstUserMessageSubquery = this.db
       .select({ value: messages.content })
       .from(messages)
-      .where(and(eq(messages.topicId, topics.id), eq(messages.role, 'user')))
+      .where(
+        and(eq(messages.topicId, topics.id), eq(messages.role, 'user'), this.messageOwnership()),
+      )
       .orderBy(asc(messages.createdAt))
       .limit(1);
     const messageCountSubquery = this.db
       .select({ value: sql<number>`count(*)::int` })
       .from(messages)
-      .where(eq(messages.topicId, topics.id));
+      .where(and(eq(messages.topicId, topics.id), this.messageOwnership()));
     const latestMessageAtSubquery = this.db
       .select({ value: messages.updatedAt })
       .from(messages)
@@ -518,6 +605,35 @@ export class TopicModel {
       sql<Date>`COALESCE((${latestMessageAtSubquery}), ${topics.updatedAt})`.mapWith(
         topics.updatedAt,
       );
+
+    // When the topic's current run started, so a sidebar can show live elapsed
+    // time instead of `updatedAt` (which moves on every message write). The
+    // latest *top-level* running operation is the current run: sub-operations
+    // (callAgent) would restart the clock at their own spawn time, and an
+    // abandoned `running` row from a crashed earlier run sorts below the live
+    // one. Not scoped by `ownership()` — in a workspace the run may have been
+    // started by another member, and the topic join is already ownership-gated.
+    const runStartedAtSubquery = this.db
+      .select({ value: agentOperations.startedAt })
+      .from(agentOperations)
+      .where(
+        and(
+          eq(agentOperations.topicId, topics.id),
+          eq(agentOperations.status, 'running'),
+          isNull(agentOperations.parentOperationId),
+          isNotNull(agentOperations.startedAt),
+        ),
+      )
+      .orderBy(desc(agentOperations.startedAt))
+      .limit(1);
+
+    // CASE-gated so only rows that are actually running pay for the lookup —
+    // and a stale running op under a finished topic can't resurrect a timer.
+    const runStartedAtColumn =
+      sql<Date | null>`CASE WHEN ${topics.status} = 'running' THEN (${runStartedAtSubquery}) ELSE NULL END`
+        .mapWith(agentOperations.startedAt)
+        .as('run_started_at');
+
     const orderBy = buildTopicOrderBy(topicActivityAt, sortBy);
 
     const detailColumns = withDetails
@@ -558,7 +674,6 @@ export class TopicModel {
       editingGroupId ? sql`${topics.metadata}->>'editingGroupId' = ${editingGroupId}` : undefined,
     );
 
-    // If groupId is provided, query topics by groupId directly
     if (groupId) {
       const whereCondition = and(
         this.ownership(),
@@ -586,9 +701,12 @@ export class TopicModel {
                 favorite: topics.favorite,
                 historySummary: topics.historySummary,
                 id: topics.id,
-                metadata: topics.metadata,
+                metadata: topicMetadataWithCreator(this.db, this.messageOwnership()),
+                projectId: topics.projectId,
+                projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
                 model: topics.model,
                 provider: topics.provider,
+                runStartedAt: runStartedAtColumn,
                 status: topics.status,
                 title: topics.title,
                 updatedAt: topics.updatedAt,
@@ -664,9 +782,12 @@ export class TopicModel {
                 favorite: topics.favorite,
                 historySummary: topics.historySummary,
                 id: topics.id,
-                metadata: topics.metadata,
+                metadata: topicMetadataWithCreator(this.db, this.messageOwnership()),
+                projectId: topics.projectId,
+                projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
                 model: topics.model,
                 provider: topics.provider,
+                runStartedAt: runStartedAtColumn,
                 status: topics.status,
                 title: topics.title,
                 updatedAt: topics.updatedAt,
@@ -736,9 +857,12 @@ export class TopicModel {
               favorite: topics.favorite,
               historySummary: topics.historySummary,
               id: topics.id,
-              metadata: topics.metadata,
+              metadata: topicMetadataWithCreator(this.db, this.messageOwnership()),
+              projectId: topics.projectId,
+              projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
               model: topics.model,
               provider: topics.provider,
+              runStartedAt: runStartedAtColumn,
               sessionId: topics.sessionId,
               status: topics.status,
               title: topics.title,
@@ -898,21 +1022,56 @@ export class TopicModel {
    * markdown, and a list only ever renders the head of it.
    */
   queryTopics = async ({
+    deviceId,
     statuses,
     pageSize = 200,
     withLastMessage,
   }: {
+    /**
+     * Only topics on this device — the one its in-flight run was dispatched to
+     * (`metadata.runningOperation.deviceId`), else the one its turns are
+     * pinned to (`metadata.boundDeviceId`). See {@link getTopicDeviceId},
+     * which applies the same precedence in memory.
+     */
+    deviceId?: string;
     pageSize?: number;
     statuses?: string[];
     withLastMessage?: boolean;
   } = {}): Promise<TopicListItem[]> => {
+    const scope = { userId: this.userId, workspaceId: this.workspaceId };
+
+    // Unlike the per-agent topic list, this feed is not scoped by agent at all:
+    // in a workspace `ownership()` matches every member's rows, so a topic
+    // whose owning agent/group is someone else's PRIVATE conversation would
+    // surface here — title and last assistant reply included. Gate on the
+    // parent the same way the Recent feed does. Rows with no resolvable parent
+    // (legacy session-only topics) have nothing to check and keep the previous
+    // behaviour.
+    const visibleParentWhere = or(
+      and(isNull(topics.agentId), isNull(topics.groupId)),
+      and(isNotNull(topics.groupId), buildWorkspaceWhere(scope, chatGroups)),
+      and(isNull(topics.groupId), isNotNull(topics.agentId), buildWorkspaceWhere(scope, agents)),
+    );
+
     const where = and(
       this.ownership(),
       this.notShareVisitor(),
+      visibleParentWhere,
       statuses && statuses.length > 0
         ? inArray(topics.status, statuses as ChatTopicStatus[])
         : undefined,
+      deviceId
+        ? sql`COALESCE(${topics.metadata} -> 'runningOperation' ->> 'deviceId', ${topics.metadata} ->> 'boundDeviceId') = ${deviceId}`
+        : undefined,
     );
+
+    // `buildWorkspaceWhere` keeps a member's OWN private rows visible, which is
+    // right for a "mine" list and wrong for a shared one. Ship the parent's
+    // visibility so the caller's team view can drop private conversations
+    // without a second round trip.
+    const parentVisibilityColumn = sql<
+      'private' | 'public' | null
+    >`COALESCE(${chatGroups.visibility}, ${agents.visibility})`.as('parent_visibility');
 
     // When the topic's current run started, so a list can show live elapsed
     // time instead of `updatedAt` (which moves on every message write). The
@@ -935,10 +1094,19 @@ export class TopicModel {
       .orderBy(desc(agentOperations.startedAt))
       .limit(1);
 
+    // Client-executed runs (desktop heterogeneous CLI, in-browser runtime) never
+    // reach `agent_operations` — nothing server-side creates the operation — so
+    // their start is stamped onto the topic by the status write that claims it
+    // (see {@link TopicModel.update}). The operation row still wins when both
+    // exist: it is the server's own record of the run, while the stamp is a
+    // client-reported time.
+    const localRunStartedAt = sql`(${topics.metadata} ->> 'runStartedAt')::timestamptz`;
+
     // CASE-gated so only rows that are actually running pay for the lookup —
-    // and a stale running op under a finished topic can't resurrect a timer.
+    // and a stale running op (or stamp) under a finished topic can't resurrect
+    // a timer.
     const runStartedAtColumn =
-      sql<Date | null>`CASE WHEN ${topics.status} = 'running' THEN (${runStartedAtSubquery}) ELSE NULL END`
+      sql<Date | null>`CASE WHEN ${topics.status} = 'running' THEN COALESCE((${runStartedAtSubquery}), ${localRunStartedAt}) ELSE NULL END`
         .mapWith(agentOperations.startedAt)
         .as('run_started_at');
 
@@ -946,9 +1114,13 @@ export class TopicModel {
       return this.db
         .select({
           ...getTableColumns(topics),
+          metadata: topicMetadataWithCreator(this.db, this.messageOwnership()),
+          parentVisibility: parentVisibilityColumn,
           runStartedAt: runStartedAtColumn,
         })
         .from(topics)
+        .leftJoin(agents, eq(topics.agentId, agents.id))
+        .leftJoin(chatGroups, eq(topics.groupId, chatGroups.id))
         .where(where)
         .orderBy(desc(topics.updatedAt))
         .limit(pageSize);
@@ -981,12 +1153,16 @@ export class TopicModel {
     const rows = await this.db
       .select({
         ...getTableColumns(topics),
+        metadata: topicMetadataWithCreator(this.db, this.messageOwnership()),
         lastAssistantMessage: sql<string | null>`(${lastAssistantMessageSubquery})`.as(
           'last_assistant_message',
         ),
+        parentVisibility: parentVisibilityColumn,
         runStartedAt: runStartedAtColumn,
       })
       .from(topics)
+      .leftJoin(agents, eq(topics.agentId, agents.id))
+      .leftJoin(chatGroups, eq(topics.groupId, chatGroups.id))
       .where(where)
       .orderBy(desc(topics.updatedAt))
       .limit(pageSize);
@@ -998,6 +1174,38 @@ export class TopicModel {
           ? `${row.lastAssistantMessage.slice(0, LAST_MESSAGE_PREVIEW_LENGTH)}…`
           : row.lastAssistantMessage,
     }));
+  };
+
+  /**
+   * Who started each topic's current run. Workspace topics are co-editable, so
+   * the member running a topic now can differ from its creator (`topics.userId`);
+   * the latest top-level running operation records the actual initiator — the
+   * same row `runStartedAt` reads. Topics whose run never wrote an operation
+   * row (client-executed runs) are absent; callers fall back to the creator.
+   *
+   * Not scoped by {@link ownership}: in a workspace the run may belong to
+   * another member, and callers pass ids from an ownership-gated topic read.
+   */
+  findRunInitiators = async (topicIds: string[]): Promise<Map<string, string>> => {
+    if (topicIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .selectDistinctOn([agentOperations.topicId], {
+        topicId: agentOperations.topicId,
+        userId: agentOperations.userId,
+      })
+      .from(agentOperations)
+      .where(
+        and(
+          inArray(agentOperations.topicId, topicIds),
+          eq(agentOperations.status, 'running'),
+          isNull(agentOperations.parentOperationId),
+          isNotNull(agentOperations.startedAt),
+        ),
+      )
+      .orderBy(agentOperations.topicId, desc(agentOperations.startedAt));
+
+    return new Map(rows.flatMap((row) => (row.topicId ? [[row.topicId, row.userId]] : [])));
   };
 
   /**
@@ -1084,6 +1292,7 @@ export class TopicModel {
         .where(
           and(
             this.messageOwnership(),
+            searchableMessage(),
             messageCandidateIds
               ? inJsonStringArray(messages.id, messageCandidateIds)
               : sql`${messages.content} @@@ ${bm25Query}`,
@@ -1444,7 +1653,14 @@ export class TopicModel {
     });
   };
 
-  duplicate = async (topicId: string, newTitle?: string) => {
+  /**
+   * Copy a topic into a new one.
+   *
+   * `options.upToMessageId` narrows the copy to the ancestor chain ending at
+   * that message (first message → that message) — the "fork from here" path.
+   * Without it the whole topic is copied, matching the duplicate action.
+   */
+  duplicate = async (topicId: string, newTitle?: string, options?: { upToMessageId?: string }) => {
     return this.db.transaction(async (tx) => {
       // find original topic
       const originalTopic = await tx.query.topics.findFirst({
@@ -1454,6 +1670,13 @@ export class TopicModel {
       if (!originalTopic) {
         throw new Error(`Topic with id ${topicId} not found`);
       }
+
+      // A copy is a brand-new topic: stamp its own timestamps instead of
+      // inheriting the source's. The sidebar sorts and groups by the latest
+      // activity time (`topicActivityAt`, i.e. the newest message), so a copy
+      // that kept the source's date would re-file itself under the source's
+      // original day instead of showing up as what it is — activity now.
+      const copiedAt = new Date();
 
       // copy topic
       const [duplicatedTopic] = await tx
@@ -1465,19 +1688,46 @@ export class TopicModel {
               ...originalTopic,
               ...COPIED_TOPIC_USAGE_RESET,
               clientId: null,
+              createdAt: copiedAt,
               id: this.genId(),
               title: newTitle || originalTopic?.title,
+              updatedAt: copiedAt,
             },
           ),
         )
         .returning();
 
       // Find messages associated with the original topic, ordered by createdAt
-      const originalMessages = await tx
+      const topicMessages = await tx
         .select()
         .from(messages)
         .where(and(eq(messages.topicId, topicId), this.messageOwnership()))
         .orderBy(messages.createdAt);
+
+      // A fork copies only the selected prefix of the conversation (first
+      // message → `upToMessageId`), so sibling branches left behind by
+      // regenerate stay in the source topic; a duplicate copies the whole topic.
+      let originalMessages = topicMessages;
+      if (options?.upToMessageId) {
+        const byId = new Map(topicMessages.map((message) => [message.id, message]));
+        const selected = byId.get(options.upToMessageId);
+        if (!selected) {
+          throw new Error(`Message with id ${options.upToMessageId} not found in topic ${topicId}`);
+        }
+
+        // Walk up to the root, then reverse back to root → selected so parents
+        // are inserted before their children.
+        const chain: typeof topicMessages = [];
+        const visited = new Set<string>();
+        let cursor: (typeof topicMessages)[number] | undefined = selected;
+        while (cursor && !visited.has(cursor.id)) {
+          visited.add(cursor.id);
+          chain.push(cursor);
+          cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+        }
+
+        originalMessages = chain.reverse();
+      }
 
       // Find all messagePlugins for this topic
       const messageIds = originalMessages.map((m) => m.id);
@@ -1506,9 +1756,15 @@ export class TopicModel {
 
       // copy messages sequentially to respect foreign key constraints
       const duplicatedMessages: DBMessageItem[] = [];
-      for (const message of originalMessages) {
+      for (const [index, message] of originalMessages.entries()) {
         const newId = idMap.get(message.id)!;
         const newParentId = message.parentId ? idMap.get(message.parentId) || null : null;
+
+        // Retime the copy to the copy moment while preserving its internal
+        // order (monotonic, 1ms apart, ending at `copiedAt`). The sidebar's
+        // activity key is the newest message time, so carrying the source's
+        // timestamps would keep the new topic in the source's date group.
+        const messageAt = new Date(copiedAt.getTime() - (originalMessages.length - 1 - index));
 
         // Update tool IDs in tools array
         let newTools = message.tools;
@@ -1524,6 +1780,7 @@ export class TopicModel {
           .values({
             ...message,
             clientId: null,
+            createdAt: messageAt,
             id: newId,
             // A duplicate consumed no tokens: mark it so usage reports do not
             // count the source's generation twice (the figures themselves stay
@@ -1532,6 +1789,7 @@ export class TopicModel {
             parentId: newParentId,
             tools: newTools,
             topicId: duplicatedTopic.id,
+            updatedAt: messageAt,
           })
           .returning()) as DBMessageItem[];
 
@@ -1657,6 +1915,18 @@ export class TopicModel {
   };
 
   /**
+   * Hard delete by id that also reaches rows already in the recycle bin —
+   * same ownership + share-visitor guards as {@link batchDelete}, scoped with
+   * {@link trashScope} (`includeTrashed`) instead of {@link ownership}. For
+   * cascade paths that own their id list: a linked topic sitting in the
+   * recycle bin must not survive its parent's deletion and resurrect as a
+   * sidebar orphan when the user later restores it.
+   */
+  batchDeleteIncludingTrashed = async (ids: string[]) => {
+    return this.db.delete(topics).where(and(inArray(topics.id, ids), this.trashScope()));
+  };
+
+  /**
    * Creator-facing "clear all my topics".
    *
    * Agent-share visitor topics live under the creator's `userId` but are hidden
@@ -1671,6 +1941,152 @@ export class TopicModel {
    */
   deleteAll = async () => {
     return this.db.delete(topics).where(and(this.mine(), this.notShareVisitor()));
+  };
+
+  // **************** Recycle bin *************** //
+
+  /**
+   * Move topics to the recycle bin: stamp `deleted_at` and return the rows so
+   * the caller can register them. Rows already trashed are left untouched (their
+   * own registry row keeps their original stamp). Messages / threads are not
+   * stamped — they are hidden by their parent and hard-cascade at purge time.
+   */
+  softDelete = async (ids: string[], options: SoftDeleteOptions): Promise<TopicItem[]> => {
+    if (ids.length === 0) return [];
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(
+        and(
+          inArray(topics.id, ids),
+          options.restrictToCreator ? this.mine() : this.ownership(),
+          this.notShareVisitor(),
+        ),
+      )
+      .returning();
+  };
+
+  /** Soft-delete counterpart of `batchDeleteBySessionId` (`sessionId` null = the agent's default session). */
+  softDeleteBySessionId = async (
+    sessionId: string | null | undefined,
+    options: SoftDeleteOptions,
+  ): Promise<TopicItem[]> => {
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(
+        and(
+          this.matchSession(sessionId),
+          options.restrictToCreator ? this.mine() : this.ownership(),
+          this.notShareVisitor(),
+        ),
+      )
+      .returning();
+  };
+
+  softDeleteByGroupId = async (
+    groupId: string | null | undefined,
+    options: SoftDeleteOptions,
+  ): Promise<TopicItem[]> => {
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(
+        and(
+          this.matchGroup(groupId),
+          options.restrictToCreator ? this.mine() : this.ownership(),
+          this.notShareVisitor(),
+        ),
+      )
+      .returning();
+  };
+
+  softDeleteByAgentId = async (
+    agentId: string,
+    options: SoftDeleteOptions,
+  ): Promise<TopicItem[]> => {
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(
+        and(
+          eq(topics.agentId, agentId),
+          options.restrictToCreator ? this.mine() : this.ownership(),
+          this.notShareVisitor(),
+        ),
+      )
+      .returning();
+  };
+
+  /**
+   * Cascade helper for trashing an agent / group / session: stamps every live
+   * topic that hangs off any of the given parents (by `agent_id`, `session_id`
+   * or `group_id`) in one statement.
+   */
+  softDeleteByParents = async (
+    parents: { agentIds?: string[]; groupIds?: string[]; sessionIds?: string[] },
+    options: SoftDeleteOptions,
+  ): Promise<TopicItem[]> => {
+    const conditions: SQL[] = [];
+    if (parents.agentIds?.length) conditions.push(inArray(topics.agentId, parents.agentIds));
+    if (parents.sessionIds?.length) conditions.push(inArray(topics.sessionId, parents.sessionIds));
+    if (parents.groupIds?.length) conditions.push(inArray(topics.groupId, parents.groupIds));
+    if (conditions.length === 0) return [];
+
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(
+        and(
+          or(...conditions),
+          options.restrictToCreator ? this.mine() : this.ownership(),
+          this.notShareVisitor(),
+        ),
+      )
+      .returning();
+  };
+
+  softDeleteAll = async (options: SoftDeleteOptions): Promise<TopicItem[]> => {
+    return this.db
+      .update(topics)
+      .set(trashStamp(options.deletedAt))
+      .where(and(this.mine(), this.notShareVisitor()))
+      .returning();
+  };
+
+  /** Bring trashed topics back. Only rows currently stamped are touched. */
+  restore = async (ids: string[]): Promise<TopicItem[]> => {
+    if (ids.length === 0) return [];
+    return this.db
+      .update(topics)
+      .set(restoreStamp())
+      .where(and(inArray(topics.id, ids), this.trashScope(), isTrashed(topics.isDeleted)))
+      .returning();
+  };
+
+  /** Trashed rows by id, bypassing the recycle-bin filter (restore / purge internals). */
+  findTrashedByIds = async (ids: string[]): Promise<TopicItem[]> => {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(topics)
+      .where(and(inArray(topics.id, ids), this.trashScope(), isTrashed(topics.isDeleted)));
+  };
+
+  /**
+   * Hard delete for the purge sweep: bypasses the recycle-bin filter so a
+   * trashed row (invisible to `delete`) can actually be removed. FK cascades
+   * take messages, threads and the rest with it.
+   */
+  purge = async (ids: string[]): Promise<string[]> => {
+    if (ids.length === 0) return [];
+    // Only rows still stamped: a restore that commits between the registry
+    // read and this delete must win, not be hard-deleted as a stale purge.
+    const rows = await this.db
+      .delete(topics)
+      .where(and(inArray(topics.id, ids), this.trashScope(), isTrashed(topics.isDeleted)))
+      .returning({ id: topics.id });
+    return rows.map((row) => row.id);
   };
 
   // **************** Update *************** //
@@ -1688,10 +2104,32 @@ export class TopicModel {
         ? sql`${topics.provider} is distinct from ${data.provider}`
         : undefined,
     );
+    const persistedMetadata = modelChanged
+      ? sql`case when ${modelChanged} then coalesce(${topics.metadata}, '{}'::jsonb) - 'reasoningConfig' else coalesce(${topics.metadata}, '{}'::jsonb) end`
+      : sql`coalesce(${topics.metadata}, '{}'::jsonb)`;
+
+    /**
+     * A locally executed run — desktop heterogeneous CLI, in-browser runtime —
+     * has no `agent_operations` row: its runtime lives in the client, and the
+     * only thing it tells the server is this status write. Stamp when the run
+     * claimed the topic in the same statement, so a list can show a live
+     * elapsed clock for those runs the same way it does for server-side ones
+     * (see `runStartedAtColumn` in {@link TopicModel.queryTopics}).
+     *
+     * Compared against the PERSISTED status so a resume out of
+     * `waitingForHuman` — the same run, continuing after an approval — keeps
+     * its original start instead of restarting the clock. The stamp is left
+     * behind on terminal statuses: every reader gates on `status = 'running'`,
+     * and the next run overwrites it.
+     */
     const metadata =
-      data.metadata === undefined && modelChanged
-        ? sql`case when ${modelChanged} then coalesce(${topics.metadata}, '{}'::jsonb) - 'reasoningConfig' else ${topics.metadata} end`
-        : data.metadata;
+      data.metadata !== undefined
+        ? data.metadata
+        : data.status === 'running'
+          ? sql`case when ${topics.status} in ('running', 'waitingForHuman') then ${persistedMetadata} else jsonb_set(${persistedMetadata}, '{runStartedAt}', to_jsonb(now())) end`
+          : modelChanged
+            ? persistedMetadata
+            : undefined;
 
     return this.db
       .update(topics)
@@ -1736,10 +2174,16 @@ export class TopicModel {
     id: string,
     operationId: string,
     status: TopicItem['status'] = 'unread',
+    options: SettleRunningOperationOptions = {},
   ) => {
     return this.db.transaction(async (tx) => {
       const [existing] = await tx
-        .select({ metadata: topics.metadata, status: topics.status })
+        .select({
+          metadata: topics.metadata,
+          projectId: topics.projectId,
+          projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
+          status: topics.status,
+        })
         .from(topics)
         .where(and(eq(topics.id, id), this.ownership()))
         .for('update');
@@ -1776,6 +2220,31 @@ export class TopicModel {
         : runningOperation.childOperations?.find((child) => child.operationId === operationId);
       if (!operation) {
         return { activeOperationId: runningOperation.operationId, status: 'conflict' as const };
+      }
+
+      // A client only learns a run ended from a stream event, and a mirrored or
+      // early event can arrive while the server is still driving the run (e.g. a
+      // supervisor parked on `waiting_for_async_tool` for its group members).
+      // Clearing the marker then drops the run's topic reservation, so the next
+      // member start fails as "Topic … remained busy". The server's own
+      // `finish` clears the marker before it publishes the terminal event, so a
+      // genuine end never reaches this check with the marker still in place.
+      if (options.rejectInFlightOperation) {
+        const [operationRow] = await tx
+          .select({ status: agentOperations.status })
+          .from(agentOperations)
+          .where(eq(agentOperations.id, operationId))
+          .limit(1);
+        if (
+          operationRow &&
+          CLIENT_UNSETTLEABLE_OPERATION_STATUSES.has(operationRow.status as AgentOperationStatus)
+        ) {
+          return {
+            activeOperationId: runningOperation.operationId,
+            operationStatus: operationRow.status as AgentOperationStatus,
+            status: 'in_flight' as const,
+          };
+        }
       }
 
       const metadata = {
@@ -1891,11 +2360,7 @@ export class TopicModel {
    * Update topic metadata with merge logic
    * This method merges new metadata with existing metadata instead of replacing it
    */
-  updateMetadata = async (
-    id: string,
-    metadata: TopicMetadataPatch,
-    options?: { executionConfigIfAbsent?: boolean },
-  ) => {
+  updateMetadata = async (id: string, metadata: TopicMetadataPatch) => {
     // Merge into the existing metadata under a row lock so concurrent writers
     // can't lose each other's keys. The old read-then-write was a non-atomic
     // read-modify-write: a hetero run seeds `metadata.runningOperation` while
@@ -1927,9 +2392,6 @@ export class TopicModel {
       const mergedMetadata = {
         ...existing.metadata,
         ...metadata,
-        ...(options?.executionConfigIfAbsent && existing.metadata?.executionConfig
-          ? { executionConfig: existing.metadata.executionConfig }
-          : {}),
         ...(mergedOnboardingSession && { onboardingSession: mergedOnboardingSession }),
       } as ChatTopicMetadata;
 
@@ -1947,7 +2409,7 @@ export class TopicModel {
    * statement, so neither a concurrent switch nor an in-flight run can observe
    * the new model paired with the previous model's pin. `reasoningConfig` is
    * model-keyed and therefore always replaced (dropped when not provided);
-   * `heteroEffort` is only touched when given.
+   * `heteroEffort` and `heteroSpeed` are only touched when given.
    */
   updateModelPin = async (
     id: string,
@@ -1956,7 +2418,7 @@ export class TopicModel {
       model,
       provider,
     }: {
-      metadata?: Pick<ChatTopicMetadata, 'heteroEffort' | 'reasoningConfig'>;
+      metadata?: Pick<ChatTopicMetadata, 'heteroEffort' | 'heteroSpeed' | 'reasoningConfig'>;
       model: string;
       provider: string;
     },
@@ -1974,6 +2436,7 @@ export class TopicModel {
       const mergedMetadata: ChatTopicMetadata = {
         ...rest,
         ...(metadata?.heteroEffort !== undefined && { heteroEffort: metadata.heteroEffort }),
+        ...(metadata?.heteroSpeed !== undefined && { heteroSpeed: metadata.heteroSpeed }),
         ...(metadata?.reasoningConfig !== undefined && {
           reasoningConfig: metadata.reasoningConfig,
         }),
@@ -2277,11 +2740,7 @@ export class TopicModel {
       if (!existing) return null;
 
       const reservation = existing.metadata?.taskCallbackReservation;
-      const reservedAt = reservation ? Date.parse(reservation.reservedAt) : 0;
-      const hasLiveReservation =
-        reservation &&
-        Number.isFinite(reservedAt) &&
-        Date.now() - reservedAt < TASK_CALLBACK_RESERVATION_TTL_MS;
+      const hasLiveReservation = hasLiveTaskCallbackReservation(existing.metadata);
 
       if (
         reservation?.messageId === messageId &&
@@ -2356,11 +2815,7 @@ export class TopicModel {
 
       const current = existing.metadata?.runningOperation;
       const reservation = existing.metadata?.taskCallbackReservation;
-      const reservedAt = reservation ? Date.parse(reservation.reservedAt) : 0;
-      const hasLiveReservation =
-        !!reservation &&
-        Number.isFinite(reservedAt) &&
-        Date.now() - reservedAt < TASK_CALLBACK_RESERVATION_TTL_MS;
+      const hasLiveReservation = hasLiveTaskCallbackReservation(existing.metadata);
       const ownsCurrent =
         !current ||
         current.operationId === params.sourceOperationId ||
@@ -2435,6 +2890,31 @@ export class TopicModel {
         })
         .where(and(eq(topics.id, id), this.ownership()));
       return 'released';
+    });
+
+  /** Atomically cancel an unclaimed rate-limit run, serialized with the dispatcher. */
+  cancelRateLimitContinuation = async (id: string) =>
+    this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ metadata: topics.metadata, status: topics.status })
+        .from(topics)
+        .where(and(eq(topics.id, id), this.ownership()))
+        .for('update');
+      if (!row) return { status: 'unchanged' as const };
+      if (row.status === 'running') return { status: 'busy' as const };
+      const scheduledRun = parseTopicScheduledRun(row.metadata?.scheduledRun);
+      if (row.status !== 'scheduled' || scheduledRun?.kind !== 'resume_after_rate_limit')
+        return { status: 'unchanged' as const };
+      // A lease expiring does not stop its dispatcher. Once claimed, a handoff
+      // must not race that worker, even if its five-minute lease has elapsed.
+      if (scheduledRun.claim) return { status: 'busy' as const };
+
+      const metadata = { ...row.metadata, scheduledRun: null };
+      await tx
+        .update(topics)
+        .set({ metadata, status: 'failed' })
+        .where(and(eq(topics.id, id), this.ownership()));
+      return { metadata, status: 'cancelled' as const };
     });
 
   /**
@@ -2673,6 +3153,7 @@ export class TopicModel {
       .where(
         and(
           eq(topics.status, 'scheduled'),
+          notTrashed(topics.isDeleted),
           or(
             // `''` is the absent-runAt sentinel, and it never satisfies this pair —
             // an absent gate must not read as "due now", which is what keeps a
@@ -2708,7 +3189,12 @@ export class TopicModel {
   ): Promise<boolean> {
     return db.transaction(async (tx) => {
       const [row] = await tx
-        .select({ metadata: topics.metadata, status: topics.status })
+        .select({
+          metadata: topics.metadata,
+          projectId: topics.projectId,
+          projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
+          status: topics.status,
+        })
         .from(topics)
         .where(eq(topics.id, id))
         .for('update');
@@ -2748,7 +3234,12 @@ export class TopicModel {
   ): Promise<void> {
     await db.transaction(async (tx) => {
       const [row] = await tx
-        .select({ metadata: topics.metadata, status: topics.status })
+        .select({
+          metadata: topics.metadata,
+          projectId: topics.projectId,
+          projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
+          status: topics.status,
+        })
         .from(topics)
         .where(eq(topics.id, id))
         .for('update');
@@ -2786,7 +3277,12 @@ export class TopicModel {
   ): Promise<void> {
     await db.transaction(async (tx) => {
       const [row] = await tx
-        .select({ metadata: topics.metadata, status: topics.status })
+        .select({
+          metadata: topics.metadata,
+          projectId: topics.projectId,
+          projectWorkingDirectoryId: topics.projectWorkingDirectoryId,
+          status: topics.status,
+        })
         .from(topics)
         .where(eq(topics.id, id))
         .for('update');

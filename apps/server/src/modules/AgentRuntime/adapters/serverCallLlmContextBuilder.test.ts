@@ -92,7 +92,7 @@ beforeEach(() => {
   getUserSettingsMock.mockResolvedValue({});
   marketCredsListMock.mockResolvedValue({ data: [] });
   workspaceFindByIdMock.mockResolvedValue(undefined);
-  serverMessagesEngineMock.mockResolvedValue([]);
+  serverMessagesEngineMock.mockResolvedValue({ messages: [], metadata: {} });
   resolveServerCallLlmContextHintsMock.mockResolvedValue({
     capabilities: {
       isCanUseAudio: () => false,
@@ -218,7 +218,7 @@ describe('buildServerCallLlmContext - workspace context', () => {
       llmPayload,
       model: 'gpt-4',
       provider: 'openai',
-      state: createState({ metadata: { workspaceId: 'workspace-2' } }),
+      state: createState({ origin: { workspaceId: 'workspace-2' } }),
       tooling,
     });
 

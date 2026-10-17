@@ -1,16 +1,17 @@
 'use client';
 
 import type { GoalMetricComparison } from '@lobechat/types';
-import { Flexbox, Input } from '@lobehub/ui';
+import { Flexbox } from '@lobehub/ui';
 import {
   Button,
   createModal,
+  Input,
   type ModalInstance,
   Select,
   Text,
   toast,
   useModalContext,
-} from '@lobehub/ui/base-ui';
+} from '@lobehub/ui';
 import { t } from 'i18next';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

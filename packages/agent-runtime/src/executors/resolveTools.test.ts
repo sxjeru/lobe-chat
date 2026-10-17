@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentRuntimeHost } from '../transport';
 import type { AgentInstruction, AgentState } from '../types';
+import { finish } from './finish';
 import { resolveAbortedTools, resolveBlockedTools } from './resolveTools';
 
 const createState = (overrides?: Partial<AgentState>): AgentState => ({
@@ -16,7 +17,7 @@ const createState = (overrides?: Partial<AgentState>): AgentState => ({
   lastModified: '2026-07-07T00:00:00.000Z',
   maxSteps: 100,
   messages: [],
-  metadata: {
+  origin: {
     agentId: 'agent-1',
     threadId: 'thread-1',
     topicId: 'topic-1',
@@ -97,6 +98,21 @@ describe('resolveTools executors', () => {
       },
     } as unknown as AgentRuntimeHost;
   });
+
+  it.each([undefined, false, true])(
+    'includes finish state only when the run opts in (%s)',
+    async (includeFinalState) => {
+      const state = createState({ host: { includeFinalState } });
+      const result = await finish(host)({ type: 'finish', reason: 'completed' }, state);
+      const event = publishEvent.mock.calls[0][0];
+      expect(event.data.finalState !== undefined).toBe(includeFinalState === true);
+      if (includeFinalState) expect(event.data.finalState.status).toBe('done');
+      expect(result.newState.status).toBe('done');
+      expect(result.events).toContainEqual(
+        expect.objectContaining({ type: 'done', finalState: result.newState }),
+      );
+    },
+  );
 
   it('persists blocked tools as rejected tool messages and continues', async () => {
     const instruction: Extract<AgentInstruction, { type: 'resolve_blocked_tools' }> = {

@@ -1,4 +1,5 @@
 import { PROJECT_STATUSES, PROJECT_VISIBILITIES } from '@lobechat/types';
+import { taskTitleSlug } from '@lobechat/utils/taskSlug';
 import type { Command } from 'commander';
 import pc from 'picocolors';
 
@@ -197,15 +198,14 @@ export function registerProjectCommand(program: Command) {
           parentTaskId: options.parent,
           projectId,
         });
-        const url = buildUrl(`/task/${encodeURIComponent(result.data.identifier)}`);
+        const slug = taskTitleSlug(result.data.name);
+        const url = buildUrl(
+          `/task/${encodeURIComponent(result.data.identifier)}${slug ? `/${slug}` : ''}`,
+        );
         console.log(`${pc.green('✓')} Created task ${pc.bold(result.data.identifier)}`);
         console.log(`${pc.bold('task')}: ${url}`);
       },
     );
-  task.command('move <projectId> <taskId>').action(async (projectId: string, taskId: string) => {
-    const result = await (await getTrpcClient()).project.moveTask.mutate({ id: projectId, taskId });
-    console.log(`${pc.green('✓')} Moved ${result.data.length} task(s)`);
-  });
 
   project.command('request-review <id>').action(async (id: string) => {
     await (await getTrpcClient()).project.requestCompletion.mutate({ id });

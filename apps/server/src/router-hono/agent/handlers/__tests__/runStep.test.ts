@@ -2,6 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AiAgentService } from '@/server/services/aiAgent';
+import { getInvocationDeadline } from '@/server/utils/invocationDeadline';
+import type * as ScheduleAfterResponseModule from '@/server/utils/scheduleAfterResponse';
+import { after } from '@/server/utils/scheduleAfterResponse';
 
 import { runStep, runStepHealth } from '../runStep';
 
@@ -12,6 +15,24 @@ const mockExecuteStep = vi.fn();
 const mockScheduleContinuation = vi.fn();
 const mockReleaseOperationLock = vi.fn();
 const mockGetServerDB = vi.hoisted(() => vi.fn());
+const mockFinalizeAbandoned = vi.hoisted(() => vi.fn());
+const mockSettleStaleRunning = vi.hoisted(() => vi.fn());
+const mockResumeAbandonedParent = vi.hoisted(() => vi.fn());
+const mockScheduleOpportunisticStaleSweep = vi.hoisted(() => vi.fn());
+// Lets a test force the step-boundary flush to report a timeout; undefined
+// means use the real implementation.
+const flushOverride = vi.hoisted(() => ({ settled: undefined as boolean | undefined }));
+
+vi.mock('@/server/utils/scheduleAfterResponse', async (importOriginal) => {
+  const actual = await importOriginal<typeof ScheduleAfterResponseModule>();
+  return {
+    ...actual,
+    flushScheduledWork: (options?: { timeoutMs?: number }) =>
+      flushOverride.settled === undefined
+        ? actual.flushScheduledWork(options)
+        : Promise.resolve(flushOverride.settled),
+  };
+});
 
 vi.mock('@/server/modules/AgentRuntime', () => ({
   AgentRuntimeCoordinator: vi.fn().mockImplementation(function () {
@@ -34,13 +55,25 @@ vi.mock('@/server/services/aiAgent', () => ({
   }),
 }));
 
+vi.mock('@/server/services/agentRuntime', () => ({
+  AbandonOperationService: vi.fn().mockImplementation(function () {
+    return { finalizeAbandoned: mockFinalizeAbandoned };
+  }),
+  scheduleOpportunisticStaleSweep: mockScheduleOpportunisticStaleSweep,
+}));
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: mockGetServerDB,
 }));
 
-const mockInlineStepsEnabled = vi.fn();
-vi.mock('@/server/services/agentRuntime/inlineStepsGate', () => ({
-  isInlineAgentStepsEnabledForUser: (userId: string) => mockInlineStepsEnabled(userId),
+vi.mock('@/database/models/agentOperation', () => ({
+  AgentOperationModel: vi.fn().mockImplementation(function () {
+    return { settleStaleRunning: mockSettleStaleRunning };
+  }),
+}));
+
+vi.mock('../resumeAbandonedParent', () => ({
+  resumeAbandonedParent: mockResumeAbandonedParent,
 }));
 
 function buildOperationDiagnosticDB(row?: any) {
@@ -95,8 +128,6 @@ const validBody = {
 describe('runStep handler', () => {
   beforeEach(() => {
     mockGetOperationMetadata.mockReset();
-    mockInlineStepsEnabled.mockReset();
-    mockInlineStepsEnabled.mockResolvedValue(true);
     mockLoadInlineResume.mockReset();
     mockLoadInlineResume.mockResolvedValue(null);
     mockClearInlineResume.mockReset();
@@ -104,6 +135,11 @@ describe('runStep handler', () => {
     mockScheduleContinuation.mockReset();
     mockReleaseOperationLock.mockReset();
     mockGetServerDB.mockResolvedValue({} as any);
+    mockFinalizeAbandoned.mockReset();
+    mockFinalizeAbandoned.mockResolvedValue({ abandoned: true, found: false });
+    mockSettleStaleRunning.mockReset();
+    mockSettleStaleRunning.mockResolvedValue(true);
+    mockResumeAbandonedParent.mockReset();
   });
 
   afterEach(() => {
@@ -161,6 +197,87 @@ describe('runStep handler', () => {
     warnSpy.mockRestore();
   });
 
+  describe('orphaned operation settle', () => {
+    const orphanRow = (overrides: Record<string, unknown> = {}) =>
+      buildOperationDiagnosticDB({
+        completedAt: null,
+        startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        status: 'running',
+        stepCount: null,
+        traceS3Key: null,
+        updatedAt: new Date(Date.now() - 20 * 60 * 1000),
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        ...overrides,
+      });
+
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      mockGetOperationMetadata.mockResolvedValue(null);
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(function () {});
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('claims the expired lease, then abandons onto the claimed row', async () => {
+      mockGetServerDB.mockResolvedValue(orphanRow());
+      const { ctx } = buildContext({ body: validBody });
+
+      const res = await runStep(ctx);
+
+      expect(res.status).toBe(401);
+      const staleBefore = mockSettleStaleRunning.mock.calls[0][1] as Date;
+      expect(mockSettleStaleRunning).toHaveBeenCalledWith('op-1', expect.any(Date));
+      expect(Date.now() - staleBefore.getTime()).toBeGreaterThanOrEqual(10 * 60 * 1000 - 1000);
+      expect(mockFinalizeAbandoned).toHaveBeenCalledWith('op-1', 'operation_metadata_missing', {
+        settledAsAbandoned: true,
+      });
+      expect(mockResumeAbandonedParent).not.toHaveBeenCalled();
+    });
+
+    it('leaves the run alone when a heartbeat wins the lease claim', async () => {
+      mockGetServerDB.mockResolvedValue(orphanRow({ updatedAt: new Date() }));
+      mockSettleStaleRunning.mockResolvedValue(false);
+      const { ctx } = buildContext({ body: validBody });
+
+      await runStep(ctx);
+
+      expect(mockFinalizeAbandoned).not.toHaveBeenCalled();
+    });
+
+    it('does not touch an operation that already reached a terminal status', async () => {
+      mockGetServerDB.mockResolvedValue(orphanRow({ status: 'error' }));
+      const { ctx } = buildContext({ body: validBody });
+
+      await runStep(ctx);
+
+      expect(mockSettleStaleRunning).not.toHaveBeenCalled();
+      expect(mockFinalizeAbandoned).not.toHaveBeenCalled();
+    });
+
+    it('resumes the parent when the abandoned run was a sub-agent', async () => {
+      // Regression: state and metadata are separate Redis keys, so a sub-agent
+      // child can reach the with-state abandon branch here. Dropping its
+      // `subAgentResume` left the parent parked in `waiting_for_async_tool`.
+      const db = orphanRow();
+      mockGetServerDB.mockResolvedValue(db);
+      const subAgentResume = {
+        errorMessage: 'abandoned',
+        parentOperationId: 'op-parent',
+        threadId: 'thd-1',
+        toolMessageId: 'msg-tool',
+        userId: 'user-1',
+      };
+      mockFinalizeAbandoned.mockResolvedValue({ found: true, subAgentResume });
+      const { ctx } = buildContext({ body: validBody });
+
+      await runStep(ctx);
+
+      expect(mockResumeAbandonedParent).toHaveBeenCalledWith(db, 'op-1', subAgentResume);
+    });
+  });
+
   it('includes QStash retry and message IDs in missing metadata diagnostics', async () => {
     mockGetOperationMetadata.mockResolvedValue({});
     mockGetServerDB.mockResolvedValue(buildOperationDiagnosticDB());
@@ -216,6 +333,42 @@ describe('runStep handler', () => {
     expect(mockExecuteStep).toHaveBeenCalledWith(
       expect.objectContaining({ operationId: 'op-1', stepIndex: 2 }),
     );
+  });
+
+  it('runs its steps knowing when the invocation is killed', async () => {
+    mockGetOperationMetadata.mockResolvedValue({ userId: 'user-1' });
+    let deadlineSeen: number | undefined;
+    mockExecuteStep.mockImplementation(async () => {
+      deadlineSeen = getInvocationDeadline();
+      return {
+        nextStepScheduled: false,
+        state: { cost: { total: 0 }, status: 'done', stepCount: 1 },
+        success: true,
+      };
+    });
+    const startedAt = Date.now();
+
+    const { ctx } = buildContext({ body: validBody });
+    await runStep(ctx);
+
+    // The route's 600s maxDuration, counted from the request.
+    expect(deadlineSeen).toBeGreaterThanOrEqual(startedAt + 600_000);
+    expect(deadlineSeen).toBeLessThanOrEqual(Date.now() + 600_000);
+  });
+
+  it('kicks the opportunistic stale-operation sweep on a valid delivery', async () => {
+    mockGetOperationMetadata.mockResolvedValue({ userId: 'user-1' });
+    mockExecuteStep.mockResolvedValue({
+      nextStepScheduled: false,
+      state: { cost: { total: 0 }, status: 'done', stepCount: 1 },
+      success: true,
+    });
+
+    const { ctx } = buildContext({ body: validBody });
+    const res = await runStep(ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockScheduleOpportunisticStaleSweep).toHaveBeenCalledTimes(1);
   });
 
   it('opts the AiAgentService into visitor rows when metadata carries streamOwnerUserId', async () => {
@@ -435,8 +588,6 @@ describe('runStep inline step loop', () => {
     mockClearInlineResume.mockReset();
     mockLoadInlineResume.mockReset();
     mockLoadInlineResume.mockResolvedValue(null);
-    mockInlineStepsEnabled.mockReset();
-    mockInlineStepsEnabled.mockResolvedValue(true);
     mockGetServerDB.mockResolvedValue({} as any);
     mockGetOperationMetadata.mockResolvedValue(metadata);
   });
@@ -680,6 +831,68 @@ describe('runStep inline step loop', () => {
     expect(mockClearInlineResume).toHaveBeenCalledWith('op-1', 'op-1:owner');
   });
 
+  it('hands the next step to the queue when deferred work does not settle in time', async () => {
+    // A timed-out flush may be a budget settlement that has not released its
+    // hold yet. Starting the next step anyway would reserve on top of it and
+    // bring back the false "over budget" rejection.
+    flushOverride.settled = false;
+    const pending = continuationFor(3);
+    mockExecuteStep.mockResolvedValueOnce({
+      continuation: pending,
+      nextStepScheduled: false,
+      state: { status: 'running', stepCount: 3 },
+      success: true,
+    });
+
+    try {
+      const { ctx, getCaptures } = buildContext({ body: validBody });
+      const res = await runStep(ctx);
+
+      expect(res.status).toBe(200);
+      expect(mockExecuteStep).toHaveBeenCalledTimes(1);
+      expect(mockScheduleContinuation).toHaveBeenCalledWith(pending);
+      expect(getCaptures()[0].body).toMatchObject({
+        inlinedSteps: 0,
+        nextStepIndex: 3,
+        nextStepScheduled: true,
+      });
+      expect(mockReleaseOperationLock).toHaveBeenCalledWith('op-1', 'op-1:owner');
+    } finally {
+      flushOverride.settled = undefined;
+    }
+  });
+
+  it('settles work a step deferred before the next inline step starts', async () => {
+    // Budget holds are released in work deferred with `after()`. If that work
+    // waited for the end of the invocation, every earlier step's hold would
+    // still be reserved when the next step reserves, and users with enough
+    // credit get rejected as over budget.
+    const events: string[] = [];
+    mockExecuteStep
+      .mockImplementationOnce(async () => {
+        after(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          events.push('step 2 settled');
+        });
+        events.push('step 2 done');
+        return {
+          continuation: continuationFor(3),
+          nextStepScheduled: false,
+          state: { status: 'running', stepCount: 3 },
+          success: true,
+        };
+      })
+      .mockImplementationOnce(async () => {
+        events.push('step 3 started');
+        return { nextStepScheduled: false, state: doneState, success: true };
+      });
+
+    const { ctx } = buildContext({ body: validBody });
+    await runStep(ctx);
+
+    expect(events).toEqual(['step 2 done', 'step 2 settled', 'step 3 started']);
+  });
+
   it('ignores a parked envelope that is not ahead of the delivered step', async () => {
     // After a deadline hand-off the queued message carries the same index the
     // envelope named. That delivery is authoritative, payload and all.
@@ -722,48 +935,7 @@ describe('runStep inline step loop', () => {
     nowSpy.mockRestore();
   });
 
-  it('runs one step per delivery when the rollout flag is off', async () => {
-    mockInlineStepsEnabled.mockResolvedValue(false);
-    mockExecuteStep.mockResolvedValue({
-      nextStepScheduled: true,
-      state: { status: 'running', stepCount: 3 },
-      success: true,
-    });
-
-    const { ctx, getCaptures } = buildContext({ body: validBody });
-    await runStep(ctx);
-
-    expect(mockInlineStepsEnabled).toHaveBeenCalledWith('user-1');
-    expect(mockExecuteStep).toHaveBeenCalledTimes(1);
-    expect(mockExecuteStep.mock.calls[0][0]).toMatchObject({ inlineContinuation: false });
-    expect(getCaptures()[0].body).toMatchObject({ inlinedSteps: 0, nextStepScheduled: true });
-  });
-
-  it('still honours a parked envelope after the flag is switched off', async () => {
-    // Operations that were mid-loop when the flag flipped have an envelope and
-    // nothing queued behind them. Ignoring it would strand exactly the runs the
-    // rollback was meant to protect.
-    mockInlineStepsEnabled.mockResolvedValue(false);
-    mockLoadInlineResume.mockResolvedValue(continuationFor(7));
-    mockExecuteStep.mockResolvedValue({
-      nextStepScheduled: true,
-      state: { status: 'running', stepCount: 8 },
-      success: true,
-    });
-
-    const { ctx } = buildContext({ body: validBody });
-    await runStep(ctx);
-
-    expect(mockExecuteStep.mock.calls[0][0]).toMatchObject({
-      inlineContinuation: false,
-      stepIndex: 7,
-    });
-    // The queue owns the next step again, so the envelope must not linger.
-    expect(mockClearInlineResume).toHaveBeenCalledWith('op-1', 'op-1:owner');
-  });
-
   it('leaves Redis alone when nothing was ever parked', async () => {
-    mockInlineStepsEnabled.mockResolvedValue(false);
     mockExecuteStep.mockResolvedValue({
       nextStepScheduled: true,
       state: { status: 'running', stepCount: 3 },

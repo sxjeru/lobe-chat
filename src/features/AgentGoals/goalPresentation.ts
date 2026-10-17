@@ -1,10 +1,12 @@
 import type { GoalStatus } from '@lobechat/const/goal';
 import type { GoalConfig, GoalSpend, TaskStatus } from '@lobechat/types';
+import { formatDuration } from '@lobechat/utils';
 
 /** Goal lifecycle state → i18n status key (goal list vocabulary). */
 const goalStatusKeyMap = {
   achieved: 'goalList.status.achieved',
   canceled: 'goalList.status.canceled',
+  draft: 'goalList.status.draft',
   failed: 'goalList.status.error',
   paused: 'goalList.status.paused',
   planning: 'goalList.status.planning',
@@ -17,13 +19,9 @@ export type GoalStatusKey = (typeof goalStatusKeyMap)[GoalStatus];
 
 export const goalStatusKey = (status: GoalStatus): GoalStatusKey => goalStatusKeyMap[status];
 
-/** `1h 23m` / `4m` — locale-neutral compact span for header metrics and drill-downs. */
-export const formatSpan = (ms: number): string => {
-  const minutes = Math.max(1, Math.round(ms / 60_000));
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-};
+/** `4m` / `1h 23m` / `1d 2h 5m` — locale-neutral compact span for header metrics and drill-downs. */
+export const formatSpan = (ms: number): string =>
+  formatDuration(Math.max(1, Math.round(ms / 60_000)) * 60_000, { minUnit: 'm' });
 
 /** Goal lifecycle state → the execution-status vocabulary the shared glyphs use. */
 export const goalStatusToTaskStatus = (goalStatus: GoalStatus): TaskStatus => {
@@ -41,6 +39,7 @@ export const goalStatusToTaskStatus = (goalStatus: GoalStatus): TaskStatus => {
     case 'review': {
       return 'paused';
     }
+    case 'draft':
     case 'planning': {
       return 'backlog';
     }
@@ -80,11 +79,11 @@ export const summarizeGoalBudget = (
   return { kind: 'uncapped', spent: totalCost };
 };
 
-/** The planner's persistent conversation belongs to the creator, not the task assignee. */
-export const goalManagerConversation = (
-  config: GoalConfig | null | undefined,
-): { agentId: string; topicId: string } | undefined => {
-  const agentId = config?.manager?.agentId;
-  const topicId = config?.managerState?.topicId;
-  return agentId && topicId ? { agentId, topicId } : undefined;
+/** The planner's persistent conversation belongs to the goal agent, not the task executor. */
+export const goalManagerConversation = (goal: {
+  agentId: string | null;
+  config?: GoalConfig | null;
+}): { agentId: string; topicId: string } | undefined => {
+  const topicId = goal.config?.manager ? goal.config.managerState?.topicId : undefined;
+  return goal.agentId && topicId ? { agentId: goal.agentId, topicId } : undefined;
 };

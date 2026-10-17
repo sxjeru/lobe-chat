@@ -1,16 +1,16 @@
 import type { SFSymbol } from '@lobechat/electron-client-ipc';
 import { type ActionIconGroupItemType } from '@lobehub/ui';
-import { css, cx } from 'antd-style';
+import { css, cx } from '@lobehub/ui';
 import {
   ArrowDownFromLine,
   Copy,
   DownloadIcon,
   Edit,
+  GitFork,
   LanguagesIcon,
   ListChevronsDownUp,
   ListChevronsUpDown,
   ListRestart,
-  Play,
   RotateCcw,
   Share2,
   Split,
@@ -41,10 +41,10 @@ interface ChatListActionsBar {
   edit: ActionBarItem;
   expand: ActionBarItem;
   export: ActionBarItem;
+  fork: ActionBarItem;
   regenerate: ActionBarItem;
   share: ActionBarItem;
   translate: ActionBarItem;
-  tts: ActionBarItem;
 }
 
 export const useChatListActionsBar = ({
@@ -119,6 +119,11 @@ export const useChatListActionsBar = ({
         label: 'Export as PDF',
         sfSymbol: 'square.and.arrow.up',
       },
+      fork: {
+        icon: GitFork,
+        key: 'fork',
+        label: t('forkTopic'),
+      },
       regenerate: {
         disabled: isRegenerating,
         icon: RotateCcw,
@@ -143,12 +148,7 @@ export const useChatListActionsBar = ({
         label: t('translate.action', { ns: 'chat' }),
         popupClassName: cx(translateStyle),
       },
-      tts: {
-        icon: Play,
-        key: 'tts',
-        label: t('tts.action', { ns: 'chat' }),
-      },
     }),
-    [hasThread, isContinuing, isRegenerating],
+    [hasThread, isContinuing, isRegenerating, t],
   );
 };

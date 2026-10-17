@@ -1,8 +1,6 @@
 import { isDesktop } from '@lobechat/const';
 import type { DropdownItem } from '@lobehub/ui';
-import { Icon } from '@lobehub/ui';
-import { confirmModal, toast } from '@lobehub/ui/base-ui';
-import { cssVar, useResponsive } from 'antd-style';
+import { confirmModal, cssVar, Icon, toast, useResponsive } from '@lobehub/ui';
 import {
   Clock3Icon,
   CopyPlus,
@@ -28,7 +26,7 @@ import { editorSelectors } from '@/store/document/slices/editor';
 import { useFileStore } from '@/store/file';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
-import { pageSelectors, usePageStore } from '@/store/page';
+import { pageActions, pageSelectors, usePageStore } from '@/store/page';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
@@ -80,8 +78,11 @@ export const useMenu = (options: UseMenuOptions = {}): { menuItems: any[] } => {
     transferLabel: t('pageEditor.menu.move'),
   }) as DropdownItem[] | null;
 
-  const publishPageToWorkspace = usePageStore((s) => s.publishPageToWorkspace);
-  const setPageVisibility = usePageStore((s) => s.setPageVisibility);
+  // Set when the page is open from the library overlay; the metadata stamp
+  // covers the same page reached from the Pages route.
+  const openedFromLibraryId = usePageEditorStore((s) => s.knowledgeBaseId);
+  const isInLibrary = Boolean(openedFromLibraryId || pageDocument?.metadata?.knowledgeBaseId);
+
   const canPublish = Boolean(
     activeWorkspaceId && isOwnPage && pageDocument?.visibility === 'private' && canEditPage,
   );
@@ -140,7 +141,7 @@ export const useMenu = (options: UseMenuOptions = {}): { menuItems: any[] } => {
       okText: t('continue', { ns: 'common' }),
       onOk: async () => {
         try {
-          await publishPageToWorkspace(documentId);
+          await pageActions.publishPageToWorkspace(documentId);
           toast.success(t('pageList.publishSuccess'));
         } catch (error) {
           console.error('Failed to publish page:', error);
@@ -149,18 +150,18 @@ export const useMenu = (options: UseMenuOptions = {}): { menuItems: any[] } => {
       },
       title: t('pageList.publishConfirm.title'),
     });
-  }, [canPublish, documentId, publishPageToWorkspace, t]);
+  }, [canPublish, documentId, t]);
 
   const handleMakePrivate = useCallback(() => {
     if (!canMakePrivate || !documentId) return;
     confirmModal({
       cancelText: t('cancel', { ns: 'common' }),
-      content: <VisibilityConfirmContent variant="makePrivate" />,
+      content: <VisibilityConfirmContent inLibrary={isInLibrary} variant="makePrivate" />,
       okButtonProps: { danger: true },
       okText: t('continue', { ns: 'common' }),
       onOk: async () => {
         try {
-          await setPageVisibility(documentId, 'private');
+          await pageActions.setPageVisibility(documentId, 'private');
           toast.success(t('makePrivate.success', { ns: 'common' }));
         } catch (error) {
           console.error('Failed to make page private:', error);
@@ -169,7 +170,7 @@ export const useMenu = (options: UseMenuOptions = {}): { menuItems: any[] } => {
       },
       title: t('makePrivate.confirm.title', { ns: 'common' }),
     });
-  }, [canMakePrivate, documentId, setPageVisibility, t]);
+  }, [canMakePrivate, documentId, isInLibrary, t]);
 
   const handleExportMarkdown = useCallback(async () => {
     const state = storeApi.getState();

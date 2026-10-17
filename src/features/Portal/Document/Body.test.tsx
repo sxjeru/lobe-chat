@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DocumentBody from './Body';
 
-vi.mock('antd-style', async (importOriginal) => {
+vi.mock('@/features/FileViewer/FileDocumentPreview', () => ({
+  FileDocumentPreview: ({ fileId }: { fileId?: string | null }) => (
+    <div data-file-id={fileId} data-testid="original-file-preview" />
+  ),
+}));
+
+vi.mock('@lobehub/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
 
   return {
@@ -47,6 +53,8 @@ vi.mock('@/components/CodeEditorPane', () => ({
 const mockDocumentMeta = vi.hoisted(() => ({
   current: { content: '', filename: 'doc.md' } as {
     content?: string;
+    fileId?: string | null;
+    sourceType?: string;
     fileType?: string | null;
     filename?: string | null;
     title?: string | null;
@@ -76,27 +84,6 @@ vi.mock('./TodoList', () => ({
 
 vi.mock('@/features/FloatingChatPanel', () => ({
   default: () => <div data-testid="floating-chat-panel" />,
-}));
-
-const docChatTopicState = vi.hoisted(() => ({
-  current: {
-    error: undefined as Error | undefined,
-    isLoading: false,
-    topicId: 'doc-topic-1' as string | undefined,
-  },
-}));
-// Record the params so a test can assert the topic lookup never fires — passing
-// `undefined` is what keeps `getOrCreateChatTopic` from hitting the network.
-const docChatTopicCalls = vi.hoisted(() => ({ current: [] as Record<string, unknown>[] }));
-vi.mock('@/features/FloatingChatPanel/useDocumentChatTopic', () => ({
-  // Mirror the real hook's `enabled` gate: with either id missing it never fetches,
-  // so it can only ever return `topicId: undefined`.
-  useDocumentChatTopic: (params: Record<string, unknown>) => {
-    docChatTopicCalls.current.push(params);
-    if (!params.agentId || !params.documentId)
-      return { error: undefined, isLoading: false, topicId: undefined };
-    return docChatTopicState.current;
-  },
 }));
 
 const mockChatState = vi.hoisted(() => ({
@@ -131,6 +118,7 @@ const mockDocumentState = vi.hoisted(() => ({
     documents: {
       'document-1': {},
     },
+    internal_dispatchDocument: vi.fn(),
     performSave: vi.fn(),
     updateSkillFrontmatter: vi.fn(),
   },
@@ -141,69 +129,31 @@ vi.mock('@/store/document', () => ({
 }));
 
 describe('DocumentBody', () => {
+  /** @example A file-backed document previews its upload and keeps the portal actions. */
+  it('shows the original upload without mounting either editor', () => {
+    // ROOT CAUSE:
+    // File-backed documents used the empty content field as an editable document.
+    // Selecting a file preview must not mount an editor that could save this empty copy.
+    mockDocumentMeta.current = { content: '', fileId: 'file-original', filename: 'source.unknown' };
+    render(<DocumentBody />);
+    /** @example The original file id reaches the read-only preview. */
+    expect(screen.getByTestId('original-file-preview').dataset.fileId).toBe('file-original');
+    /** @example Neither editor mounts. */
+    expect(screen.queryByTestId('highlight-editor')).toBeNull();
+    expect(screen.queryByTestId('editor-canvas')).toBeNull();
+  });
+
   beforeEach(() => {
     mockAgentState.current.activeAgentId = 'agent-1';
     mockChatState.current.portalStack[0].agentDocumentId = 'agent-document-1';
     mockDocumentMeta.current = { content: '', filename: 'doc.md' };
     mockUpdateDocument.mockClear();
-    docChatTopicCalls.current = [];
-    docChatTopicState.current = {
-      error: undefined,
-      isLoading: false,
-      topicId: 'doc-topic-1',
-    };
+    mockDocumentState.current.internal_dispatchDocument.mockClear();
     vi.useFakeTimers();
   });
 
   afterEach(() => {
     vi.useRealTimers();
-  });
-
-  it('renders FloatingChatPanel once the doc topic resolves', () => {
-    render(<DocumentBody />);
-
-    expect(screen.getByTestId('floating-chat-panel')).toBeDefined();
-  });
-
-  it('holds the panel until the doc-anchored topic id resolves', () => {
-    docChatTopicState.current = { error: undefined, isLoading: true, topicId: undefined };
-
-    render(<DocumentBody />);
-
-    expect(screen.queryByTestId('floating-chat-panel')).toBeNull();
-  });
-
-  it('does not render FloatingChatPanel without an active agent', () => {
-    mockAgentState.current.activeAgentId = undefined;
-
-    render(<DocumentBody />);
-
-    expect(screen.queryByTestId('floating-chat-panel')).toBeNull();
-  });
-
-  // A plain notebook document is opened as `openDocument(document.id)` — no
-  // agentDocumentId. It has no `agent_documents` row, so `getOrCreateChatTopic`
-  // would throw NOT_FOUND. The panel must not render *and* must not look up a topic.
-  it('does not render FloatingChatPanel for a plain document with no agentDocumentId', () => {
-    mockChatState.current.portalStack[0].agentDocumentId = undefined;
-
-    render(<DocumentBody />);
-
-    expect(screen.queryByTestId('floating-chat-panel')).toBeNull();
-    expect(docChatTopicCalls.current.length).toBeGreaterThan(0);
-    for (const call of docChatTopicCalls.current) {
-      expect(call.agentId).toBeUndefined();
-      expect(call.documentId).toBeUndefined();
-    }
-  });
-
-  it('looks up the doc topic for an agent document', () => {
-    render(<DocumentBody />);
-
-    expect(docChatTopicCalls.current.at(-1)).toMatchObject({
-      agentId: 'agent-1',
-      documentId: 'document-1',
-    });
   });
 
   it('renders highlight editor for non-markdown files', () => {
@@ -238,7 +188,7 @@ describe('DocumentBody', () => {
     expect(screen.queryByTestId('highlight-editor')).toBeNull();
   });
 
-  it('autosaves highlight editor edits after the debounce window', () => {
+  it('autosaves highlight editor edits after the debounce window', async () => {
     mockDocumentMeta.current = { content: 'before', filename: 'config.json' };
 
     render(<DocumentBody />);
@@ -247,8 +197,8 @@ describe('DocumentBody', () => {
     fireEvent.change(editor, { target: { value: 'after' } });
     expect(mockUpdateDocument).not.toHaveBeenCalled();
 
-    act(() => {
-      vi.advanceTimersByTime(5000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
     });
 
     expect(mockUpdateDocument).toHaveBeenCalledWith({
@@ -267,8 +217,9 @@ describe('DocumentBody', () => {
     fireEvent.change(editor, { target: { value: 'after' } });
     expect(mockUpdateDocument).not.toHaveBeenCalled();
 
-    unmount();
-    await Promise.resolve();
+    await act(async () => {
+      unmount();
+    });
 
     expect(mockUpdateDocument).toHaveBeenCalledWith({
       content: 'after',
@@ -282,9 +233,39 @@ describe('DocumentBody', () => {
 
     const { unmount } = render(<DocumentBody />);
 
-    unmount();
-    await Promise.resolve();
+    await act(async () => {
+      unmount();
+    });
 
     expect(mockUpdateDocument).not.toHaveBeenCalled();
+  });
+
+  it('mirrors the live highlight buffer into the document store for export', () => {
+    mockDocumentMeta.current = { content: 'before', filename: 'config.json' };
+
+    render(<DocumentBody />);
+    const editor = screen.getByTestId('highlight-editor');
+
+    // Initial mount mirrors the persisted content into the store record
+    // (the mock record already exists, so this is an update).
+    expect(mockDocumentState.current.internal_dispatchDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'document-1',
+        type: 'updateDocument',
+        value: { content: 'before' },
+      }),
+    );
+
+    fireEvent.change(editor, { target: { value: 'after' } });
+
+    // The typed buffer becomes the store content immediately, so a concurrent
+    // Export downloads the text on screen instead of the last saved copy.
+    expect(mockDocumentState.current.internal_dispatchDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'document-1',
+        type: 'updateDocument',
+        value: { content: 'after' },
+      }),
+    );
   });
 });

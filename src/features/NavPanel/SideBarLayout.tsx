@@ -1,5 +1,4 @@
-import { Flexbox, TooltipGroup } from '@lobehub/ui';
-import { ScrollArea } from '@lobehub/ui/base-ui';
+import { Flexbox, ScrollArea, TooltipGroup } from '@lobehub/ui';
 import { type ReactNode, type UIEvent } from 'react';
 import { memo, Suspense, useCallback, useLayoutEffect, useRef } from 'react';
 
@@ -38,6 +37,8 @@ const SideBarLayout = memo<SidebarLayoutProps>(({ header, body }) => {
       <ScrollArea
         disableContentFit
         scrollFade
+        // Preserve the height chain for sidebar bodies containing virtual lists.
+        contentProps={{ style: { height: '100%' } }}
         style={{ flex: 1, minHeight: 0 }}
         viewportProps={{ onScroll: handleScroll, ref: scrollerRef }}
       >

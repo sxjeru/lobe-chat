@@ -22,15 +22,11 @@ const removeDocumentMock = vi.hoisted(() => vi.fn());
 const useParamsMock = vi.hoisted(() => vi.fn());
 const documentExplorerShouldThrow = vi.hoisted(() => ({ current: false }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   ...(await import('~base-ui-stubs')).baseUiStubs,
   confirmModal: modalConfirm,
   toast: { error: messageError, success: messageSuccess },
-}));
-
-vi.mock('@/components/NeuralNetworkLoading', () => ({
-  default: () => <div data-testid="neural-network-loading" />,
 }));
 
 vi.mock('@/components/AsyncError', () => ({
@@ -620,6 +616,7 @@ describe('AgentDocumentsGroup', () => {
       agentId: 'agent-1',
       documentId: 'doc-content-2',
       id: 'doc-2',
+      withChildren: true,
     });
     expect(mutate).toHaveBeenCalled();
     expect(navigateMock).not.toHaveBeenCalled();
@@ -682,6 +679,6 @@ describe('AgentDocumentsGroup', () => {
     });
 
     render(<AgentDocumentsGroup />);
-    expect(screen.getByTestId('neural-network-loading')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 });

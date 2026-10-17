@@ -8,11 +8,12 @@ const mocks = vi.hoisted(() => ({
   accessResolved: true,
   canEditContent: true,
   canEditResource: false,
+  canManageResource: false,
   navigate: vi.fn(),
   toastInfo: vi.fn(),
 }));
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+vi.mock('@lobehub/ui', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   toast: { info: mocks.toastInfo },
 }));
@@ -38,17 +39,23 @@ vi.mock('./useResourceAccess', () => ({
   useResourceAccess: () => ({
     accessError: undefined,
     canEditResource: mocks.canEditResource,
+    canManageResource: mocks.canManageResource,
     isAccessResolved: mocks.accessResolved,
     isLoading: false,
     retryAccess: vi.fn(),
   }),
 }));
 
-const renderGate = (resourceType: 'agent' | 'agentGroup' = 'agent', loading?: ReactNode) =>
+const renderGate = (
+  resourceType: 'agent' | 'agentGroup' = 'agent',
+  loading?: ReactNode,
+  requiredAccess: 'edit' | 'manage' = 'edit',
+) =>
   render(
     <ResourceConfigAccessGate
       loading={loading}
       redirectPath="/agent/agent-1"
+      requiredAccess={requiredAccess}
       resourceId="agent-1"
       resourceType={resourceType}
     >
@@ -61,6 +68,7 @@ describe('ResourceConfigAccessGate', () => {
     vi.clearAllMocks();
     mocks.canEditContent = true;
     mocks.canEditResource = false;
+    mocks.canManageResource = false;
     mocks.accessResolved = true;
   });
 
@@ -102,6 +110,16 @@ describe('ResourceConfigAccessGate', () => {
 
     await waitFor(() => {
       expect(mocks.toastInfo).toHaveBeenCalledWith('permission.configAccess.groupChatOnly');
+    });
+  });
+
+  it('explains when Agent sharing requires creator or admin access', async () => {
+    mocks.canEditResource = true;
+
+    renderGate('agent', undefined, 'manage');
+
+    await waitFor(() => {
+      expect(mocks.toastInfo).toHaveBeenCalledWith('permission.configAccess.agentManageRestricted');
     });
   });
 

@@ -40,6 +40,7 @@ vi.mock('@/server/modules/AgentRuntime', () => ({
       createAgentOperation: vi.fn(),
       getOperationMetadata: vi.fn(),
       isInterrupted: vi.fn().mockResolvedValue(false),
+      hasQueuedMessages: vi.fn().mockResolvedValue(false),
       loadAgentState: vi.fn(),
       releaseStepLock: vi.fn().mockResolvedValue(undefined),
       saveAgentState: vi.fn(),
@@ -77,9 +78,7 @@ vi.mock('@/server/services/queue/impls', () => ({
   isQueueAgentRuntimeEnabled: vi.fn().mockReturnValue(false),
 }));
 vi.mock('@/server/featureFlags', () => ({
-  getServerFeatureFlagsStateFromRuntimeConfig: vi
-    .fn()
-    .mockResolvedValue({ enableAgentSelfIteration: true }),
+  getServerFeatureFlagsStateFromRuntimeConfig: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('../../agentSignal/featureGate', () => ({
   isAgentSignalEnabledForUser: vi.fn().mockResolvedValue(true),
@@ -124,7 +123,7 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
         createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
         messages: [{ content: 'hello', role: 'user' }],
-        metadata: {
+        origin: {
           agentId: 'agent-1',
           topicId: 'topic-1',
           userId: 'user-1',
@@ -141,7 +140,7 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
             events: [{ result: { content: 'done' }, type: 'llm_result' }],
             newState: {
               createdAt: new Date().toISOString(),
-              metadata: {
+              origin: {
                 agentId: 'agent-1',
                 topicId: 'topic-1',
                 userId: 'user-1',
@@ -227,7 +226,7 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
       messages: [{ content: 'hello', role: 'user' }],
-      metadata: {
+      origin: {
         agentId: 'agent-1',
         topicId: 'topic-1',
         userId: 'user-1',
@@ -244,7 +243,7 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
           events: [{ result: { content: 'done' }, type: 'llm_result' }],
           newState: {
             createdAt: new Date().toISOString(),
-            metadata: {
+            origin: {
               agentId: 'agent-1',
               topicId: 'topic-1',
               userId: 'user-1',
@@ -326,8 +325,10 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
       messages: [{ content: 'hello', role: 'user' }],
-      metadata: {
-        _hooks: ['serialized-hook'],
+      host: {
+        hooks: ['serialized-hook'],
+      },
+      origin: {
         agentId: 'agent-1',
         topicId: 'topic-1',
         userId: 'user-1',
@@ -344,8 +345,10 @@ describe('AgentRuntimeService Agent Signal hook integration', () => {
           events: [{ result: { content: 'done' }, type: 'llm_result' }],
           newState: {
             createdAt: new Date().toISOString(),
-            metadata: {
-              _hooks: ['serialized-hook'],
+            host: {
+              hooks: ['serialized-hook'],
+            },
+            origin: {
               agentId: 'agent-1',
               topicId: 'topic-1',
               userId: 'user-1',

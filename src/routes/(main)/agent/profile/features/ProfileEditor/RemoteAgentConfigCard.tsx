@@ -5,18 +5,21 @@ import {
   type RemoteHeterogeneousAgentType,
 } from '@lobechat/heterogeneous-agents';
 import type { HeterogeneousProviderConfig } from '@lobechat/types';
-import { Flexbox, Icon, Tooltip } from '@lobehub/ui';
 import {
   ActionIcon,
   Button as BaseButton,
   Button,
   createModal,
+  createStaticStyles,
+  cssVar,
+  Flexbox,
+  Icon,
   Select,
   Tag,
   Text,
+  Tooltip,
   useModalContext,
-} from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+} from '@lobehub/ui';
 import { t as i18nT } from 'i18next';
 import { BotIcon, CheckCircle2, MonitorSmartphone, RefreshCw, XCircle } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
@@ -64,13 +67,9 @@ const styles = createStaticStyles(({ css }) => ({
   `,
   detailLabel: css`
     flex-shrink: 0;
-
     width: 96px;
-
     font-size: 12px;
     color: ${cssVar.colorTextTertiary};
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   `,
   detailContent: css`
     display: flex;
@@ -191,7 +190,7 @@ const ChangeDeviceContent = memo<ChangeDeviceContentProps>(
           )}
           {capabilityOk && (
             <Flexbox horizontal align="center" gap={4}>
-              <Icon color="var(--ant-color-success)" icon={CheckCircle2} size={14} />
+              <Icon color="var(--lobe-color-success)" icon={CheckCircle2} size={14} />
               <Tag color="success" style={{ marginInlineEnd: 0 }}>
                 {capabilityResult?.version ?? t('platformAgentConfig.availability.available')}
               </Tag>
@@ -199,7 +198,7 @@ const ChangeDeviceContent = memo<ChangeDeviceContentProps>(
           )}
           {capabilityBad && (
             <Flexbox horizontal align="center" gap={4}>
-              <Icon color="var(--ant-color-error)" icon={XCircle} size={14} />
+              <Icon color="var(--lobe-color-error)" icon={XCircle} size={14} />
               <Tag color="error" style={{ marginInlineEnd: 0 }}>
                 {t('platformAgentConfig.availability.notInstalled')}
               </Tag>
@@ -340,7 +339,7 @@ const RemoteAgentConfigCard = memo<RemoteAgentConfigCardProps>(
       if (capabilityResult.available) {
         return (
           <Flexbox horizontal align="center" gap={4}>
-            <Icon color="var(--ant-color-success)" icon={CheckCircle2} size={14} />
+            <Icon color="var(--lobe-color-success)" icon={CheckCircle2} size={14} />
             <Tag color="success" style={{ marginInlineEnd: 0 }}>
               {capabilityResult.version ?? t('platformAgentConfig.availability.available')}
             </Tag>
@@ -349,7 +348,7 @@ const RemoteAgentConfigCard = memo<RemoteAgentConfigCardProps>(
       }
       return (
         <Flexbox horizontal align="center" gap={4}>
-          <Icon color="var(--ant-color-error)" icon={XCircle} size={14} />
+          <Icon color="var(--lobe-color-error)" icon={XCircle} size={14} />
           <Tag color="error" style={{ marginInlineEnd: 0 }}>
             {t('platformAgentConfig.availability.notInstalled')}
           </Tag>

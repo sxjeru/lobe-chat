@@ -1,8 +1,6 @@
 import type { TaskStatus } from '@lobechat/types';
-import { Block, ContextMenuTrigger, Flexbox, Icon, Tooltip } from '@lobehub/ui';
-import { Text } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
-import { LockIcon } from 'lucide-react';
+import { Block, ContextMenuTrigger, cssVar, Flexbox, Icon, Text, Tooltip } from '@lobehub/ui';
+import { ArchiveIcon, LockIcon } from 'lucide-react';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -73,9 +71,10 @@ const AgentTaskItem = memo<TaskItemProps>(({ task, routeScope = 'agent', variant
       taskDetailPath(
         task.identifier,
         routeScope === 'agent' ? (task.assigneeAgentId ?? undefined) : undefined,
+        task.name,
       ),
     );
-  }, [navigate, routeScope, task.assigneeAgentId, task.identifier]);
+  }, [navigate, routeScope, task.assigneeAgentId, task.identifier, task.name]);
 
   const handleRequestSubtasks = useCallback(async () => {
     const detail = await fetchTaskDetail(task.identifier);
@@ -83,8 +82,10 @@ const AgentTaskItem = memo<TaskItemProps>(({ task, routeScope = 'agent', variant
   }, [fetchTaskDetail, task.identifier]);
 
   const handleSubtaskClick = useCallback(
-    (identifier: string, assigneeAgentId?: string) => {
-      navigate(taskDetailPath(identifier, routeScope === 'agent' ? assigneeAgentId : undefined));
+    (identifier: string, assigneeAgentId?: string, name?: string) => {
+      navigate(
+        taskDetailPath(identifier, routeScope === 'agent' ? assigneeAgentId : undefined, name),
+      );
     },
     [navigate, routeScope],
   );
@@ -113,11 +114,18 @@ const AgentTaskItem = memo<TaskItemProps>(({ task, routeScope = 'agent', variant
       </Tooltip>
     ) : null;
 
+  const archivedBadge = task.archivedAt ? (
+    <Tooltip title={tChat('taskList.archived')}>
+      <Icon color={cssVar.colorTextDescription} icon={ArchiveIcon} size={14} />
+    </Tooltip>
+  ) : null;
+
   const titleRow = (
     <Flexbox horizontal align={'center'} gap={8} style={{ minWidth: 0 }}>
       <TaskPriorityTag priority={task.priority} taskIdentifier={task.identifier} />
       <TaskStatusTag status={status} taskIdentifier={task.identifier} />
       {privacyBadge}
+      {archivedBadge}
       {hasName ? (
         <>
           <Text style={{ flex: 'none' }} type={'secondary'}>
@@ -204,9 +212,12 @@ const AgentTaskItem = memo<TaskItemProps>(({ task, routeScope = 'agent', variant
       <ContextMenuTrigger items={contextMenuItems} onContextMenu={handleContextMenuOpen}>
         <Block clickable gap={8} padding={12} variant={'borderless'} onClick={handleClick}>
           <Flexbox horizontal align={'center'} gap={8} justify={'space-between'}>
-            <Text fontSize={12} style={{ flex: 'none' }} type={'secondary'}>
-              {task.identifier}
-            </Text>
+            <Flexbox horizontal align={'center'} flex={'none'} gap={6}>
+              <Text fontSize={12} type={'secondary'}>
+                {task.identifier}
+              </Text>
+              {archivedBadge}
+            </Flexbox>
             {assigneeNode}
           </Flexbox>
           <Flexbox horizontal align={'center'} gap={8} style={{ minWidth: 0 }}>

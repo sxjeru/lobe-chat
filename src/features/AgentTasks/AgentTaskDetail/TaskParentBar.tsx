@@ -1,6 +1,5 @@
 import type { TaskDetailData, TaskDetailSubtask } from '@lobechat/types';
-import { Flexbox } from '@lobehub/ui';
-import { Button, Text } from '@lobehub/ui/base-ui';
+import { Button, Flexbox, Text } from '@lobehub/ui';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -84,7 +83,9 @@ const TaskParentBar = memo(() => {
         size={'small'}
         style={{ maxWidth: '100%', minWidth: 0 }}
         type={'text'}
-        onClick={() => navigate(taskDetailPath(parent.identifier, parentAgentId ?? undefined))}
+        onClick={() =>
+          navigate(taskDetailPath(parent.identifier, parentAgentId ?? undefined, parent.name))
+        }
       >
         <Text ellipsis style={{ minWidth: 0 }} weight={500}>
           {parent.name}
@@ -95,8 +96,8 @@ const TaskParentBar = memo(() => {
           <TaskSubtaskProgressTag
             currentIdentifier={currentIdentifier}
             subtasks={parentSubtasks}
-            onSubtaskClick={(identifier, assigneeAgentId) =>
-              navigate(taskDetailPath(identifier, assigneeAgentId))
+            onSubtaskClick={(identifier, assigneeAgentId, name) =>
+              navigate(taskDetailPath(identifier, assigneeAgentId, name))
             }
           />
         </span>

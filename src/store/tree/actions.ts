@@ -1,7 +1,7 @@
 import { CUSTOM_FOLDER_FILE_TYPE } from '@lobechat/const';
-import { mutate } from 'swr';
 
-import { resourceKeys } from '@/libs/swr/keys';
+import { hierarchySearchResource } from '@/features/ResourceManager/store/projection';
+import { revalidateReplica } from '@/libs/replica';
 import { fileService } from '@/services/file';
 import { resourceService } from '@/services/resource';
 import type { StoreSetter } from '@/store/types';
@@ -13,17 +13,20 @@ import type { TreeDataState, TreeItem, TreeState, TreeStoreHandle } from './type
  * The library sidebar swaps the tree for a flat search list while a query is
  * typed; its rows reuse the tree's rename/move/delete actions. Those actions
  * only know the affected folder, so every tree revalidation also refreshes the
- * hierarchy-scoped search caches or a renamed/deleted hit would linger there.
+ * hierarchy search replica or a renamed/deleted hit would linger there.
+ *
+ * A revalidation only re-runs the *head* request, and the replica deliberately
+ * keeps the rows the user already scrolled to. So dropping the loaded depth is
+ * part of the refresh: without it a rename / move / deletion of a row past the
+ * first page would leave the stale hit in the loaded tail. The same call drops
+ * the searches only a previous session had persisted (never loaded here), which
+ * no revalidation could otherwise reach.
  */
-export const revalidateHierarchySearch = () =>
-  mutate(
-    (key) =>
-      Array.isArray(key) &&
-      key[0] === resourceKeys.search.root &&
-      (key[1] as { scope?: string } | undefined)?.scope === 'hierarchy',
-    async (currentData) => currentData,
-    { revalidate: true },
-  );
+export const revalidateHierarchySearch = async (): Promise<void> => {
+  const { useResourceManagerStore } = await import('@/features/ResourceManager/store');
+  await useResourceManagerStore.getState().collapseHierarchySearch();
+  await revalidateReplica(hierarchySearchResource);
+};
 
 const createdTime = (value?: Date | string): number => {
   if (!value) return 0;
@@ -86,6 +89,32 @@ export const toTreeItem = (item: {
   userId: item.userId,
   visibility: item.visibility,
 });
+
+/**
+ * Explorer row → tree row.
+ *
+ * Kept next to {@link toTreeItem} and named, rather than inlined at the
+ * subscription that reconciles the explorer list into the sidebar, because it
+ * is the one place tree rows are rebuilt from a *different* source: anything it
+ * forgets to carry is silently dropped from every row the next time the list
+ * refreshes. `visibility` and `userId` were lost that way — the sidebar stopped
+ * marking private rows and the row menu mis-gated publish / make-private.
+ */
+export const toTreeItemFromResource = (item: {
+  createdAt?: Date | string | null;
+  fileId?: string | null;
+  fileType: string;
+  id: string;
+  metadata?: Record<string, any> | null;
+  name: string;
+  parentId?: string | null;
+  size?: number | null;
+  slug?: string | null;
+  sourceType?: string;
+  url?: string;
+  userId?: string | null;
+  visibility?: 'private' | 'public' | null;
+}): TreeItem => toTreeItem(item);
 
 type Setter = StoreSetter<TreeState>;
 
@@ -409,7 +438,11 @@ export class TreeActionImpl {
       if (resourceMap.has(itemId)) {
         await useFileStore.getState().moveResource(itemId, toParent || null);
       } else {
-        await resourceService.moveResource(itemId, toParent || null);
+        const cachePatch = await useFileStore
+          .getState()
+          .prepareResourceMoveCachePatch(fromParent || null, toParent || null);
+        const moved = await resourceService.moveResource(itemId, toParent || null);
+        await useFileStore.getState().applyMovedResourceToCaches(moved, cachePatch);
         await useFileStore.getState().refreshFileList();
       }
 
@@ -441,8 +474,13 @@ export class TreeActionImpl {
         // Item visible in Explorer → delegate (handles optimistic Explorer update + API)
         await useFileStore.getState().moveResource(itemId, toParent || null);
       } else {
-        // Item not in Explorer → API only, then refresh Explorer
-        await resourceService.moveResource(itemId, toParent || null);
+        // Item not in Explorer → API only, then patch the folder-list caches
+        // (the explorer's SWR entries for both folders) and refresh Explorer
+        const cachePatch = await useFileStore
+          .getState()
+          .prepareResourceMoveCachePatch(fromParent || null, toParent || null);
+        const moved = await resourceService.moveResource(itemId, toParent || null);
+        await useFileStore.getState().applyMovedResourceToCaches(moved, cachePatch);
         await useFileStore.getState().refreshFileList();
       }
     };
@@ -488,9 +526,21 @@ export class TreeActionImpl {
         promises.push(useFileStore.getState().moveResource(id, toParent || null));
       }
 
-      // Items not in Explorer → API only
+      // Items not in Explorer → API only, then patch the folder-list caches
+      const cachePatch =
+        notInExplorer.length > 0
+          ? await useFileStore
+              .getState()
+              .prepareResourceMoveCachePatch(fromParent || null, toParent || null)
+          : undefined;
       for (const id of notInExplorer) {
-        promises.push(resourceService.moveResource(id, toParent || null));
+        promises.push(
+          resourceService
+            .moveResource(id, toParent || null)
+            .then((moved) =>
+              useFileStore.getState().applyMovedResourceToCaches(moved, cachePatch!),
+            ),
+        );
       }
 
       await Promise.all(promises);
@@ -517,6 +567,9 @@ export class TreeActionImpl {
 
     tx.mutation = async () => {
       await resourceService.updateResource(itemId, { name: newName });
+      // The search surfaces keep their own persisted copies of the hit.
+      const { useResourceManagerStore } = await import('@/features/ResourceManager/store');
+      useResourceManagerStore.getState().patchSearchHit(itemId, { name: newName });
       const { useFileStore } = await import('@/store/file');
       await useFileStore.getState().refreshFileList();
     };

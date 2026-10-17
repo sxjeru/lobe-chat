@@ -1,18 +1,20 @@
 import type { ChildProcess } from 'node:child_process';
-import { spawn } from 'node:child_process';
+import { platform } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import type { AgentStreamEvent } from '@lobechat/agent-gateway-client';
+import { spawnManaged } from '@lobechat/utils/managedProcess';
 
 import type { AskUserBridge } from '../askUser/AskUserBridge';
 import { resolveHeterogeneousAgentCommand } from '../config';
 import { AgentStreamPipeline, type UploadHeterogeneousImage } from './agentStreamPipeline';
+import { readClaudeCodeSessionCost } from './claudeCodeSessionCost';
 import { isPathLikeCommand, resolveCliSpawnPlan } from './cliSpawn';
 import { readCodexSessionModel, resolveCodexInitialModel } from './codexModel';
 import { buildCursorAcpPrompt, CursorAcpSession } from './cursorAcpSession';
-import { buildDroidAcpPrompt, DroidAcpSession } from './droidAcpSession';
 import { buildDevinAcpPrompt, DevinAcpSession } from './devinAcpSession';
+import { buildDroidAcpPrompt, DroidAcpSession } from './droidAcpSession';
 import { buildGrokAcpPrompt, GrokAcpSession } from './grokAcpSession';
 import type { AgentPromptInput, BuildAgentInputOptions } from './input';
 import { buildAgentInput } from './input';
@@ -105,6 +107,15 @@ export interface SpawnAgentHandle {
    * care about ordering.
    */
   exit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  /**
+   * Notify a session transport of host-initiated cancellation at the protocol
+   * level (ACP `session/cancel`, RPC abort). Present only on session
+   * transports — absent on one-shot CLI spawns where `kill` is the only
+   * cancel channel. ACP SIGTERM closes the session without resending the
+   * already-delivered signal; SIGINT retains protocol cancellation and its
+   * grace timeout. SIGKILL remains a host-requested force-kill escalation.
+   */
+  interrupt?: (signal?: NodeJS.Signals) => void;
   /**
    * Send a signal to the child. A dedicated Unix process group is signaled as
    * a tree; inherited-group children receive a direct signal because their
@@ -213,7 +224,6 @@ export const AMP_BASE_ARGS = [
 ] as const;
 
 export const OPENCODE_BASE_ARGS = ['run', '--format', 'json', '--thinking', '--auto'] as const;
-export const PI_BASE_ARGS = ['--mode', 'json'] as const;
 export const KIMI_CODE_BASE_ARGS = ['--output-format', 'stream-json'] as const;
 export const QODER_BASE_ARGS = [
   '-p',
@@ -296,12 +306,13 @@ const buildOpenCodeArgs = ({ extraArgs, inputArgs, resumeSessionId }: BuildSpawn
   ...extraArgs,
 ];
 
-const buildPiArgs = ({ extraArgs, inputArgs, resumeSessionId }: BuildSpawnArgsParams) => [
-  ...PI_BASE_ARGS,
-  ...(resumeSessionId ? ['--session-id', resumeSessionId] : []),
-  ...inputArgs,
-  ...extraArgs,
-];
+const buildPiArgs = (_params: BuildSpawnArgsParams): never => {
+  // pi runs exclusively over the RPC transport (PiRpcSession /
+  // createPiRpcAgentHandle). Reaching the legacy json spawn is a bug.
+  throw new Error(
+    'pi runs over the RPC transport only — use PiRpcSession / createPiRpcAgentHandle',
+  );
+};
 
 const buildKimiCodeArgs = ({ extraArgs, inputArgs, resumeSessionId }: BuildSpawnArgsParams) => [
   ...KIMI_CODE_BASE_ARGS,
@@ -366,7 +377,7 @@ const killProcessTree = (proc: ChildProcess, signal: NodeJS.Signals, detached: b
   // to a direct signal. Tree-kill via `taskkill` is what the desktop
   // controller does for end-user CC, but the CLI's primary use case is
   // sandbox + Unix dev terminals, so keep this minimal.
-  if (process.platform === 'win32') {
+  if (platform() === 'win32') {
     try {
       proc.kill(signal);
     } catch {
@@ -460,10 +471,10 @@ const createAcpSpawnBridge = () => {
   };
 
   const attach = (session: {
-    close: (signal?: NodeJS.Signals) => void;
+    close: (signal?: NodeJS.Signals | null) => void;
     interrupt: () => void;
     run: () => Promise<void>;
-  }): Pick<SpawnAgentHandle, 'exit' | 'kill'> => {
+  }): Pick<SpawnAgentHandle, 'exit' | 'interrupt' | 'kill'> => {
     const exit: SpawnAgentHandle['exit'] = session
       .run()
       .then(() => getHostExit() ?? { code: 0, signal: null })
@@ -487,14 +498,21 @@ const createAcpSpawnBridge = () => {
       if (signal === 'SIGINT') session.interrupt();
       else session.close(signal);
     };
-    return { exit, kill };
+    const interrupt = (signal: NodeJS.Signals = 'SIGINT'): void => {
+      hostSignal = signal;
+      // SIGTERM already reached the child through the inherited process group.
+      // Close pending RPCs without interrupting the child's shutdown again.
+      if (signal === 'SIGTERM') session.close(null);
+      else kill(signal);
+    };
+    return { exit, interrupt, kill };
   };
 
   return { attach, events, onEvents, onStderr, stderr };
 };
 
 interface AcpSpawnSession {
-  close: (signal?: NodeJS.Signals) => void;
+  close: (signal?: NodeJS.Signals | null) => void;
   interrupt: () => void;
   pid?: number;
   run: () => Promise<void>;
@@ -506,11 +524,12 @@ const createAcpSpawnHandle = (
   session: AcpSpawnSession,
   getSessionId: () => string | undefined = () => session.sessionId,
 ): SpawnAgentHandle => {
-  const { exit, kill } = bridge.attach(session);
+  const { exit, interrupt, kill } = bridge.attach(session);
 
   return {
     events: bridge.events,
     exit,
+    interrupt,
     kill,
     get pid() {
       return session.pid;
@@ -602,11 +621,12 @@ const spawnDroidAcpAgent = async (
     resumeSessionId: options.resumeSessionId,
     sessionId: options.operationId,
   });
-  const { exit, kill } = bridge.attach(session);
+  const { exit, interrupt, kill } = bridge.attach(session);
 
   return {
     events: bridge.events,
     exit,
+    interrupt,
     kill,
     get pid() {
       return session.pid;
@@ -690,7 +710,7 @@ export const spawnAgent = async (options: SpawnAgentOptions): Promise<SpawnAgent
     inputArgs: inputPlan.args,
     resumeSessionId: options.resumeSessionId,
   });
-  const childEnv = {
+  const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
     ...(options.agentType === 'codebuddy' ? { CODEBUDDY_CODE_DISABLE_BACKGROUND_TASKS: '1' } : {}),
     ...options.env,
@@ -704,10 +724,22 @@ export const spawnAgent = async (options: SpawnAgentOptions): Promise<SpawnAgent
       ? await readCodexSessionModel(options.resumeSessionId, { env: childEnv })
       : undefined;
   const initialCumulativeUsage = resumedCodexSession?.cumulativeUsage;
+  const initialSessionCostUsd =
+    options.agentType === 'claude-code' && options.resumeSessionId
+      ? await readClaudeCodeSessionCost({
+          configDir: childEnv.CLAUDE_CONFIG_DIR,
+          cwd,
+          // Resolve from the child's environment: an overridden HOME moves the
+          // transcript the CLI resumes from.
+          home: childEnv.HOME,
+          sessionId: options.resumeSessionId,
+        })
+      : undefined;
 
   const cliSpawnPlan = await resolveCliSpawnPlan(command, args);
-  const detached = process.platform !== 'win32' && (options.detached ?? true);
-  const proc = spawn(cliSpawnPlan.command, cliSpawnPlan.args, {
+  const detached = platform() !== 'win32' && (options.detached ?? true);
+  const startedAt = Date.now();
+  const proc = spawnManaged(cliSpawnPlan.command, cliSpawnPlan.args, {
     cwd,
     detached,
     env: childEnv,
@@ -717,9 +749,12 @@ export const spawnAgent = async (options: SpawnAgentOptions): Promise<SpawnAgent
   const pipeline = new AgentStreamPipeline({
     agentType: options.agentType,
     cwd,
+    env: childEnv,
     initialCumulativeUsage,
     initialModel,
+    initialSessionCostUsd,
     operationId: options.operationId,
+    startedAt,
     uploadImage: options.uploadImage,
   });
   const stdout = proc.stdout!;
@@ -798,6 +833,12 @@ export const spawnAgent = async (options: SpawnAgentOptions): Promise<SpawnAgent
         const { code } = await exit;
         if (code === 0 && !killedByUs) {
           for (const event of pipeline.validateCompletion()) queue.push(event);
+        }
+        // Kimi Code reports usage only via its on-disk session wire log, so
+        // it can only be collected now that the process has exited. The hook
+        // is a no-op for every other agent type.
+        for (const event of await pipeline.collectPostRunUsage({ env: childEnv })) {
+          queue.push(event);
         }
       } catch (err) {
         streamError = err instanceof Error ? err : new Error(String(err));

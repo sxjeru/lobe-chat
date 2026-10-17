@@ -37,8 +37,10 @@ describe('mobileRouter task routes', () => {
     expect(source).toContain("import('@/routes/(main)/agent/task/[taskId]')");
     expect(source).toContain("path: 'tasks'");
     expect(source).toContain("path: 'task'");
-    expect(source).toContain("path: ':taskId'");
-    expect(source).toContain("path: ':aid/task/:taskId'");
+    // The `:slug?` tail is the readable title segment; it never resolves the
+    // task, so pre-slug links keep matching the same route.
+    expect(source).toContain("path: ':taskId/:slug?'");
+    expect(source).toContain("path: ':aid/task/:taskId/:slug?'");
     expect(source).not.toContain("import('@/routes/(main)/tasks/_layout')");
   });
 });
@@ -92,5 +94,21 @@ describe('mobile community route layouts', () => {
     expect(
       detailMatches?.some((match) => getRouteMetaFromHandle(match.route.handle)?.Skeleton),
     ).toBe(true);
+  });
+});
+
+describe('mobileRouter page routes', () => {
+  it('renders /page/:id instead of falling through to the catch-all redirect', () => {
+    const matches = matchRoutes(mobileRoutes, '/page/docs_abc123');
+
+    expect(matches?.at(-1)?.route.path).toBe(':id');
+    expect(matches?.at(-1)?.params).toMatchObject({ id: 'docs_abc123' });
+  });
+
+  it('mirrors the page detail route under a workspace slug', () => {
+    const matches = matchRoutes(mobileRoutes, '/my-team/page/docs_abc123');
+
+    expect(matches?.some((match) => match.route.path === ':workspaceSlug')).toBe(true);
+    expect(matches?.at(-1)?.route.path).toBe(':id');
   });
 });

@@ -1,9 +1,6 @@
 import type { TaskDetailSubtask, TaskSubtaskProgress } from '@lobechat/types';
-import { Block, Flexbox } from '@lobehub/ui';
-import type { DropdownMenuProps } from '@lobehub/ui/base-ui';
-import { DropdownMenu, Text, toast } from '@lobehub/ui/base-ui';
-import { Progress } from 'antd';
-import { cssVar } from 'antd-style';
+import type { DropdownMenuProps } from '@lobehub/ui';
+import { Block, cssVar, DropdownMenu, Flexbox, Progress, Text, toast } from '@lobehub/ui';
 import type { MouseEvent } from 'react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +76,7 @@ const flattenSubtasks = (nodes: TaskDetailSubtask[]) => {
 interface TaskSubtaskProgressTagProps {
   currentIdentifier?: string;
   onRequestSubtasks?: () => Promise<TaskDetailSubtask[]>;
-  onSubtaskClick?: (identifier: string, assigneeAgentId?: string) => void;
+  onSubtaskClick?: (identifier: string, assigneeAgentId?: string, name?: string) => void;
   progress?: TaskSubtaskProgress;
   subtasks?: TaskDetailSubtask[];
 }
@@ -143,7 +140,11 @@ const TaskSubtaskProgressTag = memo<TaskSubtaskProgressTagProps>(
           </Flexbox>
         ),
         onClick: () =>
-          onSubtaskClick?.(subtask.task.identifier, subtask.task.assignee?.id ?? undefined),
+          onSubtaskClick?.(
+            subtask.task.identifier,
+            subtask.task.assignee?.id ?? undefined,
+            subtask.task.name ?? undefined,
+          ),
       };
     }) as DropdownMenuProps['items'];
 
@@ -205,6 +206,7 @@ const TaskSubtaskProgressTag = memo<TaskSubtaskProgressTagProps>(
         style={{
           borderRadius: 24,
           cursor: hasDropdown || onRequestSubtasks ? 'pointer' : undefined,
+          flex: 'none',
         }}
         onClick={hasDropdown || onRequestSubtasks ? handleTagClick : undefined}
         onContextMenu={onRequestSubtasks ? handleTagClick : undefined}
@@ -216,7 +218,7 @@ const TaskSubtaskProgressTag = memo<TaskSubtaskProgressTagProps>(
           strokeColor={cssVar.colorSuccess}
           type={'circle'}
         />
-        <Text fontSize={12} type={'secondary'}>
+        <Text fontSize={12} style={{ whiteSpace: 'nowrap' }} type={'secondary'}>
           {data.text}
         </Text>
       </Block>

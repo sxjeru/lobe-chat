@@ -1,3 +1,4 @@
+import type { DeviceGitPullRequestDetail } from '@lobechat/types';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,7 @@ import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import type { ComposerTarget } from '../../types';
 import AgentWorkingSidebar from '../index';
+import PullRequestSections from '../PullRequest/Sections';
 
 // ─── captured RightPanel props ────────────────────────────────────────────────
 // The real RightPanel is a controlled DraggablePanel; here we stub it so the test
@@ -40,6 +42,40 @@ const effectiveConfig = vi.hoisted(() => ({
 }));
 
 const platform = vi.hoisted(() => ({ isDesktop: true }));
+const linkedPR = vi.hoisted(() => ({
+  number: undefined as number | undefined,
+  branch: 'feature' as string | undefined,
+  status: undefined as string | undefined,
+}));
+
+vi.mock('@/store/device', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useFetchGitBranch: () => ({ data: linkedPR.branch ? { branch: linkedPR.branch } : undefined }),
+  useFetchGitLinkedPR: () => ({
+    data: {
+      pullRequestStatus: linkedPR.status,
+      pullRequest: linkedPR.number
+        ? { number: linkedPR.number, state: 'open', url: 'https://github.com/test/repo/pull/1' }
+        : undefined,
+    },
+  }),
+}));
+
+vi.mock('../PullRequest', async () => {
+  const { useState } = await import('react');
+  return {
+    default: function PullRequestDraft() {
+      const [draft, setDraft] = useState('');
+      return (
+        <input
+          aria-label="PR draft"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+      );
+    },
+  };
+});
 
 const filesProps = vi.hoisted(() => ({
   current: undefined as { deviceId?: string; workingDirectory: string } | undefined,
@@ -96,6 +132,7 @@ const chatStore = vi.hoisted(() => ({
   threadMaps: {} as Record<string, any[]>,
   // read by the real topicSelectors.currentTopicMetadata (sourcePath resolution)
   topicDataMap: {} as Record<string, unknown>,
+  topicDetailMap: {} as Record<string, unknown>,
 }));
 
 const globalStore = vi.hoisted(() => ({
@@ -170,16 +207,23 @@ vi.mock('../Overview', () => ({
   default: ({
     environmentAvailable,
     onOpenTab,
+    pullRequest,
     workingDirectory,
   }: {
     environmentAvailable: boolean;
     onOpenTab: (tab: string) => void;
+    pullRequest?: { number: number };
     workingDirectory?: string;
   }) => (
     <>
       <button type="button" onClick={() => onOpenTab('review')}>
         Open Review from Overview
       </button>
+      {pullRequest && (
+        <button type="button" onClick={() => onOpenTab('pr')}>
+          Open Pull Request from Overview
+        </button>
+      )}
       {environmentAvailable && <span>Workspace environment</span>}
       {workingDirectory && <span>{workingDirectory}</span>}
     </>
@@ -212,6 +256,8 @@ vi.mock('@/store/global/selectors', () => ({
   systemStatusSelectors: {
     portalWidth: (s: typeof globalStore) => s.status.portalWidth || 400,
     portalWidths: (s: typeof globalStore) => s.status.portalWidths,
+    showWorkingOverview: (s: typeof globalStore) =>
+      s.status.showWorkingOverview ?? !s.status.showRightPanel,
     workingSidebarWidth: (s: typeof globalStore) => s.status.workingSidebarWidth || 360,
   },
 }));
@@ -242,8 +288,8 @@ vi.mock('@/features/ChatInput/ControlBar/useRepoType', async () => {
 vi.mock('@/hooks/useEffectiveWorkingDirectory', () => ({
   useEffectiveWorkingDirectory: () => reviewState.workingDirectory,
 }));
-vi.mock('@/hooks/useTopicAgencyConfig', () => ({
-  useTopicAgencyConfig: () => ({
+vi.mock('@/hooks/useEffectiveAgencyConfig', () => ({
+  useEffectiveAgencyConfig: () => ({
     agencyConfig: effectiveConfig.agencyConfig,
     workspaceScoped: effectiveConfig.workspaceScoped,
   }),
@@ -280,83 +326,97 @@ vi.mock('@/const/version', () => ({
     return platform.isDesktop;
   },
 }));
-vi.mock('@lobehub/ui', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  ActionIcon: ({ onClick, title }: { onClick?: () => void; title?: string }) => (
-    <button aria-label={title} type="button" onClick={onClick} />
-  ),
-  Skeleton: () => <div data-testid="params-loading" />,
-}));
+vi.mock('@lobehub/ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  const factories: ((original: typeof importOriginal) => unknown)[] = [
+    async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      ActionIcon: ({ onClick, title }: { onClick?: () => void; title?: string }) => (
+        <button aria-label={title} type="button" onClick={onClick} />
+      ),
+      Skeleton: () => <div data-testid="params-loading" />,
+    }),
+    async (importOriginal) => {
+      const { useState } = await import('react');
+      const actual = (await importOriginal()) as Record<string, unknown>;
 
-vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
-  const { useState } = await import('react');
-  const actual = (await importOriginal()) as Record<string, unknown>;
+      return {
+        ...actual,
+        ActionIcon: ({ onClick, title }: { onClick?: () => void; title?: string }) => (
+          <button aria-label={title} type="button" onClick={onClick} />
+        ),
+        ContextMenuTrigger: ({ children, items }: { children: ReactNode; items: any[] }) => {
+          const [open, setOpen] = useState(false);
+          const menuItems = items.filter((item) => item && item.type !== 'divider');
 
-  return {
-    ...actual,
-    ActionIcon: ({ onClick, title }: { onClick?: () => void; title?: string }) => (
-      <button aria-label={title} type="button" onClick={onClick} />
-    ),
-    ContextMenuTrigger: ({ children, items }: { children: ReactNode; items: any[] }) => {
-      const [open, setOpen] = useState(false);
-      const menuItems = items.filter((item) => item && item.type !== 'divider');
+          return (
+            <span
+              onContextMenu={(event: MouseEvent) => {
+                event.preventDefault();
+                setOpen(true);
+              }}
+            >
+              {children}
+              {open &&
+                menuItems.map((item) => (
+                  <button
+                    disabled={item.disabled}
+                    key={item.key}
+                    type="button"
+                    onClick={item.onClick}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+            </span>
+          );
+        },
+        DropdownMenu: ({
+          children,
+          items,
+          onOpenChangeComplete,
+        }: {
+          children: ReactNode;
+          items: any[] | (() => any[]);
+          onOpenChangeComplete?: (open: boolean) => void;
+        }) => {
+          const [open, setOpen] = useState(false);
+          const resolvedItems = typeof items === 'function' ? items() : items;
+          const menuItems = resolvedItems.flatMap((item) => item.children ?? []);
+          dropdownMenuState.items = resolvedItems;
+          dropdownMenuState.onOpenChangeComplete = onOpenChangeComplete;
 
-      return (
-        <span
-          onContextMenu={(event: MouseEvent) => {
-            event.preventDefault();
-            setOpen(true);
-          }}
-        >
-          {children}
-          {open &&
-            menuItems.map((item) => (
-              <button disabled={item.disabled} key={item.key} type="button" onClick={item.onClick}>
-                {item.label}
-              </button>
-            ))}
-        </span>
-      );
+          return (
+            <div>
+              <span onClick={() => setOpen((value) => !value)}>{children}</span>
+              {open &&
+                menuItems.map((item) => (
+                  <button key={item.key} type="button" onClick={item.onClick}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          );
+        },
+        Skeleton: {
+          Text: () => <div data-testid="params-loading" />,
+        },
+      };
     },
-    DropdownMenu: ({
-      children,
-      items,
-      onOpenChangeComplete,
-    }: {
-      children: ReactNode;
-      items: any[] | (() => any[]);
-      onOpenChangeComplete?: (open: boolean) => void;
-    }) => {
-      const [open, setOpen] = useState(false);
-      const resolvedItems = typeof items === 'function' ? items() : items;
-      const menuItems = resolvedItems.flatMap((item) => item.children ?? []);
-      dropdownMenuState.items = resolvedItems;
-      dropdownMenuState.onOpenChangeComplete = onOpenChangeComplete;
-
-      return (
-        <div>
-          <span onClick={() => setOpen((value) => !value)}>{children}</span>
-          {open &&
-            menuItems.map((item) => (
-              <button key={item.key} type="button" onClick={item.onClick}>
-                {item.label}
-              </button>
-            ))}
-        </div>
-      );
+    async (importOriginal) => {
+      const actual = (await importOriginal()) as Record<string, unknown>;
+      return {
+        ...actual,
+        createStaticStyles: () => () => ({}),
+      };
     },
-    Skeleton: {
-      Text: () => <div data-testid="params-loading" />,
-    },
-  };
-});
-
-vi.mock('antd-style', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    createStaticStyles: () => () => ({}),
-  };
+  ];
+  const merged: Record<string, unknown> = { ...actual };
+  for (const factory of factories) {
+    const part = (await factory(importOriginal)) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(part)) if (value !== actual[key]) merged[key] = value;
+  }
+  return merged;
 });
 
 beforeEach(() => {
@@ -384,6 +444,11 @@ beforeEach(() => {
   effectiveConfig.agencyConfig = undefined;
   effectiveConfig.workspaceScoped = false;
   platform.isDesktop = true;
+  linkedPR.number = undefined;
+  linkedPR.branch = 'feature';
+  linkedPR.status = undefined;
+  chatStore.topicDataMap = {};
+  chatStore.topicDetailMap = {};
   filesProps.current = undefined;
   renderedReview.current = undefined;
   reviewState.repoType = undefined;
@@ -411,6 +476,105 @@ afterEach(() => {
 });
 
 describe('AgentWorkingSidebar — controlled panel width', () => {
+  it('opens a scoped saved PR before branch lookup and discards it after authoritative empty lookup', () => {
+    linkedPR.branch = undefined;
+    reviewState.workingDirectory = '/repo';
+    chatStore.activeTopicId = 'topic-pr';
+    chatStore.topicDetailMap = {
+      'topic-pr': {
+        id: 'topic-pr',
+        metadata: {
+          workingDirectoryConfig: {
+            path: '/repo',
+            git: {
+              branch: 'feature',
+              github: {
+                pullRequest: {
+                  number: 42,
+                  title: 'Saved PR',
+                  state: 'open',
+                  url: 'https://github.com/test/repo/pull/42',
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    globalStore.status.workingSidebarTab = 'pr';
+    localStorageState.openTabsByContext = { 'topic:topic-pr': ['pr'] };
+    const { rerender } = render(<AgentWorkingSidebar />);
+    expect(screen.getByRole('textbox', { name: 'PR draft' })).toBeInTheDocument();
+    linkedPR.status = 'ok';
+    rerender(<AgentWorkingSidebar availableWidth={1200} />);
+    expect(screen.queryByRole('textbox', { name: 'PR draft' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { path: '/other', boundDeviceId: undefined },
+    { path: '/repo', boundDeviceId: 'other-device' },
+  ])('does not bootstrap a snapshot from another scope: %o', ({ path, boundDeviceId }) => {
+    linkedPR.branch = undefined;
+    reviewState.workingDirectory = '/repo';
+    chatStore.activeTopicId = 'topic-pr';
+    chatStore.topicDetailMap = {
+      'topic-pr': {
+        id: 'topic-pr',
+        metadata: {
+          boundDeviceId,
+          workingDirectoryConfig: {
+            path,
+            git: {
+              github: {
+                pullRequest: {
+                  number: 42,
+                  state: 'open',
+                  title: 'Other PR',
+                  url: 'https://github.com/test/repo/pull/42',
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    globalStore.status.workingSidebarTab = 'pr';
+    localStorageState.openTabsByContext = { 'topic:topic-pr': ['pr'] };
+    render(<AgentWorkingSidebar />);
+    expect(screen.queryByRole('textbox', { name: 'PR draft' })).not.toBeInTheDocument();
+  });
+
+  it('resets PR state when the PR number or directory changes', () => {
+    reviewState.repoType = 'github';
+    reviewState.workingDirectory = '/repo';
+    linkedPR.number = 1;
+    globalStore.status.workingSidebarTab = 'pr';
+    localStorageState.openTabsByContext = { 'draft:default:none': ['pr'] };
+    const { rerender } = render(<AgentWorkingSidebar />);
+    fireEvent.change(screen.getByLabelText('PR draft'), { target: { value: 'old draft' } });
+    linkedPR.number = 2;
+    rerender(<AgentWorkingSidebar availableWidth={1600} />);
+    expect(screen.getByLabelText('PR draft')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('PR draft'), { target: { value: 'another draft' } });
+    reviewState.workingDirectory = '/other';
+    rerender(<AgentWorkingSidebar availableWidth={1601} />);
+    expect(screen.getByLabelText('PR draft')).toHaveValue('');
+  });
+
+  it('opens a linked pull request from Overview in the Working Sidebar tab', () => {
+    reviewState.repoType = 'github';
+    reviewState.workingDirectory = '/repo';
+    linkedPR.number = 42;
+    linkedPR.status = 'ok';
+
+    render(<AgentWorkingSidebar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Pull Request from Overview' }));
+
+    expect(globalStore.openWorkingSidebar).toHaveBeenCalledWith('pr');
+    expect(screen.getByRole('button', { name: '#42' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('seeds the RightPanel with the default width', () => {
     render(<AgentWorkingSidebar />);
 
@@ -609,6 +773,65 @@ describe('AgentWorkingSidebar — controlled panel width', () => {
     expect(screen.queryByText('Workspace environment')).not.toBeInTheDocument();
     expect(screen.queryByText('/Users/me/project')).not.toBeInTheDocument();
     expect(filesProps.current).toBeUndefined();
+  });
+});
+
+describe('Pull request Markdown', () => {
+  it('renders standard Markdown without creating raw HTML elements', () => {
+    const rawHtml = '<aside data-raw-html="true">raw HTML</aside>';
+    const detail: DeviceGitPullRequestDetail = {
+      additions: 1,
+      author: 'lobehub',
+      autoMerge: null,
+      baseBehindBy: 0,
+      baseRefName: 'canary',
+      body: `**description-safe**\n\n${rawHtml}`,
+      changedFiles: 1,
+      checks: [],
+      comments: [
+        {
+          author: 'contributor',
+          body: `**comment-safe**\n\n${rawHtml}`,
+          createdAt: '2026-09-24T00:00:00Z',
+          id: 'comment-1',
+        },
+      ],
+      commits: [],
+      deletions: 0,
+      headRefName: 'fix/markdown',
+      headRefOid: 'a'.repeat(40),
+      isCrossRepository: false,
+      isDraft: false,
+      mergeable: 'MERGEABLE',
+      mergeStateStatus: 'CLEAN',
+      number: 1,
+      repo: { name: 'lobehub', owner: 'lobehub' },
+      reviewDecision: null,
+      reviews: [],
+      state: 'open',
+      title: 'Markdown rendering',
+      url: 'https://github.com/lobehub/lobehub/pull/1',
+      viewerCanBypass: false,
+      viewerCanWrite: true,
+    };
+
+    const { container } = render(
+      <PullRequestSections
+        detail={detail}
+        activity={{
+          data: { comments: detail.comments, commits: [], reviews: [] },
+          error: undefined,
+          isValidating: false,
+          mutate: vi.fn(),
+        }}
+        onAction={vi.fn().mockResolvedValue(true)}
+        onOpenTab={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('description-safe', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByText('comment-safe', { selector: 'strong' })).toBeInTheDocument();
+    expect(container.querySelector('[data-raw-html]')).not.toBeInTheDocument();
   });
 });
 

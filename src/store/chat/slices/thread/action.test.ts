@@ -1,5 +1,5 @@
 import { LOADING_FLAT } from '@lobechat/const';
-import { type UIChatMessage } from '@lobechat/types';
+import { RequestTrigger, type UIChatMessage } from '@lobechat/types';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { type Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -146,165 +146,6 @@ describe('thread action', () => {
       });
 
       expect(useChatStore.getState()).toBe(stateBefore);
-    });
-  });
-
-  describe('openThreadCreator', () => {
-    it('should set thread creator state and open portal', () => {
-      const { result } = renderHook(() => useChatStore());
-      const pushPortalViewSpy = vi.spyOn(result.current, 'pushPortalView');
-
-      act(() => {
-        result.current.openThreadCreator('message-id');
-      });
-
-      expect(result.current.threadStartMessageId).toBe('message-id');
-      expect(result.current.portalThreadId).toBeUndefined();
-      expect(result.current.startToForkThread).toBe(true);
-      expect(pushPortalViewSpy).toHaveBeenCalledWith({
-        type: 'thread',
-        startMessageId: 'message-id',
-      });
-    });
-
-    it('should initialize optimistic parent messages from main scope messages', () => {
-      const { result } = renderHook(() => useChatStore());
-
-      const mainMessages: UIChatMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'first',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-        {
-          id: 'msg-2',
-          role: 'assistant',
-          content: 'reply',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-        {
-          id: 'msg-3',
-          role: 'user',
-          content: 'second',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-      ];
-
-      act(() => {
-        useChatStore.setState({
-          messagesMap: {
-            'main_test-session-id_test-topic-id': mainMessages,
-          },
-        });
-      });
-
-      const replaceMessagesSpy = vi.spyOn(result.current, 'replaceMessages');
-
-      act(() => {
-        result.current.openThreadCreator('msg-3');
-      });
-
-      // Should call replaceMessages with all 3 parent messages (continuation mode)
-      expect(replaceMessagesSpy).toHaveBeenCalledWith(
-        mainMessages,
-        expect.objectContaining({ action: 'initThreadMessages' }),
-      );
-    });
-
-    it('should use main scope messages even when activeThreadId is set ()', () => {
-      const { result } = renderHook(() => useChatStore());
-
-      const mainMessages: UIChatMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'first',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-        {
-          id: 'msg-2',
-          role: 'assistant',
-          content: 'reply',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-        {
-          id: 'msg-3',
-          role: 'user',
-          content: 'second',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-      ];
-
-      const threadMessages: UIChatMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'first',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-        },
-        {
-          id: 'thread-msg-1',
-          role: 'user',
-          content: 'thread msg',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-          threadId: 'existing-thread',
-        },
-        {
-          id: 'thread-msg-2',
-          role: 'assistant',
-          content: 'thread reply',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          agentId: 'test-session-id',
-          threadId: 'existing-thread',
-        },
-      ];
-
-      act(() => {
-        useChatStore.setState({
-          activeThreadId: 'existing-thread',
-          messagesMap: {
-            // Main scope has all messages including msg-3
-            'main_test-session-id_test-topic-id': mainMessages,
-            // Thread scope does NOT have msg-3
-            'thread_test-session-id_test-topic-id_existing-thread': threadMessages,
-          },
-        });
-      });
-
-      const replaceMessagesSpy = vi.spyOn(result.current, 'replaceMessages');
-
-      act(() => {
-        // Fork from msg-3 which only exists in main scope
-        result.current.openThreadCreator('msg-3');
-      });
-
-      // BUG: if openThreadCreator uses activeDisplayMessages (which includes activeThreadId),
-      // it gets thread-scoped messages that don't contain msg-3,
-      // genParentMessages returns [], and replaceMessages is never called.
-      //
-      // FIX: openThreadCreator should always use main scope key to get messages.
-      expect(replaceMessagesSpy).toHaveBeenCalledWith(
-        mainMessages,
-        expect.objectContaining({ action: 'initThreadMessages' }),
-      );
     });
   });
 
@@ -621,6 +462,7 @@ describe('thread action', () => {
       // written straight to the title, which leaked `{"title":"..."}`.
       expect(chatService.fetchPresetTaskResult).not.toHaveBeenCalled();
       expect((aiChatService.generateJSON as Mock).mock.calls[0][0]).toMatchObject({
+        metadata: { trigger: RequestTrigger.ThreadTitle },
         schema: { name: 'topic_title' },
         tracing: { scenario: 'topic_title' },
       });

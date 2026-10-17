@@ -18,7 +18,7 @@ const baseState = (): AgentState =>
 
 describe('normalizeAgentState', () => {
   it('returns the same object when metadata carries no legacy keys', () => {
-    const state = { ...baseState(), metadata: { userId: 'u1', _hooks: [] } };
+    const state = { ...baseState(), metadata: { _stepLabel: 'step', work: { id: 'work_1' } } };
     expect(normalizeAgentState(state)).toBe(state);
   });
 
@@ -62,7 +62,8 @@ describe('normalizeAgentState', () => {
     expect(normalized.binding).toEqual({
       device: { id: 'dev_1', platform: 'darwin', systemInfo: { workingDirectory: '/tmp' } },
     });
-    expect(normalized.metadata).toEqual({ userId: 'u1' });
+    expect(normalized.origin).toEqual({ userId: 'u1' });
+    expect(normalized.metadata).toEqual({});
     // Input is not mutated.
     expect(state.metadata.agentConfig).toEqual({ systemRole: 'hi' });
   });
@@ -80,6 +81,226 @@ describe('normalizeAgentState', () => {
     expect(normalized.world?.agent).toEqual({ systemRole: 'new' });
     expect(normalized.binding?.device?.id).toBe('dev_new');
     expect(normalized.metadata).toEqual({});
+  });
+
+  it('lifts identity, trigger and lineage keys into origin', () => {
+    const state = {
+      ...baseState(),
+      metadata: {
+        _stepLabel: 'step',
+        agentId: 'agent-1',
+        agentInterventionContinuation: {
+          resolutionRequestId: 'r1',
+          sourceOperationId: 'op-0',
+          sourceToolMessageIds: ['t1'],
+        },
+        agentSignal: { kind: 'memory' },
+        groupId: null,
+        isSubAgent: true,
+        orchestrationRole: 'member',
+        sourceMessageId: 'msg-1',
+        subAgentProgress: { parentOperationId: 'op-0', toolMessageId: 't1' },
+        threadId: undefined,
+        topicId: 'topic-1',
+        trigger: 'chat',
+        userId: 'u1',
+        workspaceId: 'ws-1',
+      },
+    };
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.origin).toEqual({
+      agentId: 'agent-1',
+      continuation: {
+        resolutionRequestId: 'r1',
+        sourceOperationId: 'op-0',
+        sourceToolMessageIds: ['t1'],
+      },
+      lineage: {
+        isSubAgent: true,
+        orchestrationRole: 'member',
+        progressAnchor: { parentOperationId: 'op-0', toolMessageId: 't1' },
+      },
+      signal: { kind: 'memory' },
+      sourceMessageId: 'msg-1',
+      topicId: 'topic-1',
+      trigger: 'chat',
+      userId: 'u1',
+      workspaceId: 'ws-1',
+    });
+    // `null` / `undefined` legacy values are absent, not carried as null.
+    expect('groupId' in normalized.origin!).toBe(false);
+    expect('threadId' in normalized.origin!).toBe(false);
+    expect(normalized.metadata).toEqual({ _stepLabel: 'step' });
+  });
+
+  it('lifts principal, plan and host keys and folds the model config into its top-level slot', () => {
+    const state = {
+      ...baseState(),
+      metadata: {
+        _hooks: [{ id: 'h1', type: 'webhook', webhook: { url: 'https://x' } }],
+        activeDeviceScope: 'workspace',
+        agentShareVisitor: { shareId: 'share-1', visitorUserId: 'visitor-1' },
+        botContext: { applicationId: 'app-1', isOwner: true, platform: 'discord' },
+        clientIp: '10.0.0.1',
+        deviceAccessPolicy: { canUseDevice: false, reason: 'external-bot' },
+        evalRuntime: { caseId: 'case-1' },
+        executionPlan: { kind: 'sandbox', target: 'sandbox' },
+        modelRuntimeConfig: { model: 'gpt-4', provider: 'openai' },
+        operationSkillSet: { enabledSkillIds: [], skills: [] },
+        queueRetries: 3,
+        queueRetryDelay: '10s',
+        stream: false,
+        userAgent: 'lh-cli',
+        workingDirectory: '/repo',
+      },
+    };
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.principal).toEqual({
+      actor: {
+        bot: { applicationId: 'app-1', isOwner: true, platform: 'discord' },
+        deviceScope: 'workspace',
+        shareVisitor: { shareId: 'share-1', visitorUserId: 'visitor-1' },
+      },
+      audit: { clientIp: '10.0.0.1', userAgent: 'lh-cli' },
+      policy: { deviceAccess: { canUseDevice: false, reason: 'external-bot' } },
+    });
+    expect(normalized.plan).toEqual({
+      eval: { caseId: 'case-1' },
+      execution: { kind: 'sandbox', target: 'sandbox' },
+      skills: { enabledSkillIds: [], skills: [] },
+      stream: false,
+      workingDirectory: '/repo',
+    });
+    expect(normalized.host).toEqual({
+      hooks: [{ id: 'h1', type: 'webhook', webhook: { url: 'https://x' } }],
+      queue: { retries: 3, retryDelay: '10s' },
+    });
+    expect(normalized.modelRuntimeConfig).toEqual({ model: 'gpt-4', provider: 'openai' });
+    expect(normalized.metadata).toEqual({});
+  });
+
+  it('keeps the top-level model config over the legacy metadata copy', () => {
+    const state = {
+      ...baseState(),
+      metadata: { modelRuntimeConfig: { model: 'legacy', provider: 'openai' } },
+      modelRuntimeConfig: { model: 'pinned', provider: 'openai' },
+    };
+
+    expect(normalizeAgentState(state).modelRuntimeConfig).toEqual({
+      model: 'pinned',
+      provider: 'openai',
+    });
+  });
+
+  it('merges lifted origin keys into an existing origin without overriding it', () => {
+    const state = {
+      ...baseState(),
+      metadata: { agentId: 'agent-old', topicId: 'topic-1' },
+      origin: { agentId: 'agent-new' },
+    };
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.origin).toEqual({ agentId: 'agent-new', topicId: 'topic-1' });
+    expect(normalized.metadata).toEqual({});
+  });
+
+  it('lifts the legacy top-level tool mirrors into the operation slot', () => {
+    const manifestMap = { 'lobe-web-browsing': { identifier: 'lobe-web-browsing' } };
+    const state = {
+      ...baseState(),
+      toolExecutorMap: { 'lobe-web-browsing': 'server' },
+      toolManifestMap: manifestMap,
+      toolSourceMap: { 'lobe-web-browsing': 'builtin' },
+      tools: [{ function: { name: 'search' }, type: 'function' }],
+    } as unknown as AgentState;
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.operationToolSet).toEqual({
+      enabledToolIds: [],
+      executorMap: { 'lobe-web-browsing': 'server' },
+      manifestMap,
+      sourceMap: { 'lobe-web-browsing': 'builtin' },
+      tools: [{ function: { name: 'search' }, type: 'function' }],
+    });
+    // The blob no longer carries the tool set twice.
+    expect('toolManifestMap' in normalized).toBe(false);
+    expect('toolSourceMap' in normalized).toBe(false);
+    expect('toolExecutorMap' in normalized).toBe(false);
+    expect('tools' in normalized).toBe(false);
+    // Input is not mutated.
+    expect(state.toolManifestMap).toBe(manifestMap);
+  });
+
+  it('keeps the operation slot over the legacy tool mirrors', () => {
+    const state = {
+      ...baseState(),
+      operationToolSet: {
+        enabledToolIds: ['lobe-web-browsing'],
+        executorMap: {},
+        manifestMap: { 'lobe-web-browsing': { identifier: 'lobe-web-browsing' } },
+        sourceMap: {},
+        tools: [],
+      },
+      toolManifestMap: { stale: { identifier: 'stale' } },
+    } as unknown as AgentState;
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.operationToolSet?.manifestMap).toEqual({
+      'lobe-web-browsing': { identifier: 'lobe-web-browsing' },
+    });
+    expect(normalized.operationToolSet?.enabledToolIds).toEqual(['lobe-web-browsing']);
+    expect('toolManifestMap' in normalized).toBe(false);
+  });
+
+  it('lifts the run policies and the expertise snapshot into their slots', () => {
+    const expertise = { contentHash: 'h', domains: [], renderedContext: '<e/>', schemaVersion: 1 };
+    const state = {
+      ...baseState(),
+      // `false` is a decision, not an absent value.
+      enableExpertise: false,
+      expertise,
+      securityBlacklist: { rules: [{ pattern: 'rm -rf', type: 'command' }] },
+      userInterventionConfig: { approvalMode: 'headless' },
+    } as unknown as AgentState;
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.principal?.policy).toEqual({
+      securityBlacklist: { rules: [{ pattern: 'rm -rf', type: 'command' }] },
+      userIntervention: { approvalMode: 'headless' },
+    });
+    expect(normalized.world?.expertise).toBe(expertise);
+    expect(normalized.world?.enableExpertise).toBe(false);
+    // Kept, not dropped: a worker still running the pre-slot build reads only
+    // the top-level copy, and would park a headless run without it.
+    for (const compat of [
+      'enableExpertise',
+      'expertise',
+      'securityBlacklist',
+      'userInterventionConfig',
+    ]) {
+      expect(compat in normalized).toBe(true);
+    }
+  });
+
+  it('keeps a policy slot decision over the legacy top-level copy', () => {
+    const state = {
+      ...baseState(),
+      principal: { policy: { userIntervention: { approvalMode: 'auto-run' } } },
+      userInterventionConfig: { approvalMode: 'headless' },
+    } as unknown as AgentState;
+
+    const normalized = normalizeAgentState(state);
+
+    expect(normalized.principal?.policy?.userIntervention).toEqual({ approvalMode: 'auto-run' });
+    expect(normalized.userInterventionConfig).toEqual({ approvalMode: 'headless' });
   });
 
   it('lifts a partial device binding without inventing an id', () => {

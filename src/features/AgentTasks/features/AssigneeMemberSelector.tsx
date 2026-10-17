@@ -1,7 +1,5 @@
 import { canWorkspaceRoleBeTaskAssignee } from '@lobechat/const/rbac';
-import { Flexbox, Icon, Tooltip } from '@lobehub/ui';
-import { Popover, Text } from '@lobehub/ui/base-ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+import { createStaticStyles, cssVar, Flexbox, Icon, Popover, Text, Tooltip } from '@lobehub/ui';
 import { UserRoundX } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,6 +17,7 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import { hasWorkspaceMemberDirectory } from '../shared/memberAssigneeMode';
+import { partitionSelfMember } from './assigneeMemberOptions';
 
 interface AssigneeMemberSelectorProps {
   children: ReactNode;
@@ -71,6 +70,9 @@ const memberName = (member: WorkspaceMemberRow) =>
   member.user?.email?.trim() ||
   member.userId;
 
+const toMemberOption = (member: WorkspaceMemberRow) =>
+  ({ key: `member:${member.userId}`, kind: 'member', member }) as const;
+
 const matchesSearch = (member: WorkspaceMemberRow, query: string) =>
   [member.user?.fullName, member.user?.username, member.user?.email].some((label) =>
     (label ?? '').toLowerCase().includes(query),
@@ -84,6 +86,11 @@ const triggerStyle: CSSProperties = {
   maxWidth: '100%',
   minWidth: 0,
 };
+
+// `display: contents` keeps the disabled wrapper out of layout, so the trigger
+// lays out exactly as when enabled (e.g. a full-width property row stays
+// left-aligned instead of shrinking and being centered).
+const blockedContentStyle: CSSProperties = { display: 'contents', pointerEvents: 'none' };
 
 const AssigneeMemberSelector = memo<AssigneeMemberSelectorProps>(
   ({
@@ -130,14 +137,19 @@ const AssigneeMemberSelector = memo<AssigneeMemberSelectorProps>(
     );
     const unassignedLabel = t('taskList.unassigned');
     const showUnassigned = !query || unassignedLabel.toLowerCase().includes(query);
+    // Self sits right under "Unassigned" and out of the workspace member group,
+    // so assigning a task to yourself never means scanning the directory.
+    const { others: otherMembers, self: selfMember } = useMemo(
+      () => partitionSelfMember(filteredMembers, selfUserId),
+      [filteredMembers, selfUserId],
+    );
     const flatOptions = useMemo<MemberOption[]>(
       () => [
         ...(showUnassigned ? [{ key: 'unassigned', kind: 'unassigned' } as const] : []),
-        ...filteredMembers.map(
-          (member) => ({ key: `member:${member.userId}`, kind: 'member', member }) as const,
-        ),
+        ...(selfMember ? [toMemberOption(selfMember)] : []),
+        ...otherMembers.map((member) => toMemberOption(member)),
       ],
-      [filteredMembers, showUnassigned],
+      [otherMembers, selfMember, showUnassigned],
     );
     const optionIndexByKey = useMemo(
       () => new Map(flatOptions.map((option, index) => [option.key, index])),
@@ -257,7 +269,7 @@ const AssigneeMemberSelector = memo<AssigneeMemberSelectorProps>(
           style={{ ...currentTriggerStyle, cursor: 'not-allowed', opacity: 0.5 }}
           onClick={(event) => event.stopPropagation()}
         >
-          <span style={{ pointerEvents: 'none' }}>{children}</span>
+          <span style={blockedContentStyle}>{children}</span>
         </div>
       </Tooltip>
     ) : (
@@ -301,14 +313,13 @@ const AssigneeMemberSelector = memo<AssigneeMemberSelectorProps>(
                 style={{ maxHeight: '50vh', overflowY: 'auto', width: '100%' }}
               >
                 {showUnassigned && renderOption({ key: 'unassigned', kind: 'unassigned' })}
-                {filteredMembers.length > 0 && (
+                {selfMember && renderOption(toMemberOption(selfMember))}
+                {otherMembers.length > 0 && (
                   <div className={styles.sectionHeader}>
-                    {t('taskList.assigneeSelector.memberGroup')}
+                    {t('taskList.assigneeSelector.workspaceMemberGroup')}
                   </div>
                 )}
-                {filteredMembers.map((member) =>
-                  renderOption({ key: `member:${member.userId}`, kind: 'member', member }),
-                )}
+                {otherMembers.map((member) => renderOption(toMemberOption(member)))}
               </Flexbox>
             )}
           </Flexbox>

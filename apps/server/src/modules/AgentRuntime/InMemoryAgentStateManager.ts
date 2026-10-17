@@ -17,6 +17,7 @@ export class InMemoryAgentStateManager implements IAgentStateManager {
   private stepLocks: Map<string, { expiresAt: number; ownerId: string }> = new Map();
   private inlineResumes: Map<string, string> = new Map();
   private interrupted: Set<string> = new Set();
+  private queuedMessages: Set<string> = new Set();
 
   private executionLockKey(operationId: string): string {
     return `agent_runtime_operation_lock:${operationId}`;
@@ -107,6 +108,7 @@ export class InMemoryAgentStateManager implements IAgentStateManager {
   async createOperationMetadata(
     operationId: string,
     data: {
+      acceptsMemberRuntimeEnd?: boolean;
       agentConfig?: any;
       visitorRedaction?: { showErrorDetails?: boolean; showModelInfo?: boolean };
       mirrorToOperationId?: string;
@@ -117,6 +119,7 @@ export class InMemoryAgentStateManager implements IAgentStateManager {
     },
   ): Promise<void> {
     const metadata: AgentOperationMetadata = {
+      acceptsMemberRuntimeEnd: data.acceptsMemberRuntimeEnd,
       agentConfig: data.agentConfig,
       visitorRedaction: data.visitorRedaction,
       createdAt: new Date().toISOString(),
@@ -143,11 +146,21 @@ export class InMemoryAgentStateManager implements IAgentStateManager {
     return this.interrupted.has(operationId);
   }
 
+  async setQueuedMessages(operationId: string, pending: boolean): Promise<void> {
+    if (pending) this.queuedMessages.add(operationId);
+    else this.queuedMessages.delete(operationId);
+  }
+
+  async hasQueuedMessages(operationId: string): Promise<boolean> {
+    return this.queuedMessages.has(operationId);
+  }
+
   async deleteAgentOperation(operationId: string): Promise<void> {
     this.states.delete(operationId);
     this.steps.delete(operationId);
     this.metadata.delete(operationId);
     this.interrupted.delete(operationId);
+    this.queuedMessages.delete(operationId);
     this.inlineResumes.delete(operationId);
     log('Deleted operation %s', operationId);
   }

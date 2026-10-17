@@ -1,9 +1,18 @@
 'use client';
 
+import type { TaskExecutionConfig } from '@lobechat/types';
+import { toTaskExecutionConfigPatch } from '@lobechat/types';
 import { useEditor } from '@lobehub/editor/react';
-import { Block, Flexbox } from '@lobehub/ui';
-import { ActionIcon, Button, Text, toast, useModalContext } from '@lobehub/ui/base-ui';
-import { cssVar } from 'antd-style';
+import {
+  ActionIcon,
+  Block,
+  Button,
+  cssVar,
+  Flexbox,
+  Text,
+  toast,
+  useModalContext,
+} from '@lobehub/ui';
 import { Minimize2, Paperclip, X } from 'lucide-react';
 import { type KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +33,7 @@ import AssigneeAgentSelector from '../features/AssigneeAgentSelector';
 import AssigneeAvatar from '../features/AssigneeAvatar';
 import AssigneeMemberSelector from '../features/AssigneeMemberSelector';
 import AssigneeUserAvatar from '../features/AssigneeUserAvatar';
+import TaskExecutionControls from '../features/TaskExecutionControls';
 import TaskPriorityTag from '../features/TaskPriorityTag';
 import TaskVisibilityChipLabel from '../features/TaskVisibilityChipLabel';
 import TaskVisibilityTag from '../features/TaskVisibilityTag';
@@ -31,15 +41,18 @@ import { UnassignedAssigneeIcon } from '../features/UnassignedAssigneeIcon';
 import { useAgentDisplayMeta } from '../shared/useAgentDisplayMeta';
 import { useAgentVisibility } from '../shared/useAgentVisibility';
 import { useUserDisplayMeta } from '../shared/useUserDisplayMeta';
+import { useTitleEnterToInstruction } from './useTitleEnterToInstruction';
 
 export interface CreateTaskContentProps {
   agentId?: string;
+  /** Initial priority, e.g. the Kanban priority column the modal was opened from. */
+  defaultPriority?: number;
   /**
    * Locks the assignee to `agentId` and hides the agent picker. Used on the
    * agent-scoped task list where every task belongs to that agent.
    */
   lockAssignee?: boolean;
-  onCreated?: (task: { agentId?: string; identifier: string }) => void;
+  onCreated?: (task: { agentId?: string; identifier: string; name?: string }) => void;
   projectId?: string;
   /**
    * Whether to show the "minimize to inline entry" button. Only the list view has an
@@ -49,7 +62,14 @@ export interface CreateTaskContentProps {
 }
 
 const CreateTaskContent = memo<CreateTaskContentProps>(
-  ({ agentId, lockAssignee, onCreated, projectId, showInlineToggle = true }) => {
+  ({
+    agentId,
+    defaultPriority = 0,
+    lockAssignee,
+    onCreated,
+    projectId,
+    showInlineToggle = true,
+  }) => {
     const { t } = useTranslation('chat');
     const { close } = useModalContext();
     const { allowed: canCreateTask, reason } = usePermission('create_content');
@@ -61,9 +81,13 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
     const activeWorkspaceId = useActiveWorkspaceId();
 
     const [title, setTitle] = useState('');
-    const [priority, setPriority] = useState(0);
+    const [priority, setPriority] = useState(defaultPriority);
     const [assigneeAgentId, setAssigneeAgentId] = useState<string | undefined>(agentId);
     const [assigneeUserId, setAssigneeUserId] = useState<string | undefined>();
+    // Where this task will run, if not simply wherever the assignee runs.
+    // Undefined = inherit, and then nothing is sent, so an untouched modal
+    // creates exactly the task it always did.
+    const [execution, setExecution] = useState<TaskExecutionConfig | undefined>();
     // Default to workspace-visible: workspace tasks are team work by default,
     // and going private stays one click away. In personal mode the field is
     // irrelevant and the chip is hidden anyway.
@@ -95,6 +119,19 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
 
     const handleAgentChange = useCallback((nextAgentId: string | null) => {
       setAssigneeAgentId(nextAgentId ?? undefined);
+      // The repo list belongs to the assignee (its provider env), so a
+      // selection made for the previous agent must not carry over. A pinned
+      // device is the user's machine and stays valid across agents.
+      setExecution((current) =>
+        current?.repos
+          ? {
+              ...current,
+              repos: undefined,
+              workingDirectory: undefined,
+              workingDirectoryConfig: undefined,
+            }
+          : current,
+      );
     }, []);
     const handleMemberChange = useCallback((nextUserId: string | null) => {
       setAssigneeUserId(nextUserId ?? undefined);
@@ -129,6 +166,9 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
         const result = await createTask({
           assigneeAgentId,
           assigneeUserId,
+          // Only present when the user pinned a run location / directory —
+          // otherwise the task inherits the assignee agent entirely.
+          ...(execution ? { config: { execution: toTaskExecutionConfigPatch(execution) } } : {}),
           editorData: editorJson,
           instruction: instruction || title.trim(),
           name: title.trim() || undefined,
@@ -143,6 +183,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
           onCreated?.({
             agentId: result.assigneeAgentId ?? undefined,
             identifier: result.identifier,
+            name: result.name ?? undefined,
           });
         }
       } catch {
@@ -154,6 +195,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
       assigneeUserId,
       canCreateTask,
       close,
+      execution,
       createTask,
       editor,
       onCreated,
@@ -177,10 +219,14 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
       }
     }, []);
 
+    const handleTitleKeyDown = useTitleEnterToInstruction(editor);
+
     return (
-      <Flexbox onKeyDown={handleKeyDown}>
-        <Flexbox horizontal style={{ padding: '16px 24px 0' }}>
-          <Flexbox flex={1} style={{ minHeight: 180 }}>
+      <Flexbox flex={1} style={{ minHeight: 0 }} onKeyDown={handleKeyDown}>
+        <Flexbox horizontal style={{ minHeight: 0, padding: '16px 24px 0' }}>
+          {/* A block (not flex) scroller: the editor's overflow-hidden wrapper
+              would otherwise shrink to fit and clip instead of scrolling. */}
+          <div style={{ flex: 1, minHeight: 180, minWidth: 0, overflowY: 'auto' }}>
             <input
               autoFocus={canCreateTask}
               disabled={!canCreateTask}
@@ -199,6 +245,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                 width: '100%',
               }}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={handleTitleKeyDown}
             />
             <EditorCanvas
               disabled={!canCreateTask}
@@ -208,7 +255,7 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
               style={{ fontSize: 14, paddingBottom: 16 }}
               onContentChange={handleContentChange}
             />
-          </Flexbox>
+          </div>
           <Flexbox horizontal gap={4} style={{ flexShrink: 0 }}>
             {showInlineToggle && (
               <ActionIcon
@@ -225,7 +272,11 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
           horizontal
           align={'center'}
           justify={'space-between'}
-          style={{ borderTop: `1px solid ${cssVar.colorBorderSecondary}`, padding: '8px 16px' }}
+          style={{
+            borderTop: `1px solid ${cssVar.colorBorderSecondary}`,
+            flexShrink: 0,
+            padding: '8px 16px',
+          }}
         >
           <Flexbox horizontal gap={2} wrap={'wrap'}>
             <TaskPriorityTag priority={priority} onChange={setPriority}>
@@ -234,7 +285,8 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                 horizontal
                 align="center"
                 gap={6}
-                paddingBlock={4}
+                height={24}
+                paddingBlock={3}
                 paddingInline={8}
                 variant={'borderless'}
               >
@@ -260,7 +312,8 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                   horizontal
                   align="center"
                   gap={6}
-                  paddingBlock={4}
+                  height={24}
+                  paddingBlock={3}
                   paddingInline={8}
                   variant={'borderless'}
                 >
@@ -286,7 +339,8 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                 horizontal
                 align="center"
                 gap={6}
-                paddingBlock={4}
+                height={24}
+                paddingBlock={3}
                 paddingInline={8}
                 variant={'borderless'}
               >
@@ -304,7 +358,8 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                   horizontal
                   align="center"
                   gap={6}
-                  paddingBlock={4}
+                  height={24}
+                  paddingBlock={3}
                   paddingInline={8}
                   variant={'borderless'}
                 >
@@ -342,12 +397,20 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
                 }
                 onChange={setVisibility}
               >
-                <TaskVisibilityChipLabel visibility={visibility} />
+                <TaskVisibilityChipLabel height={24} paddingBlock={3} visibility={visibility} />
               </TaskVisibilityTag>
             )}
 
+            <TaskExecutionControls
+              assigneeAgentId={assigneeAgentId}
+              disabled={!canCreateTask}
+              value={execution}
+              onChange={setExecution}
+            />
+
             <ActionIcon
               icon={Paperclip}
+              size={'small'}
               title={t('upload.action.tooltip')}
               onClick={handleAttach}
             />

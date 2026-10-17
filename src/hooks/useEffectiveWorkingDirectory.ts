@@ -5,7 +5,7 @@ import {
   resolveTargetDeviceId,
 } from '@/helpers/agentWorkingDirectory';
 import { globalAgentContextManager } from '@/helpers/GlobalAgentContextManager';
-import { useTopicAgencyConfig } from '@/hooks/useTopicAgencyConfig';
+import { useEffectiveAgencyConfig } from '@/hooks/useEffectiveAgencyConfig';
 import { useAgentStore } from '@/store/agent';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
@@ -51,15 +51,19 @@ export const useEffectiveWorkingDirectory = (
   // Effective config = shared row + this member's device override,
   // so `resolveTargetDeviceId` targets the device THIS member's run goes to —
   // not whichever machine landed on the workspace-shared row.
-  const { agencyConfig, workspaceScoped } = useTopicAgencyConfig(agentId, topicId);
+  const { agencyConfig, workspaceScoped } = useEffectiveAgencyConfig(agentId, { topicId });
   const legacyAgentWorkingDirectory = useAgentStore((s) =>
     agentId ? s.localAgentWorkingDirectoryMap[agentId] : undefined,
   );
   const topicWorkingDirectory = useChatStore(topicSelectors.getTopicWorkingDirectory(topicId));
+  // `null` means "this conversation has no topic", the same as for
+  // `getTopicWorkingDirectory` — it must not inherit the active topic's config.
   const topicWorkingDirectoryConfig = useChatStore((s) =>
-    topicId
-      ? topicSelectors.getTopicById(topicId)(s)?.metadata?.workingDirectoryConfig
-      : topicSelectors.currentTopicMetadata(s)?.workingDirectoryConfig,
+    topicId === null
+      ? undefined
+      : topicId
+        ? topicSelectors.getTopicById(topicId)(s)?.metadata?.workingDirectoryConfig
+        : topicSelectors.currentTopicMetadata(s)?.workingDirectoryConfig,
   );
   const currentDeviceId = useElectronStore((s) => s.gatewayDeviceInfo?.deviceId);
   const targetDeviceId = resolveTargetDeviceId(agencyConfig, currentDeviceId, {

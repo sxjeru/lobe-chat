@@ -54,6 +54,13 @@ export interface StepResult {
 }
 
 export interface AgentOperationMetadata {
+  /**
+   * The client that started this operation handles `member_runtime_end`. Only
+   * then does the Gateway stream notifier rename a mirrored group member's
+   * terminal on this operation's channel; a client released before the rename
+   * still gets the verbatim `agent_runtime_end` it retires member columns on.
+   */
+  acceptsMemberRuntimeEnd?: boolean;
   agentConfig?: any;
   createdAt: string;
   lastActiveAt: string;
@@ -100,6 +107,7 @@ export class AgentStateManager {
   private readonly STEPS_PREFIX = 'agent_runtime_steps';
   private readonly METADATA_PREFIX = 'agent_runtime_meta';
   private readonly INTERRUPT_PREFIX = 'agent_runtime_interrupt';
+  private readonly QUEUED_MESSAGES_PREFIX = 'agent_runtime_queued_messages';
   private readonly INLINE_RESUME_PREFIX = 'agent_runtime_inline_resume';
   private readonly DEFAULT_TTL = 2 * 3600; // 2h
 
@@ -213,6 +221,22 @@ export class AgentStateManager {
   }
 
   /**
+   * Mirror the client's queued-messages flag into a tiny key beside the state,
+   * for the same reason as the interrupt sentinel: the step boundary reads it
+   * without loading the state blob. Clearing deletes the key.
+   */
+  async setQueuedMessages(operationId: string, pending: boolean): Promise<void> {
+    const key = `${this.QUEUED_MESSAGES_PREFIX}:${operationId}`;
+    if (pending) await this.redis.setex(key, this.DEFAULT_TTL, '1');
+    else await this.redis.del(key);
+  }
+
+  async hasQueuedMessages(operationId: string): Promise<boolean> {
+    const exists = await this.redis.exists(`${this.QUEUED_MESSAGES_PREFIX}:${operationId}`);
+    return exists === 1;
+  }
+
+  /**
    * Save step execution result
    */
   async saveStepResult(operationId: string, stepResult: StepResult): Promise<void> {
@@ -296,6 +320,7 @@ export class AgentStateManager {
       }
 
       return {
+        acceptsMemberRuntimeEnd: metadata.acceptsMemberRuntimeEnd === 'true' || undefined,
         agentConfig: metadata.agentConfig ? JSON.parse(metadata.agentConfig) : undefined,
         visitorRedaction: metadata.visitorRedaction
           ? JSON.parse(metadata.visitorRedaction)
@@ -325,6 +350,7 @@ export class AgentStateManager {
   async createOperationMetadata(
     operationId: string,
     data: {
+      acceptsMemberRuntimeEnd?: boolean;
       agentConfig?: any;
       visitorRedaction?: { showErrorDetails?: boolean; showModelInfo?: boolean };
       mirrorToOperationId?: string;
@@ -338,6 +364,7 @@ export class AgentStateManager {
 
     try {
       const metadata: AgentOperationMetadata = {
+        acceptsMemberRuntimeEnd: data.acceptsMemberRuntimeEnd,
         agentConfig: data.agentConfig,
         visitorRedaction: data.visitorRedaction,
         createdAt: new Date().toISOString(),
@@ -366,6 +393,7 @@ export class AgentStateManager {
       if (metadata.workspaceId) redisData.workspaceId = metadata.workspaceId;
       if (metadata.mirrorToOperationId)
         redisData.mirrorToOperationId = metadata.mirrorToOperationId;
+      if (metadata.acceptsMemberRuntimeEnd) redisData.acceptsMemberRuntimeEnd = 'true';
       if (metadata.modelRuntimeConfig)
         redisData.modelRuntimeConfig = JSON.stringify(metadata.modelRuntimeConfig);
       if (metadata.agentConfig) redisData.agentConfig = JSON.stringify(metadata.agentConfig);
@@ -422,6 +450,7 @@ export class AgentStateManager {
       `${this.STEPS_PREFIX}:${operationId}`,
       `${this.METADATA_PREFIX}:${operationId}`,
       `${this.INTERRUPT_PREFIX}:${operationId}`,
+      `${this.QUEUED_MESSAGES_PREFIX}:${operationId}`,
       `${this.INLINE_RESUME_PREFIX}:${operationId}`,
     ];
 

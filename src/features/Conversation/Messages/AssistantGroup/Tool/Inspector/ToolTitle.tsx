@@ -1,5 +1,5 @@
-import { Icon } from '@lobehub/ui';
-import { createStaticStyles, cx } from 'antd-style';
+import { getGoalCommand, isGoalCommandFailed } from '@lobechat/shared-tool-ui/goal-command';
+import { createStaticStyles, cx, Icon } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { ChevronRight } from 'lucide-react';
 import { memo, useMemo } from 'react';
@@ -18,6 +18,9 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   keyword: css`
     overflow: hidden;
+    flex: 0 1 auto;
+
+    min-width: 0;
 
     font-family: ${cssVar.fontFamilyCode};
     font-size: 12px;
@@ -36,8 +39,12 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorTextDescription};
     white-space: nowrap;
   `,
+  label: css`
+    flex: none;
+  `,
   standalone: css`
     overflow: hidden;
+    flex: 0 1 auto;
     min-width: 0;
     text-overflow: ellipsis;
   `,
@@ -50,6 +57,8 @@ interface ToolTitleProps {
   isAborted?: boolean;
   isLoading?: boolean;
   partialArgs?: Record<string, unknown>;
+  /** The settled tool result, so a failed goal command is not titled as done. */
+  result?: { error?: unknown; state?: any };
 }
 
 const isCJK = (value: string) => /[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/.test(value);
@@ -62,7 +71,7 @@ const isCJK = (value: string) => /[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/.tes
  * keep the "<label> <keyword>" shape in the smaller code font.
  */
 const ToolTitle = memo<ToolTitleProps>(
-  ({ identifier, apiName, args, partialArgs, isLoading, isAborted }) => {
+  ({ identifier, apiName, args, partialArgs, isLoading, isAborted, result }) => {
     const { t } = useTranslation('plugin');
 
     const pluginMeta = useToolStore(toolSelectors.getMetaById(identifier), isEqual);
@@ -89,6 +98,31 @@ const ToolTitle = memo<ToolTitleProps>(
       isCJK(keyword) &&
       keyword === extractToolKeyword({ description: effectiveArgs?.description });
 
+    // `/goal` in a CLI agent conversation creates and plans the goal through
+    // `lh` — that step reads as the goal step, not "执行命令 <description>".
+    const goalCommand = useMemo(
+      () =>
+        typeof effectiveArgs?.command === 'string'
+          ? getGoalCommand(effectiveArgs.command)
+          : undefined,
+      [effectiveArgs],
+    );
+    if (goalCommand) {
+      const goalTitle = goalCommand.kind === 'create' ? goalCommand.title : undefined;
+      // Same rule as the expanded GoalCommandInspector, so the collapsed row
+      // never says "Goal created" next to a failed status.
+      const failed = !isLoading && isGoalCommandFailed(result);
+      const status = isLoading ? 'loading' : failed ? 'failed' : 'completed';
+      return (
+        <div className={cx(styles.root, isAborted && styles.aborted)}>
+          <span className={cx(styles.label, isLoading && shinyTextStyles.shinyText)}>
+            {t(`builtins.goalCommand.${goalCommand.kind}.${status}`)}
+          </span>
+          {goalTitle && <span className={styles.standalone}>{goalTitle}</span>}
+        </div>
+      );
+    }
+
     return (
       <div className={cx(styles.root, isAborted && styles.aborted)}>
         {isStandaloneDescription ? (
@@ -97,7 +131,7 @@ const ToolTitle = memo<ToolTitleProps>(
           </span>
         ) : (
           <>
-            <span className={cx(isLoading && shinyTextStyles.shinyText)}>
+            <span className={cx(styles.label, isLoading && shinyTextStyles.shinyText)}>
               {actionLabel || (
                 <>
                   {pluginTitle && (

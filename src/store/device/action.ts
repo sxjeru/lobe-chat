@@ -1,6 +1,7 @@
 import type { DeviceListItem, WorkingDirEntry } from '@lobechat/types';
 import { type SWRResponse } from 'swr';
 
+import { refreshDeviceList } from '@/features/DeviceManager/const';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { deviceKeys } from '@/libs/swr/keys';
 import { deviceService } from '@/services/device';
@@ -10,6 +11,25 @@ import { nextWorkingDirs, removeWorkingDir, WORKING_DIRS_MAX } from './deviceCwd
 import { type DeviceStore } from './store';
 
 type Setter = StoreSetter<DeviceStore>;
+
+/**
+ * Revalidate both device-list caches: this store's own key and the canonical
+ * workspace-scoped `useDeviceList` entry, which task controls read.
+ */
+const revalidateDeviceLists = () =>
+  Promise.all([mutate(deviceKeys.listDevices()), refreshDeviceList()]);
+
+type UpdateDeviceInput = Parameters<typeof deviceService.updateDevice>[0];
+
+/**
+ * Persist user-editable fields, routed by the device's own scope. Workspace
+ * devices live under `workspace_id`, so the userId-scoped personal mutation
+ * would match no row and the write would be silently dropped.
+ */
+const persistDevice = (device: DeviceListItem | undefined, input: UpdateDeviceInput) =>
+  device?.scope === 'workspace'
+    ? deviceService.updateWorkspaceDevice(input)
+    : deviceService.updateDevice(input);
 
 export const deviceSlice = (set: Setter, get: () => DeviceStore, _api?: unknown) =>
   new DeviceActionImpl(set, get, _api);
@@ -57,14 +77,25 @@ export class DeviceActionImpl {
     );
 
     try {
-      await deviceService.updateDevice({
-        deviceId,
-        ...(setDefault ? { defaultCwd: trimmed } : {}),
-        workingDirs: updatedDirs,
-      });
+      if (device?.scope === 'workspace') {
+        // Members share this list: add the one entry server-side instead of
+        // replacing the list with this client's possibly stale snapshot.
+        await deviceService.addWorkspaceDeviceWorkingDir({
+          deviceId,
+          entry: { ...entry, path: trimmed },
+        });
+        if (setDefault)
+          await deviceService.updateWorkspaceDevice({ defaultCwd: trimmed, deviceId });
+      } else {
+        await deviceService.updateDevice({
+          deviceId,
+          ...(setDefault ? { defaultCwd: trimmed } : {}),
+          workingDirs: updatedDirs,
+        });
+      }
     } finally {
       // Re-fetch the truth (self-corrects a failed optimistic write).
-      await mutate(deviceKeys.listDevices());
+      await revalidateDeviceLists();
     }
   };
 
@@ -86,7 +117,7 @@ export class DeviceActionImpl {
     );
 
     try {
-      await deviceService.updateDevice({ defaultCwd: null, deviceId });
+      await persistDevice(device, { defaultCwd: null, deviceId });
     } catch (error) {
       // Preserve the prior default if the optimistic write cannot be persisted.
       this.#set(
@@ -100,7 +131,7 @@ export class DeviceActionImpl {
       );
       throw error;
     } finally {
-      await mutate(deviceKeys.listDevices());
+      await revalidateDeviceLists();
     }
   };
 
@@ -135,9 +166,9 @@ export class DeviceActionImpl {
     );
 
     try {
-      await deviceService.updateDevice({ deviceId, workingDirs: merged });
+      await persistDevice(device, { deviceId, workingDirs: merged });
     } finally {
-      await mutate(deviceKeys.listDevices());
+      await revalidateDeviceLists();
     }
   };
 
@@ -158,9 +189,11 @@ export class DeviceActionImpl {
     );
 
     try {
-      await deviceService.updateDevice({ deviceId, workingDirs: updated });
+      await (device.scope === 'workspace'
+        ? deviceService.removeWorkspaceDeviceWorkingDir({ deviceId, path })
+        : deviceService.updateDevice({ deviceId, workingDirs: updated }));
     } finally {
-      await mutate(deviceKeys.listDevices());
+      await revalidateDeviceLists();
     }
   };
 

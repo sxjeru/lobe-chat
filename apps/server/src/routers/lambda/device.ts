@@ -1,10 +1,13 @@
+import { TUNNEL_TOKEN_PARAM } from '@lobechat/device-gateway-client';
 import {
   type HeterogeneousAgentScanMap,
   REMOTE_HETEROGENEOUS_AGENT_CONFIGS,
 } from '@lobechat/heterogeneous-agents';
 import type {
   DeviceChannel,
+  DeviceEnroller,
   DeviceListItem,
+  DeviceRunningSummary,
   DeviceScope,
   DeviceWorkspaceShare,
   WorkingDirEntry,
@@ -15,20 +18,36 @@ import { z } from 'zod';
 
 import {
   requireWorkspaceRole,
+  requireWorkspaceRoleWhenScoped,
   type WorkspaceRole,
   wsCompatProcedure,
   wsProcedure,
 } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { DeviceModel, WorkspaceDevicePrivateConflictError } from '@/database/models/device';
+import { getTopicDeviceId, TopicModel } from '@/database/models/topic';
 import { UserModel } from '@/database/models/user';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { signWorkspaceDeviceToken } from '@/libs/trpc/utils/internalJwt';
-import { type DeviceAttachment, deviceGateway } from '@/server/services/deviceGateway';
+import { signTunnelAccessToken, signWorkspaceDeviceToken } from '@/libs/trpc/utils/internalJwt';
+import {
+  type DeviceAttachment,
+  deviceGateway,
+  isValidDirectoryName,
+} from '@/server/services/deviceGateway';
 import { filterAuthorizedDevicePresence } from '@/server/services/deviceGateway/scopedDevicePresence';
+import { deviceTunnels, TUNNEL_MAX_TTL_SECONDS } from '@/server/services/deviceGateway/tunnels';
 
+import { loadDeviceBoundAgents } from './deviceBoundAgents';
 import { preserveWorkspaceCache } from './deviceWorkingDirs';
-import { assertWorkspaceDeviceVisible, assertWorkspaceRootApproved } from './deviceWorkspaceGuard';
+import {
+  assertWorkspaceDeviceEditable,
+  assertWorkspaceDeviceVisible,
+  assertWorkspaceRootApproved,
+  canEditWorkspaceDevice,
+  canOperateWorkspaceDevice,
+  registerDeviceSkillRoots,
+} from './deviceWorkspaceGuard';
+import { workspaceDeviceWorkingDirProcedures } from './deviceWorkspaceWorkingDirs';
 
 // Derive the zod enum from the canonical config so new platforms are
 // automatically covered without touching this file.
@@ -56,11 +75,79 @@ const SCAN_TIMEOUT_MS = 10_000;
  * Members can therefore self-serve their own machines without touching anyone
  * else's enrollment, while shared cleanup remains an owner action.
  */
-const canEditWorkspaceDevice = (
-  role: WorkspaceRole | undefined,
-  actorUserId: string,
-  enrollerUserId: string,
-): boolean => role === 'owner' || enrollerUserId === actorUserId;
+/**
+ * Gate an action that operates the machine itself — browsing folders, a
+ * terminal, exposing a port, updating its app. A public workspace device is
+ * shared infra every member works on, so any member may operate it; a private
+ * one stays limited to the enrolling member or a workspace owner.
+ */
+const assertDeviceOperable = async (
+  ctx: {
+    deviceModel: DeviceModel;
+    userId: string;
+    workspaceId?: string;
+    workspaceRole?: WorkspaceRole;
+  },
+  deviceId: string,
+  action: string,
+) => {
+  if (!ctx.workspaceId) return;
+
+  const row = await ctx.deviceModel.findWorkspaceDeviceById(deviceId);
+  if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace device not found.' });
+  if (!canOperateWorkspaceDevice(ctx.workspaceRole, ctx.userId, row)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message:
+        row.visibility === 'public'
+          ? `Workspace viewers cannot ${action} on this device.`
+          : `Only the enrolling member or a workspace owner can ${action} on this private device.`,
+    });
+  }
+};
+
+/** Exposing a port is at least as sensitive as reading the filesystem. */
+const assertTunnelDeviceWritable = (
+  ctx: Parameters<typeof assertDeviceOperable>[0],
+  deviceId: string,
+) => assertDeviceOperable(ctx, deviceId, 'expose a port');
+
+/**
+ * Base64 characters accepted by one `writeTerminal` call. A keystroke is a
+ * handful of bytes; this only bounds what a malicious caller can push through
+ * in a single request.
+ */
+const MAX_TERMINAL_WRITE_CHARS = 65_536;
+
+/**
+ * Relay a terminal call, surfacing the device's own reason. A device that is
+ * offline — or a client without PTY support — answers with a message the user
+ * needs to read; a bare 500 would make it look like a LobeHub bug.
+ */
+const relayTerminal = async <T>(run: () => Promise<T>): Promise<T> => {
+  try {
+    return await run();
+  } catch (error) {
+    throw new TRPCError({
+      code: 'BAD_GATEWAY',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+/** Append a freshly minted access token to a tunnel URL. */
+const buildTunnelOpenUrl = async (
+  url: string,
+  ctx: { userId: string; workspaceId?: string },
+): Promise<string> => {
+  const token = await signTunnelAccessToken({
+    userId: ctx.userId,
+    workspaceId: ctx.workspaceId,
+  });
+  // A dedicated param, not `?token=`: apps behind a tunnel own that name
+  // (Vite's HMR socket authenticates with it).
+  return `${url}?${TUNNEL_TOKEN_PARAM}=${encodeURIComponent(token)}`;
+};
 
 /**
  * Fixed workspace agents promise every member the same execution device. Keep
@@ -129,11 +216,75 @@ const workspaceFileInput = z.object({
  */
 const workspaceFileProcedure = deviceProcedure.input(workspaceFileInput).use(async (opts) => {
   const { deviceId, workingDirectory } = workspaceFileInput.parse(await opts.getRawInput());
-  await assertWorkspaceRootApproved(opts.ctx.deviceModel, deviceId, workingDirectory);
+  await assertWorkspaceRootApproved(
+    opts.ctx.deviceModel,
+    deviceId,
+    workingDirectory,
+    opts.ctx.workspaceId,
+  );
   return opts.next();
 });
 
+/**
+ * `workspaceFileProcedure` for routes that change files on the device. In a
+ * shared workspace a read-only viewer may browse the tree but not alter it, so
+ * writes also need at least the `member` role; personal mode stays open.
+ */
+const workspaceFileWriteProcedure = workspaceFileProcedure.use(
+  requireWorkspaceRoleWhenScoped('member'),
+);
+
+/**
+ * `workspaceFileProcedure` for the publish-asset routes. Their source path may
+ * lie outside the approved root (the device confines only a copy's
+ * destination), so they can read any file on the device, and a copy also
+ * writes into the workspace. Gate them like writes: a read-only viewer must not
+ * pull arbitrary files off a shared device. Personal mode stays open.
+ */
+const workspacePublishProcedure = workspaceFileProcedure.use(
+  requireWorkspaceRoleWhenScoped('member'),
+);
+
+/**
+ * Display info for the members behind a set of running topics. The ids come
+ * from topic rows the caller was already allowed to read, so this only adds
+ * the public-facing name and avatar.
+ */
+const loadTopicUsers = async (
+  db: Parameters<typeof UserModel.getDisplayInfoByIds>[0],
+  userIds: string[],
+): Promise<Map<string, DeviceEnroller>> => {
+  const rows = await UserModel.getDisplayInfoByIds(db, [...new Set(userIds)]);
+  return new Map(
+    rows.map((u) => [
+      u.id,
+      { avatar: u.avatar, fullName: u.fullName, userId: u.id, username: u.username },
+    ]),
+  );
+};
+
+/**
+ * The member running each topic now: the initiator of its current run, else
+ * its creator (a client-executed run writes no operation row). In a workspace
+ * a teammate can continue someone else's topic, so the creator alone would
+ * name the wrong person as using the device.
+ */
+const resolveRunUserIds = async (
+  topicModel: TopicModel,
+  topics: { id: string; userId: string }[],
+): Promise<Map<string, string>> => {
+  const initiators = await topicModel.findRunInitiators(topics.map((topic) => topic.id));
+  return new Map(topics.map((topic) => [topic.id, initiators.get(topic.id) ?? topic.userId]));
+};
+
+/**
+ * Upper bound on the running topics read for the device-list summary. A real
+ * account runs far fewer at once; the cap only bounds a pathological one.
+ */
+const RUNNING_SUMMARY_LIMIT = 500;
+
 export const deviceRouter = router({
+  ...workspaceDeviceWorkingDirProcedures,
   /**
    * Probe whether a specific agent platform (openclaw / hermes) is available
    * on the given device. Dispatches a `checkPlatformCapability` tool call to
@@ -213,6 +364,79 @@ export const deviceRouter = router({
     ),
 
   /**
+   * What the device is doing for the caller: topics running on it right now
+   * and the agents routed to it. Both reads go through the regular content
+   * scopes, so in a workspace a teammate's private agent (and the topics under
+   * it) never surface just because they share the machine.
+   *
+   * Agent bindings are resolved per caller: the stored agency config merged
+   * with the caller's own per-agent device override in this workspace, exactly
+   * as a run would route — see {@link loadDeviceBoundAgents}.
+   */
+  getDeviceActivity: deviceProcedure
+    .input(z.object({ deviceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const topicModel = new TopicModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
+      const [agents, runningTopics] = await Promise.all([
+        loadDeviceBoundAgents({
+          db: ctx.serverDB,
+          deviceId: input.deviceId,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+        topicModel.queryTopics({ deviceId: input.deviceId, statuses: ['running'] }),
+      ]);
+
+      const runUserIds = await resolveRunUserIds(topicModel, runningTopics);
+      const users = await loadTopicUsers(ctx.serverDB, [...runUserIds.values()]);
+
+      return {
+        agents,
+        runningTopics: runningTopics.map((topic) => ({
+          ...topic,
+          user: users.get(runUserIds.get(topic.id) ?? topic.userId) ?? null,
+        })),
+      };
+    }),
+
+  /**
+   * Per-device running-topic counts and the members behind them, for the
+   * device list cards. One read for the whole list instead of a request per
+   * card; the same content scopes as {@link getDeviceActivity} apply, and a
+   * device the caller cannot see simply has no card to render its entry.
+   */
+  getRunningSummary: deviceProcedure.query(async ({ ctx }): Promise<DeviceRunningSummary[]> => {
+    // Most recently active first, so each device's avatar stack leads with
+    // whoever touched it last.
+    const topicModel = new TopicModel(ctx.serverDB, ctx.userId, ctx.workspaceId);
+    const runningTopics = (
+      await topicModel.queryTopics({ pageSize: RUNNING_SUMMARY_LIMIT, statuses: ['running'] })
+    ).filter((topic) => getTopicDeviceId(topic.metadata));
+    const runUserIds = await resolveRunUserIds(topicModel, runningTopics);
+
+    const byDevice = new Map<string, { count: number; userIds: string[] }>();
+    for (const topic of runningTopics) {
+      const deviceId = getTopicDeviceId(topic.metadata)!;
+      const runUserId = runUserIds.get(topic.id) ?? topic.userId;
+      const entry = byDevice.get(deviceId) ?? { count: 0, userIds: [] };
+      entry.count += 1;
+      if (!entry.userIds.includes(runUserId)) entry.userIds.push(runUserId);
+      byDevice.set(deviceId, entry);
+    }
+
+    const users = await loadTopicUsers(
+      ctx.serverDB,
+      [...byDevice.values()].flatMap((entry) => entry.userIds),
+    );
+
+    return [...byDevice].map(([deviceId, { count, userIds }]) => ({
+      count,
+      deviceId,
+      users: userIds.flatMap((id) => users.get(id) ?? []),
+    }));
+  }),
+
+  /**
    * Granular git reads for a directory on a remote device, each via its own
    * device RPC so the web/remote git status bar mirrors the local desktop's
    * separate, differently-cadenced SWR hooks. Return `null` when offline / the
@@ -245,6 +469,62 @@ export const deviceRouter = router({
         deviceId: input.deviceId,
         path: input.path,
         pullRequestNumber: input.pullRequestNumber,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      return result ?? null;
+    }),
+
+  gitPullRequestDetail: deviceProcedure
+    .input(
+      z.object({
+        coreOnly: z.boolean().optional(),
+        deviceId: z.string(),
+        number: z.number().int().positive(),
+        path: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const result = await deviceGateway.gitPullRequestDetail({
+        coreOnly: input.coreOnly,
+        deviceId: input.deviceId,
+        number: input.number,
+        path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      return result ?? null;
+    }),
+
+  gitPullRequestActivity: deviceProcedure
+    .input(
+      z.object({ deviceId: z.string(), number: z.number().int().positive(), path: z.string() }),
+    )
+    .query(async ({ ctx, input }) => {
+      const result = await deviceGateway.gitPullRequestActivity({
+        deviceId: input.deviceId,
+        number: input.number,
+        path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      return result ?? null;
+    }),
+
+  gitPullRequestMergeContext: deviceProcedure
+    .input(
+      z.object({
+        baseRefName: z.string(),
+        deviceId: z.string(),
+        headRefOid: z.string().regex(/^[a-f\d]{40}$/i),
+        number: z.number().int().positive(),
+        path: z.string(),
+        repo: z.object({ name: z.string(), owner: z.string() }),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const result = await deviceGateway.gitPullRequestMergeContext({
+        ...input,
         userId: ctx.userId,
         workspaceId: ctx.workspaceId,
       });
@@ -310,10 +590,12 @@ export const deviceRouter = router({
         env: z.record(z.string(), z.string()).optional(),
         type: z.enum([
           'codebuddy',
+          'codex',
           'cursor',
           'droid',
           'devin',
           'grok-build',
+          'kimi-code',
           'opencode',
           'pi',
           'qoder',
@@ -524,6 +806,58 @@ export const deviceRouter = router({
     ),
 
   /**
+   * Run a `gh pr` mutation (merge, auto-merge, ready, comment, close, ...) on a
+   * directory on a remote device, via the device's `runPullRequestAction` RPC.
+   */
+  runGitPullRequestAction: deviceProcedure
+    .use(requireWorkspaceRoleWhenScoped('member'))
+    .input(
+      z.object({
+        action: z.discriminatedUnion('type', [
+          z.object({
+            admin: z.boolean().optional(),
+            deleteBranch: z.boolean().optional(),
+            headRefOid: z.string().regex(/^[a-f\d]{40}$/i),
+            method: z.enum(['squash', 'merge', 'rebase']),
+            type: z.literal('merge'),
+          }),
+          z.object({
+            headRefOid: z.string().regex(/^[a-f\d]{40}$/i),
+            method: z.enum(['squash', 'merge', 'rebase']),
+            type: z.literal('autoMerge'),
+          }),
+          z.object({ type: z.literal('disableAutoMerge') }),
+          z.object({ method: z.enum(['merge', 'rebase']), type: z.literal('updateBranch') }),
+          z.object({ type: z.literal('ready') }),
+          z.object({ body: z.string(), type: z.literal('comment') }),
+          z.object({ type: z.literal('close') }),
+          z.object({ type: z.literal('reopen') }),
+          z.object({ head: z.string(), type: z.literal('deleteBranch') }),
+          z.object({ base: z.string(), type: z.literal('changeBase') }),
+        ]),
+        deviceId: z.string(),
+        number: z.number().int().positive(),
+        path: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertWorkspaceRootApproved(
+        ctx.deviceModel,
+        input.deviceId,
+        input.path,
+        ctx.workspaceId,
+      );
+      return deviceGateway.runGitPullRequestAction({
+        action: input.action,
+        deviceId: input.deviceId,
+        number: input.number,
+        path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  /**
    * Working-tree (unstaged) per-file patches for a directory on a remote device,
    * via the device's `getGitWorkingTreePatches` RPC. Powers the web/remote Review
    * panel's unstaged diff. Returns `null` when offline / not a git repo.
@@ -627,8 +961,7 @@ export const deviceRouter = router({
 
   /**
    * Browse one directory level on a remote device. Personal devices belong to
-   * the caller. A workspace device may expose new paths only to its enroller or
-   * a workspace owner; other members continue to use its approved recents.
+   * the caller; workspace devices follow {@link assertDeviceOperable}.
    */
   browseDirectory: deviceProcedure
     .input(
@@ -640,19 +973,7 @@ export const deviceRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (ctx.workspaceId) {
-        const row = await ctx.deviceModel.findWorkspaceDeviceById(input.deviceId);
-        if (!row) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace device not found.' });
-        }
-        const role = (ctx as { workspaceRole?: WorkspaceRole }).workspaceRole;
-        if (!canEditWorkspaceDevice(role, ctx.userId, row.userId)) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'Only the enrolling member or a workspace owner can browse this device.',
-          });
-        }
-      }
+      await assertDeviceOperable(ctx, input.deviceId, 'browse folders');
 
       const result = await deviceGateway.browseDirectory({
         cursor: input.cursor,
@@ -663,6 +984,57 @@ export const deviceRouter = router({
         workspaceId: ctx.workspaceId,
       });
       return result ?? null;
+    }),
+
+  /**
+   * Create a folder inside the directory a remote folder picker is browsing, so
+   * a new working directory can be made without leaving the picker. Same access
+   * rule as {@link browseDirectory}; a taken name is reported as `CONFLICT`.
+   */
+  createDirectory: deviceProcedure
+    .input(
+      z.object({
+        deviceId: z.string(),
+        name: z.string().min(1).max(255),
+        parentPath: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'create folders');
+
+      if (
+        !isValidDirectoryName(input.name, input.parentPath) ||
+        !isValidDirectoryName(input.name.trim(), input.parentPath)
+      ) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid folder name.' });
+      }
+
+      let result: Awaited<ReturnType<typeof deviceGateway.createDirectory>>;
+      try {
+        result = await deviceGateway.createDirectory({
+          deviceId: input.deviceId,
+          name: input.name.trim(),
+          parentPath: input.parentPath,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // A device app predating `createLocalDirectory` needs an update, not a retry.
+        throw new TRPCError({
+          code: /Unknown device RPC method/.test(message) ? 'PRECONDITION_FAILED' : 'BAD_GATEWAY',
+          message,
+        });
+      }
+
+      if (!result.success) {
+        throw new TRPCError({
+          code: /already exists/i.test(result.error ?? '') ? 'CONFLICT' : 'BAD_REQUEST',
+          message: result.error || 'Create folder failed',
+        });
+      }
+
+      return result;
     }),
 
   /**
@@ -716,7 +1088,7 @@ export const deviceRouter = router({
       });
     }),
 
-  copyAssetForPublish: workspaceFileProcedure
+  copyAssetForPublish: workspacePublishProcedure
     .input(z.object({ from: z.string(), to: z.string() }))
     .mutation(async ({ ctx, input }) =>
       deviceGateway.copyAssetForPublish({
@@ -729,7 +1101,7 @@ export const deviceRouter = router({
       }),
     ),
 
-  readExternalAssetForPublish: workspaceFileProcedure
+  readExternalAssetForPublish: workspacePublishProcedure
     .input(z.object({ path: z.string() }))
     .query(async ({ ctx, input }) =>
       deviceGateway.readExternalAssetForPublish({
@@ -755,6 +1127,17 @@ export const deviceRouter = router({
         userId: ctx.userId,
         workspaceId: ctx.workspaceId,
       });
+
+      // Register device-scoped skill roots (~/.agents/skills / ~/.claude/skills)
+      // in an in-memory cache so subsequent getLocalFilePreview calls pass the
+      // workspace root guard without polluting the UI's working-directory list.
+      if (result?.skills) {
+        const skillRoots = [
+          ...new Set(result.skills.filter((s) => s.scope === 'device').map((s) => s.previewRoot)),
+        ].filter(Boolean);
+        registerDeviceSkillRoots(input.deviceId, skillRoots);
+      }
+
       return result ?? null;
     }),
 
@@ -778,7 +1161,7 @@ export const deviceRouter = router({
    * Move files/folders within a directory on a remote device, via the device's
    * `moveLocalFiles` RPC. Powers the Files tree's drag-to-move in device mode.
    */
-  moveProjectFiles: workspaceFileProcedure
+  moveProjectFiles: workspaceFileWriteProcedure
     .input(
       z.object({
         items: z.array(z.object({ newPath: z.string(), oldPath: z.string() })),
@@ -798,7 +1181,7 @@ export const deviceRouter = router({
    * Rename a single file/folder in a directory on a remote device, via the
    * device's `renameLocalFile` RPC.
    */
-  renameProjectFile: workspaceFileProcedure
+  renameProjectFile: workspaceFileWriteProcedure
     .input(
       z.object({
         newName: z.string(),
@@ -820,7 +1203,7 @@ export const deviceRouter = router({
    * Save edited content back to a file on a remote device, via the device's
    * `writeLocalFile` RPC. Powers remote save in the LocalFile editor.
    */
-  writeProjectFile: workspaceFileProcedure
+  writeProjectFile: workspaceFileWriteProcedure
     .input(
       z.object({
         content: z.string(),
@@ -832,6 +1215,82 @@ export const deviceRouter = router({
         content: input.content,
         deviceId: input.deviceId,
         path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        workingDirectory: input.workingDirectory,
+      });
+    }),
+
+  /**
+   * Create a new file on a remote device, via the device's `createLocalFile`
+   * RPC. Fails instead of overwriting when the path is taken.
+   */
+  createProjectFile: workspaceFileWriteProcedure
+    .input(
+      z.object({
+        content: z.string().optional(),
+        path: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return deviceGateway.createProjectFile({
+        content: input.content,
+        deviceId: input.deviceId,
+        path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        workingDirectory: input.workingDirectory,
+      });
+    }),
+
+  /**
+   * Create a new folder on a remote device, via the device's
+   * `createLocalDirectory` RPC. Fails when the path is taken.
+   */
+  createProjectDirectory: workspaceFileWriteProcedure
+    .input(z.object({ path: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return deviceGateway.createProjectDirectory({
+        deviceId: input.deviceId,
+        path: input.path,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        workingDirectory: input.workingDirectory,
+      });
+    }),
+
+  /**
+   * Copy files/folders on a remote device, via the device's `copyLocalFiles`
+   * RPC. An item without `targetPath` is duplicated in place.
+   */
+  copyProjectFiles: workspaceFileWriteProcedure
+    .input(
+      z.object({
+        items: z
+          .array(z.object({ sourcePath: z.string(), targetPath: z.string().optional() }))
+          .min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return deviceGateway.copyProjectFiles({
+        deviceId: input.deviceId,
+        items: input.items,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        workingDirectory: input.workingDirectory,
+      });
+    }),
+
+  /**
+   * Move files/folders to a remote device's trash, via the device's
+   * `trashLocalFiles` RPC. Devices without a trash reject rather than delete.
+   */
+  trashProjectFiles: workspaceFileWriteProcedure
+    .input(z.object({ paths: z.array(z.string()).min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      return deviceGateway.trashProjectFiles({
+        deviceId: input.deviceId,
+        paths: input.paths,
         userId: ctx.userId,
         workspaceId: ctx.workspaceId,
         workingDirectory: input.workingDirectory,
@@ -999,6 +1458,7 @@ export const deviceRouter = router({
         const channels = channelsByDevice.get(d.deviceId) ?? [];
         const live = channels[0];
         return {
+          architecture: d.architecture,
           channels,
           defaultCwd: d.defaultCwd,
           deviceId: d.deviceId,
@@ -1018,6 +1478,7 @@ export const deviceRouter = router({
           hostname: d.hostname ?? live?.hostname ?? null,
           identitySource: d.identitySource,
           lastSeen: d.lastSeenAt.toISOString(),
+          metadata: d.metadata,
           online: channels.length > 0,
           platform: d.platform ?? live?.platform ?? null,
           registered: true,
@@ -1080,6 +1541,286 @@ export const deviceRouter = router({
     ]);
   }),
 
+  // ─── Tunnel links ───
+  //
+  // A tunnel makes one loopback port on a device reachable at
+  // `https://<port>--<slug>.lobe.sh/`. Creating one is gated exactly like
+  // browsing the device's filesystem: on a public workspace device any
+  // non-viewer member may expose a port; on a private one, only the enrolling
+  // member or an owner.
+
+  /** Open a link to `port` on a device. */
+  createTunnel: deviceProcedure
+    .input(
+      z.object({
+        deviceId: z.string(),
+        port: z.number().int().min(1).max(65_535),
+        ttlSeconds: z.number().int().positive().max(TUNNEL_MAX_TTL_SECONDS).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTunnelDeviceWritable(ctx, input.deviceId);
+
+      const link = await deviceTunnels.create({
+        deviceId: input.deviceId,
+        port: input.port,
+        ttlSeconds: input.ttlSeconds,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      if (!link) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Device gateway is not configured on this deployment.',
+        });
+      }
+
+      return { ...link, openUrl: await buildTunnelOpenUrl(link.url, ctx) };
+    }),
+
+  /**
+   * Ports the device is listening on, so the UI can offer "5173 · vite" to
+   * expose in one click. Gated like creating a tunnel: seeing which ports are
+   * open is only useful to someone allowed to expose them. `null` means the
+   * device couldn't answer (offline, or a client that predates detection).
+   */
+  listListeningPorts: deviceProcedure
+    .input(z.object({ cwd: z.string().optional(), deviceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertTunnelDeviceWritable(ctx, input.deviceId);
+      const result = await deviceGateway.listListeningPorts({
+        cwd: input.cwd,
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      return result ?? null;
+    }),
+
+  // ─── Remote app update ───
+  //
+  // Update the desktop app on a device from anywhere: check (a found update
+  // downloads on its own), poll progress, then restart into it. Restarting
+  // interrupts whatever the machine is running, so every step is gated like
+  // exposing a port.
+
+  getAppUpdateState: deviceProcedure
+    .input(z.object({ deviceId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'update the app');
+      return deviceGateway.getAppUpdateState({
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  checkAppUpdate: deviceProcedure
+    .input(z.object({ deviceId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'update the app');
+      return deviceGateway.checkAppUpdate({
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  installAppUpdate: deviceProcedure
+    .input(z.object({ deviceId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'update the app');
+      return deviceGateway.installAppUpdate({
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  // ─── Interactive terminal ───
+  //
+  // A terminal hands the caller a shell on the device, so it is gated exactly
+  // like exposing a port. The check runs on the polling reads too, not just on
+  // create — otherwise a session would outlive the permission that opened it.
+
+  createTerminalSession: deviceProcedure
+    .input(
+      z.object({
+        cols: z.number().int().min(1).max(1000),
+        cwd: z.string().optional(),
+        deviceId: z.string(),
+        rows: z.number().int().min(1).max(1000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'open a terminal on');
+      return relayTerminal(() =>
+        deviceGateway.createTerminalSession({
+          cols: input.cols,
+          cwd: input.cwd,
+          deviceId: input.deviceId,
+          rows: input.rows,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+      );
+    }),
+
+  writeTerminal: deviceProcedure
+    .input(
+      z.object({
+        /** Base64 keystrokes. */
+        data: z.string().max(MAX_TERMINAL_WRITE_CHARS),
+        deviceId: z.string(),
+        id: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'use a terminal on');
+      return relayTerminal(() =>
+        deviceGateway.writeTerminal({
+          data: input.data,
+          deviceId: input.deviceId,
+          id: input.id,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+      );
+    }),
+
+  readTerminal: deviceProcedure
+    .input(z.object({ cursor: z.number().int().min(0), deviceId: z.string(), id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'use a terminal on');
+      return relayTerminal(() =>
+        deviceGateway.readTerminal({
+          cursor: input.cursor,
+          deviceId: input.deviceId,
+          id: input.id,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+      );
+    }),
+
+  resizeTerminal: deviceProcedure
+    .input(
+      z.object({
+        cols: z.number().int().min(1).max(1000),
+        deviceId: z.string(),
+        id: z.string(),
+        rows: z.number().int().min(1).max(1000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'use a terminal on');
+      return relayTerminal(() =>
+        deviceGateway.resizeTerminal({
+          cols: input.cols,
+          deviceId: input.deviceId,
+          id: input.id,
+          rows: input.rows,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+      );
+    }),
+
+  closeTerminal: deviceProcedure
+    .input(z.object({ deviceId: z.string(), id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'use a terminal on');
+      return relayTerminal(() =>
+        deviceGateway.closeTerminal({
+          deviceId: input.deviceId,
+          id: input.id,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
+      );
+    }),
+
+  getCliUpdateState: deviceProcedure
+    .input(z.object({ deviceId: z.string() }).strict())
+    .query(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'maintain the CLI');
+      return deviceGateway.getCliUpdateState({
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  checkCliUpdate: deviceProcedure
+    .input(z.object({ deviceId: z.string() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'maintain the CLI');
+      return deviceGateway.checkCliUpdate({
+        deviceId: input.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  restartCli: deviceProcedure
+    .input(
+      z
+        .object({ deviceId: z.string(), requestId: z.string().uuid(), update: z.boolean() })
+        .strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertDeviceOperable(ctx, input.deviceId, 'maintain the CLI');
+      return deviceGateway.restartCli({
+        ...input,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+    }),
+
+  /** Live tunnel links the caller can reach, newest first. */
+  listTunnels: deviceProcedure
+    .input(z.object({ deviceId: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) =>
+      deviceTunnels.list({
+        deviceId: input?.deviceId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      }),
+    ),
+
+  /**
+   * Mint the one-shot token that opens an existing link. Tokens are minted per
+   * click rather than stored with the link: the gateway swaps the token for a
+   * session cookie on first use, so the URL in hand stays clean.
+   */
+  openTunnel: deviceProcedure
+    .input(z.object({ slug: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const links = await deviceTunnels.list({ userId: ctx.userId, workspaceId: ctx.workspaceId });
+      const link = links.find((candidate) => candidate.slug === input.slug);
+      if (!link) throw new TRPCError({ code: 'NOT_FOUND', message: 'Tunnel not found.' });
+
+      return { openUrl: await buildTunnelOpenUrl(link.url, ctx), url: link.url };
+    }),
+
+  /** Revoke a link. Its session cookies stop resolving immediately. */
+  revokeTunnel: deviceProcedure
+    .input(z.object({ slug: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const outcome = await deviceTunnels.revoke({
+        slug: input.slug,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+      });
+      if (outcome === 'forbidden') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'This tunnel belongs to someone else.' });
+      }
+      if (outcome === 'not-found') {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Tunnel not found.' });
+      }
+      return { success: true };
+    }),
+
   /**
    * Mint a short-lived connect token for enrolling a WORKSPACE-owned device.
    * Workspace members (and owners) can call — enrolling a machine into the
@@ -1109,9 +1850,15 @@ export const deviceRouter = router({
     .use(serverDatabase)
     .input(
       z.object({
+        architecture: z.string().max(20).nullish(),
         deviceId: z.string().min(1).max(64),
         hostname: z.string().nullish(),
         identitySource: z.enum(['machine-id', 'fallback']),
+        /** Extensible client-reported info bag; free-form, size-capped to guard the column. */
+        metadata: z
+          .record(z.string().max(64), z.string().max(200))
+          .refine((m) => Object.keys(m).length <= 20, 'metadata supports at most 20 keys')
+          .nullish(),
         platform: z.string().max(20).nullish(),
         // 'private' enrolls the device for the calling member only (settings
         // page "Private" tab / `lh connect --workspace <id> --private`);
@@ -1337,10 +2084,8 @@ export const deviceRouter = router({
     }),
 
   /**
-   * Rename / set working dirs of a WORKSPACE device. Scoped by `workspace_id`
-   * and gated by {@link canEditWorkspaceDevice}: owners may edit any device in
-   * the pool; members may edit only devices they enrolled themselves. Mirrors
-   * {@link deviceRouter.updateDevice} but for the workspace pool.
+   * Rename / replace the working dirs of a WORKSPACE device (enroller or owner only).
+   * Members edit one recent dir via `workspaceDeviceWorkingDirProcedures`.
    */
   updateWorkspaceDevice: wsWritableProcedure
     .use(serverDatabase)
@@ -1360,12 +2105,7 @@ export const deviceRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Workspace device not found.' });
       }
       const role = (ctx as { workspaceRole?: WorkspaceRole }).workspaceRole;
-      if (!canEditWorkspaceDevice(role, ctx.userId, row.userId)) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Only the enrolling member or a workspace owner can modify this device.',
-        });
-      }
+      assertWorkspaceDeviceEditable(role, ctx.userId, row.userId);
       const nextWorkingDirs = workingDirs
         ? preserveWorkspaceCache(workingDirs, row.workingDirs ?? [])
         : undefined;
@@ -1433,9 +2173,15 @@ export const deviceRouter = router({
   register: deviceProcedure
     .input(
       z.object({
+        architecture: z.string().max(20).nullish(),
         deviceId: z.string().min(1).max(64),
         hostname: z.string().nullish(),
         identitySource: z.enum(['machine-id', 'fallback']),
+        /** Extensible client-reported info bag; free-form, size-capped to guard the column. */
+        metadata: z
+          .record(z.string().max(64), z.string().max(200))
+          .refine((m) => Object.keys(m).length <= 20, 'metadata supports at most 20 keys')
+          .nullish(),
         platform: z.string().max(20).nullish(),
       }),
     )
@@ -1478,6 +2224,25 @@ export const deviceRouter = router({
         : undefined;
 
       await ctx.deviceModel.update(deviceId, { ...value, workingDirs: nextWorkingDirs });
+      return { success: true };
+    }),
+  updateDeviceInfo: deviceProcedure
+    .input(
+      z.object({
+        architecture: z.string().min(1).max(20).optional(),
+        deviceId: z.string().min(1).max(64),
+        hostname: z.string().optional(),
+        metadata: z
+          .record(z.string().max(64), z.string().max(200))
+          .refine((m) => Object.keys(m).length <= 20, 'metadata supports at most 20 keys')
+          .optional(),
+        platform: z.string().max(20).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { deviceId, ...value } = input;
+      const device = await ctx.deviceModel.updateDeviceInfo(deviceId, value);
+      if (!device) throw new TRPCError({ code: 'NOT_FOUND', message: 'Device not found' });
       return { success: true };
     }),
 });

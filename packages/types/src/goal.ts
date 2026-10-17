@@ -1,5 +1,6 @@
+import type { GoalReportDispatch, GoalReportState } from './goalReport';
 import type { InitialGoalOverviewContext } from './stepContext';
-import type { AcceptanceStatus } from './verify';
+import type { AcceptanceStatus, VerifyCheckTally } from './verify';
 import type { WorkType } from './work';
 
 // ============================================
@@ -15,7 +16,15 @@ import type { WorkType } from './work';
  * there), mirroring the AcceptanceStatus convention.
  */
 export type GoalStatus =
-  'planning' | 'running' | 'verifying' | 'review' | 'paused' | 'achieved' | 'failed' | 'canceled';
+  | 'draft'
+  | 'planning'
+  | 'running'
+  | 'verifying'
+  | 'review'
+  | 'paused'
+  | 'achieved'
+  | 'failed'
+  | 'canceled';
 
 /**
  * The execution carrier a goal is optionally bound to. Goals are standalone
@@ -109,6 +118,8 @@ export type GoalPauseReason =
   | 'exploration_limit'
   /** The planner asked for a correction after its allowance was already spent. */
   | 'exploration_revision_limit'
+  /** A repeated batch hit a pattern break and is waiting on a person's choice. */
+  | 'pattern_break'
   | 'user';
 
 export interface GoalExplorationDecision {
@@ -137,7 +148,15 @@ export interface GoalExplorationConfig {
   maxExperiments: number;
 }
 
-/** Opt-in recovery supervision. It cannot grant new permissions or expand budgets. */
+/**
+ * Recovery supervision. It cannot grant new permissions or expand budgets.
+ *
+ * Every newly created Goal carries this with `enabled: true` — the server writes
+ * it at creation and rejecting the opposite is what makes "no Goal without a
+ * supervisor" hold. `enabled` is kept (rather than dropped) because Goals created
+ * before supervision became mandatory still read it to decide whether the
+ * supervisor runs.
+ */
 export interface GoalSupervisionPolicy {
   enabled: boolean;
   /** Bounded incident ledger and paid diagnostic runs per Goal (default 10, maximum 100). */
@@ -210,18 +229,96 @@ export const summarizeGoalSupervision = (state?: GoalSupervisionState): GoalSupe
   };
 };
 
-/** A CLI-capable agent owns planning; the coordinator owns execution and acceptance. */
+/**
+ * A CLI-capable agent owns planning; the coordinator owns execution and acceptance.
+ * The planning agent is the goal's own `agentId` — the policy carries no identity.
+ */
 export interface GoalManagerPolicy {
-  /** Server-resolved creator identity; not a separately selectable manager. */
-  agentId: string;
   instruction?: string;
   maxTurns?: number;
+  /**
+   * Set when the coordinator opened this policy to hand its planning over; the
+   * token lets a hand-over that could not start remove its own policy and
+   * nothing a person set meanwhile.
+   */
+  openedForHandoff?: string;
+}
+
+/** Bounded wait on time or one correlated external result. */
+export interface GoalManagerWait {
+  /**
+   * When the currently scheduled wake check fires. Ticks before this moment
+   * leave the queue alone, so polling a wait does not enqueue duplicate wakes.
+   */
+  armedUntil?: string;
+  event?: { key: string; type: string };
+  /** Fallback check even when an external event is lost. */
+  until: string;
+  wake?: {
+    at: string;
+    cause: 'event' | 'timer';
+    eventId?: string;
+    reference?: string;
+    summary?: string;
+  };
+}
+
+/** A question the main Agent escalates to the owner, with the answers it proposes. */
+export interface GoalManagerAsk {
+  options: GoalDecisionOption[];
+  question: string;
+  recommendedOptionId?: string;
 }
 
 /** Server-owned dispatch receipt, retained across backend restarts. */
 export interface GoalManagerState {
+  /**
+   * The turn was not dispatched by the manager: it is the conversation run that
+   * created the goal (`/goal` → `lh goal create --conversation`), adopted as the
+   * first planning turn. The turn is keyed by `operationId` instead of the
+   * server-minted `msg_goal_manager_<token>` source message.
+   */
+  adopted?: boolean;
+  /**
+   * The conversation run adopted as the first planning turn, kept on every later
+   * receipt. `adopted` / `operationId` describe the current turn and are replaced
+   * when the next one starts; without this the first run's spend would drop out
+   * of the goal's management usage and budget.
+   */
+  adoptedOperationId?: string;
   consumed?: boolean;
+  /**
+   * Set when the dispatch for this turn was refused its topic reservation — the
+   * one failure raised before anything of the run is written — so no run exists
+   * and none can start. Decided from the error itself, never from rows the
+   * owner can edit.
+   */
+  dispatchNeverStarted?: boolean;
+  /**
+   * Consecutive turns that ended in an error without committing a plan. Reset by
+   * a turn that commits a plan or ends without an error. Reaching the limit
+   * pauses the Goal on the last error instead of re-dispatching an Agent that
+   * keeps failing the same way.
+   */
+  failedTurns?: number;
+  /**
+   * The device the last turn could not reach, when it failed as unavailable.
+   * Seeing it online again ends the `retryAfter` wait early.
+   */
+  offlineDevice?: { deviceId: string; userId: string; workspaceId?: string };
+  /**
+   * Consecutive turns that never reached their device. They are not charged to
+   * the turn budget and follow the Task offline retry schedule instead.
+   */
+  offlineTurns?: number;
   operationId?: string;
+  /**
+   * Management conversations this Goal planned in before a handoff moved it to
+   * another agent's topic. `topicId` always points at the current agent's
+   * conversation; the earlier ones are kept here so the turns already spent in
+   * them keep counting toward the Goal's management usage and budget.
+   */
+  previousTopicIds?: string[];
   /**
    * The problem this turn was invited to take over, when the coordinator handed
    * one over instead of opening a human gate. Its presence is what separates a
@@ -234,21 +331,319 @@ export interface GoalManagerState {
    *  it can retire exactly that node without parsing the key. */
   problemTaskId?: string;
   readyForAcceptance?: boolean;
+  replanReason?: string;
+  /**
+   * Earliest time the next turn may be dispatched after one failed without a
+   * plan: the provider's quota reset when the error carries one, otherwise an
+   * exponential backoff. Without it a failing Agent was re-dispatched on every
+   * tick and spent the whole turn budget in minutes.
+   */
+  retryAfter?: string;
   reviewSnapshot?: string;
   snapshot: string;
   startedAt: string;
+  /**
+   * `start` settled this turn with the draft's arrangement rather than a plan
+   * the agent submitted, so a later `lh goal plan` on it is refused, not
+   * reported as a duplicate of a plan that was never written.
+   */
+  startedFromDraft?: boolean;
   submitted?: {
-    action: 'tasks' | 'verify' | 'retry' | 'escalate';
+    action: 'tasks' | 'verify' | 'retry' | 'escalate' | 'wait';
+    /**
+     * The question an `escalate` puts to the owner, with the answers it offers.
+     * Without it the gate could only ask "retry or retire?" while the real
+     * question sat unanswerable in the reason text.
+     */
+    ask?: GoalManagerAsk;
     reason: string;
     taskId?: string;
   };
   token: string;
   topicId: string;
   turns: number;
+  wait?: GoalManagerWait;
+}
+
+/**
+ * The admission verdict `submit` would reach, plus the facts behind it.
+ *
+ * Served as `goal.planContext` and rendered by `lh goal state`: a refused
+ * `lh goal plan` re-reads it, so the CLI can explain *why* from the server's own
+ * predicates. `snapshot` / `review` carry the recorded hashes next to the
+ * current ones because a stale plan is exactly the case a client cannot judge on
+ * its own — the graph it holds has no manager or review receipt.
+ */
+export interface GoalPlanContext {
+  /**
+   * `ok` means nothing refuses this turn — NOT that a new plan would be applied.
+   * `code: 'duplicate'` is `ok` because a plan is already recorded and
+   * re-submitting returns its receipt unchanged; it must not be rendered as
+   * "accepted".
+   */
+  admission: { code: string; message?: string; ok: boolean };
+  budget?: {
+    blocked: boolean;
+    deadline: string | null;
+    maxRounds: number | null;
+    maxTotalCost: number | null;
+    runs: number;
+    totalCost: number;
+  };
+  goal: { agentId: string | null; pausedBy: GoalPauseReason | null; status: GoalStatus };
+  queue?: { pendingDecisions: number; unfinishedTasks: number };
+  review: { current?: string; recorded: string | null };
+  snapshot: { current?: string; recorded: string | null };
+  turn: {
+    adopted: boolean;
+    consumed: boolean;
+    dispatchNeverStarted: boolean;
+    failedTurns: number;
+    operationId: string | null;
+    /** `agent_operations.status` of the run behind this turn, when one exists. */
+    opStatus: string | null;
+    problem: string | null;
+    problemTaskId: string | null;
+    retryAfter: string | null;
+    startedAt: string;
+    submitted: GoalManagerState['submitted'] | null;
+    token: string;
+    turns: number;
+  } | null;
+}
+
+/**
+ * The owner's 提出修改 on a delivered Goal: rejecting the Goal-level acceptance
+ * reopens the Goal, and this is what the rework answers to.
+ */
+export interface GoalChangeRequest {
+  /** The owner's feedback, which also reaches the next attempt's prompt. */
+  comment?: string;
+  requestedAt: string;
+  /** The Goal-level acceptance Task sent back for rework. */
+  taskId: string;
+}
+
+/**
+ * How well the coordinator understands what the user wants, as of the last
+ * decomposition. Derived from the concrete unknowns the planner reported rather
+ * than a self-rated score: `low` means a question was put to the user,
+ * `medium` means the plan proceeds on the listed assumptions, `high` means
+ * neither.
+ */
+export type GoalUnderstandingLevel = 'high' | 'medium' | 'low';
+
+export interface GoalUnderstanding {
+  /** What the plan takes as given where the goal did not say; shown for the user to correct. */
+  assumptions: string[];
+  level: GoalUnderstandingLevel;
+  updatedAt: string;
+}
+
+/**
+ * Batch rollout trigger. `off`/absent keeps the ordinary decomposition: a goal
+ * that is not one repeated mould never grows a batch node, and the coordinator
+ * reads none of the rollout code paths. `canary` probes first, proves the class
+ * is fully automatic at a gate, then releases the rest in waves; `full` skips
+ * the probe and delivers every unit as one wave.
+ */
+export type GoalRolloutTrigger = 'canary' | 'full' | 'off';
+
+/**
+ * One axis the repeated units vary along. Recorded so the gate can refuse a
+ * green whose coverage never took a value on some axis — the half the probe
+ * happened to miss (a `cold-start` value discovered only later).
+ */
+export interface GoalRolloutVariantAxis {
+  /** Axis name, e.g. "cold-start", "auth-boundary". */
+  axis: string;
+  /** Concrete values the repeated units take on this axis. */
+  values: string[];
+}
+
+/**
+ * Batch rollout policy. Lives on the JSONB `config` column like the other goal
+ * policies — the graph's own vocabulary (`goal_nodes.kind`) carries the shape,
+ * so nothing here needs a schema of its own.
+ */
+export interface GoalRolloutPolicy {
+  /** Probe size K — how many representative units run before the gate. */
+  canarySize?: number;
+  /**
+   * How many structurally identical units make one batch worth gating. Below it
+   * the ordinary per-unit decomposition is cheaper than the ceremony.
+   */
+  minHomogeneousUnits?: number;
+  /** Why the planner judged this batch homogeneous; kept for the gate report. */
+  spec?: {
+    /** R2 condition: after masking concrete names, is the transform still one? */
+    repeatable: boolean;
+    /** The reusable transformation, in the planner's words. */
+    recipeOutline?: string;
+    variantAxes?: GoalRolloutVariantAxis[];
+  };
+  trigger: GoalRolloutTrigger;
+  /**
+   * Notes for individual roster units, keyed by unit title. A main Agent that
+   * declares the batch can give each unit its own pointers (files, edge cases);
+   * a released unit's brief is the recipe plus its note.
+   */
+  unitBriefs?: Record<string, string>;
+  /**
+   * Roster of every homogeneous unit in the goal, probes included and in
+   * delivery order. Probes are the first, fully-briefed units; the coordinator
+   * materializes the rest from here one wave at a time, so the graph never
+   * shows the whole fan-out at build time.
+   */
+  units?: string[];
+  /** Mass wave size M — how many units are released per wave after the gate. */
+  waveSize?: number;
+}
+
+/**
+ * One condition the release gate judged. Mirrors `evaluateRolloutGate`: the
+ * same keys, in the same order, with what each one found — so the person can see
+ * why a gate passed or held, not only that it did.
+ */
+export type GoalRolloutGateCheckKey =
+  'axes_covered' | 'no_open_decision' | 'plan_written' | 'units_settled' | 'units_succeeded';
+
+export interface GoalRolloutGateCheck {
+  /** For a count check: how many of `total` held, e.g. 5 of 5 units ran through. */
+  count?: number;
+  /** Free-form specifics, such as an uncovered `axis=value`. */
+  details?: string[];
+  key: GoalRolloutGateCheckKey;
+  /** The nodes the check is about — the units that failed, the open decision. */
+  nodeIds?: string[];
+  passed: boolean;
+  total?: number;
+}
+
+/**
+ * One gate verdict and what the coordinator did with it. Appended on every
+ * release and every hold, so the gate keeps its own record instead of the
+ * decision's prose being the only trace.
+ */
+export interface GoalRolloutGateEvaluation {
+  /** ISO time of the verdict. */
+  at: string;
+  /** What the gate judged; empty when a unit's own check held the batch (R6). */
+  checks: GoalRolloutGateCheck[];
+  /** The coordinator's English summary, kept for the trace. */
+  message?: string;
+  /** The unit whose own check held the batch, when `trigger` is `unit`. */
+  nodeId?: string;
+  outcome: 'blocked' | 'released';
+  /** Units the release put into the next wave. */
+  releasedCount?: number;
+  /** The recipe revision (round) this verdict belongs to. */
+  revision: number;
+  /**
+   * 1-based ordinal of this verdict within its round. Written by the
+   * coordinator so it keeps counting after older verdicts were dropped.
+   */
+  seq?: number;
+  /** `gate`: the gate judged a settled wave. `unit`: one unit failed its own check. */
+  trigger: 'gate' | 'unit';
+  /**
+   * The roster wave a release put out, counted across every round. Written by
+   * the coordinator because the log is capped — counting the kept entries would
+   * renumber the history once the oldest fall off.
+   */
+  wave?: number;
+  /** Waves released in this round when the verdict was taken (after a release). */
+  waveIndex: number;
+}
+
+/** Where a batch rollout currently stands. */
+export type GoalRolloutPhase = 'probe' | 'assay' | 'mass' | 'pattern_break' | 'done';
+
+/**
+ * Coordinator-owned rollout progress. Written by decomposition and by the
+ * coordinator's own gate moves, never by a policy edit — the same rule that
+ * keeps `managerState` server-owned.
+ */
+/**
+ * What one break taught the batch: a rule in the batch's expertise domain,
+ * which every later unit's acceptance adds as a clause it must meet.
+ */
+export interface GoalRolloutLearning {
+  /**
+   * Legacy: a standalone criterion compiled from the rule by an earlier
+   * version. Nothing mounts it — later units' acceptance carries `rule` as a
+   * clause of its requirement instead.
+   */
+  criterionId?: string;
+  lessonCode?: string;
+  lessonId: string;
+  /** The round whose gate broke and taught it. */
+  revision: number;
+  /** The whole correction, as written — `title` is its one-line label. */
+  rule?: string;
+  title: string;
+}
+
+/** The batch's execution plan, kept as a skill in the user's own skill library. */
+export interface GoalRolloutPlanSkill {
+  /** The skill bundle's document id. */
+  id: string;
+  /** The skill's name: units load it as `user-skills:<name>`. */
+  name: string;
+}
+
+export interface GoalRolloutState {
+  /** The gate (Assay) decision node, once decomposition created it. */
+  assayNodeId?: string;
+  /** The `batch` container node. */
+  batchNodeId: string;
+  /**
+   * Gate verdicts, oldest first. Each round keeps its most recent few, so a
+   * round that was judged never loses its latest verdict to later rounds.
+   */
+  gateLog?: GoalRolloutGateEvaluation[];
+  /** The expertise domain the batch's breaks teach, once one has. */
+  learningDomainId?: string;
+  /** Every rule a break taught, oldest first. */
+  learnings?: GoalRolloutLearning[];
+  /**
+   * Node ids of the mass tasks the current round released, oldest wave first.
+   * A restarted canary starts a new round and clears it.
+   */
+  massNodeIds?: string[];
+  /** Phase the rollout is in; the coordinator reads this to pick its move. */
+  phase: GoalRolloutPhase;
+  /** The execution plan as a user skill; each Template revision is one of its versions. */
+  planSkill?: GoalRolloutPlanSkill;
+  /** Node ids of the probe tasks that must run before the gate passes. */
+  probeNodeIds: string[];
+  /** How many roster entries have been materialized (probes + released waves). */
+  releasedCount?: number;
+  /** Node id of the current Template (finding) node. */
+  templateNodeId?: string;
+  /** Current Template revision; incremented each time the recipe is revised. */
+  templateRevision: number;
+  /**
+   * The class still to deliver, in delivery order; probes come first. Starts as
+   * the full roster. A pattern break re-cuts it to what is still owed — the
+   * re-opened probes, the broken units past the canary size, then whatever was
+   * never released — so waves deliver only the remainder and units already
+   * delivered under the old recipe drop out.
+   */
+  unitTitles?: string[];
+  /** How many mass waves have been released. */
+  waveIndex: number;
+  /** Roster waves released so far across every round; `waveIndex` restarts per round. */
+  wavesReleased?: number;
 }
 
 export interface GoalConfig {
   acceptance?: GoalAcceptancePolicy;
+  /**
+   * The owner's latest request for changes. Kept after the rework lands: the
+   * result page reads it as 修改中 only while the Goal is open again.
+   */
+  changeRequest?: GoalChangeRequest;
 
   exploration?: GoalExplorationConfig;
   manager?: GoalManagerPolicy;
@@ -266,17 +661,40 @@ export interface GoalConfig {
   planningCheckpoint?: { expiresAt: string; token: string };
   /** Retained after release to distinguish lease-aware retries from legacy planners. */
   planningProtocol?: 'lease-v1';
+  /**
+   * Coordinator-owned: when the queued wake for a Task waiting on a usage-window
+   * reset fires. One wake per Goal, so ticks before the reset do not queue more.
+   */
+  quotaRetryWakeAt?: string;
   recovery?: GoalRecoveryPolicy;
+  /** Coordinator-owned receipt of the latest wrap-up report dispatch. */
+  report?: GoalReportDispatch;
+  /**
+   * Batch rollout, when this goal is one repeated mould. Absent on every goal
+   * that is not — which is what keeps the mechanism off the ordinary path.
+   */
+  rollout?: GoalRolloutPolicy;
+  /** Coordinator-owned batch progress; never accepted as client configuration. */
+  rolloutState?: GoalRolloutState;
   schedule?: GoalSchedulePolicy;
   supervision?: GoalSupervisionPolicy;
   /** Durable supervisor topic and bounded incident ledger. */
   supervisorState?: GoalSupervisionState;
+  /**
+   * Who executes the Tasks the coordinator creates, when that is not the goal's
+   * own agent. The goal's `agentId` supervises and plans; this only routes work.
+   * Unset means the goal's agent does its own Tasks.
+   */
+  taskAgentId?: string;
+  /** Coordinator-owned; written by decomposition, never by a policy edit. */
+  understanding?: GoalUnderstanding;
 }
 
-/** Creation accepts planning options, never a separate manager identity or runtime receipt. */
-export type GoalCreateConfig = Omit<GoalConfig, 'manager' | 'managerState' | 'supervisorState'> & {
-  manager?: Omit<GoalManagerPolicy, 'agentId'>;
-};
+/** Creation accepts planning options, never a runtime receipt. */
+export type GoalCreateConfig = Omit<
+  GoalConfig,
+  'managerState' | 'report' | 'rolloutState' | 'supervisorState' | 'understanding'
+>;
 
 /**
  * The goal entity as exposed to clients — a mirror of the `goals` table row.
@@ -310,8 +728,16 @@ export interface GoalItem {
 // Goal Graph — durable long-horizon reasoning structure
 // ============================================
 
-/** Coarse-grained semantic role of a node in a Goal Graph. */
-export type GoalNodeKind = 'problem' | 'experiment' | 'task' | 'finding' | 'decision';
+/**
+ * Coarse-grained semantic role of a node in a Goal Graph.
+ *
+ * `batch` is the container for one repeated mould: a set of structurally
+ * identical units delivered as a single class (probe → gate → waves) instead of
+ * N flat sibling tasks. It is deliberately its own kind rather than a reuse of
+ * `experiment`: an experiment is a candidate answer under test, a batch is one
+ * reusable transformation applied many times.
+ */
+export type GoalNodeKind = 'problem' | 'experiment' | 'task' | 'finding' | 'decision' | 'batch';
 
 /** Semantic lifecycle of a node; independent from the execution status of its Task. */
 export type GoalNodeStatus =
@@ -344,8 +770,18 @@ export type GoalDecisionAuthority = 'agent' | 'user' | 'project_role';
 
 export type GoalDecisionStatus = 'pending' | 'resolved' | 'canceled';
 
+/**
+ * What answering with an option does to the Task the gate was opened for.
+ * Coordinator options carry it implicitly through their fixed ids
+ * (`retry` / `retire` / `fail`); options the main Agent writes for its own
+ * question name it, so its wording never has to match a reserved id.
+ */
+export type GoalDecisionOptionEffect = 'retry' | 'retire';
+
 export interface GoalDecisionOption {
+  /** The consequence of choosing this option, in the words the person reads. */
   description?: string;
+  effect?: GoalDecisionOptionEffect;
   id: string;
   label: string;
 }
@@ -453,9 +889,15 @@ export interface GoalGraphWorkVersionDisplay {
    * route resolves {@link resourceId}.
    */
   agentDocumentId?: string;
+  /** File-store identity of a `file` Work — what acceptance evidence cites it by. */
+  fileId?: string;
+  /** Size in bytes of a `file` Work, when it was persisted. */
+  fileSize?: number;
   /** Durable download target of a `file` Work, which keeps it out of `url`. */
   fileUrl?: string;
   identifier: string | null;
+  /** MIME type of a `file` Work, when it was persisted. */
+  mimeType?: string;
   /** Canonical resource identity — the document id an in-app link addresses. */
   resourceId: string | null;
   status: string | null;
@@ -468,6 +910,13 @@ export interface GoalGraphWorkVersionDisplay {
 
 /** Where a task node's own verification stands, for a reader scanning the goal. */
 export interface GoalNodeAcceptance {
+  /**
+   * The acceptance's current round, counted. Read in the same batched pass as
+   * the rows themselves so a surface can show each level's standing without
+   * opening it; absent when the acceptance has no round yet, which is not the
+   * same as a round that judged nothing.
+   */
+  checks?: VerifyCheckTally;
   id: string;
   status: AcceptanceStatus;
 }
@@ -480,6 +929,12 @@ export interface GoalGraphSnapshot {
    * finished without saying whether it held up.
    */
   acceptances?: Record<string, GoalNodeAcceptance>;
+  /**
+   * The agent each dispatched task node is assigned to, keyed by node id. A
+   * goal can route its tasks to an executor other than the supervising agent,
+   * and a task title alone never says who is doing the work.
+   */
+  assignees?: Record<string, string>;
   decisions: GoalGraphDecision[];
   /**
    * When an active task node's newest run delivered, present only while that
@@ -492,6 +947,12 @@ export interface GoalGraphSnapshot {
   events: GoalGraphEvent[];
   goal: GoalItem;
   nodes: GoalGraphNode[];
+  /**
+   * The wrap-up report: whether it is being written, done or failed, and the
+   * newest submitted version. Absent until the Goal-level acceptance has ended
+   * and a wrap-up was dispatched.
+   */
+  report?: GoalReportState;
   /**
    * Live heartbeat per active task node id: the `agent_operations.updatedAt`
    * of the run behind it. The runtime refreshes that lease every ~90s, while

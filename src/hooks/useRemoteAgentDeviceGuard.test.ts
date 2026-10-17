@@ -1,17 +1,17 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useTopicAgencyConfig } from '@/hooks/useTopicAgencyConfig';
+import { useEffectiveAgencyConfig } from '@/hooks/useEffectiveAgencyConfig';
 import { deviceService } from '@/services/device';
 
 import { useRemoteAgentDeviceGuard } from './useRemoteAgentDeviceGuard';
 
-vi.mock('@/hooks/useTopicAgencyConfig', () => ({ useTopicAgencyConfig: vi.fn() }));
+vi.mock('@/hooks/useEffectiveAgencyConfig', () => ({ useEffectiveAgencyConfig: vi.fn() }));
 vi.mock('@/services/device', () => ({
   deviceService: { checkCapability: vi.fn(), listDevices: vi.fn() },
 }));
 
-const mockedUseEffectiveAgencyConfig = vi.mocked(useTopicAgencyConfig);
+const mockedUseEffectiveAgencyConfig = vi.mocked(useEffectiveAgencyConfig);
 const mockedCheckCapability = vi.mocked(deviceService.checkCapability);
 const mockedListDevices = vi.mocked(deviceService.listDevices);
 
@@ -141,5 +141,31 @@ describe('useRemoteAgentDeviceGuard', () => {
     const { result } = renderHook(() => useRemoteAgentDeviceGuard({ agentId: 'agent-1' }));
 
     await waitFor(() => expect(result.current.status).toBe('no-device'));
+  });
+
+  // A side-by-side portal pane pins its own device while the main column's
+  // topic, still globally active, is bound elsewhere.
+  it("checks the device bound to the conversation's own topic", async () => {
+    mockedUseEffectiveAgencyConfig.mockImplementation((_agentId, options) => ({
+      agencyConfig: {
+        boundDeviceId: options?.topicId === 'pane-topic' ? 'pane-device' : 'main-device',
+        executionTarget: 'device',
+        heterogeneousProvider: { type: 'codex' },
+      },
+      canDisplayExecutionTarget: true,
+      canSelectExecutionTarget: true,
+      isPreferenceLoading: false,
+      workspaceScoped: false,
+    }));
+    mockedListDevices.mockResolvedValue([
+      { deviceId: 'main-device', online: false },
+      { deviceId: 'pane-device', online: true },
+    ] as never);
+
+    const { result } = renderHook(() =>
+      useRemoteAgentDeviceGuard({ agentId: 'agent-1', topicId: 'pane-topic' }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe('ok'));
   });
 });

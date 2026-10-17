@@ -1,4 +1,7 @@
 export default {
+  'workingDirectory.newFolderCreated': 'Created folder: {{path}}',
+  'workingDirectory.newFolderInvalidWindowsName':
+    'Use a Windows folder name without reserved names (such as CON), special characters (< > : " / \\ | ? *), control characters, or a trailing space or period.',
   'workingDirectory.addFolderFailed': 'Could not add this folder. Please try again.',
   'workingDirectory.browseDescription': 'Choose a folder on the connected device.',
   'workingDirectory.browseFolders': 'Browse folders',
@@ -10,8 +13,18 @@ export default {
   'workingDirectory.foldersLoading': 'Loading folders…',
   'workingDirectory.home': 'Home folder',
   'workingDirectory.loadMoreFolders': 'Load more folders',
+  'workingDirectory.newFolder': 'New folder',
+  'workingDirectory.newFolderCreate': 'Create',
+  'workingDirectory.newFolderExists': 'A file or folder with this name already exists here.',
+  'workingDirectory.newFolderFailed':
+    'Couldn’t create this folder. Check the device connection and folder permissions, then try again.',
+  'workingDirectory.newFolderInvalidName': 'Folder names can’t be “.” or “..”, or contain / or \\.',
+  'workingDirectory.newFolderPlaceholder': 'Folder name',
+  'workingDirectory.newFolderUnsupported':
+    'This device’s app doesn’t support creating folders yet. Update it and try again.',
   'workingDirectory.openPath': 'Open',
   'workingDirectory.parentFolder': 'Parent folder',
+  'workingDirectory.refreshFolders': 'Refresh folders',
   'workingDirectory.useFolder': 'Use this folder',
   'workingDirectory.addFolder': 'Add folder…',
   'workingDirectory.addFolderDesc':
@@ -27,7 +40,6 @@ export default {
   'workingDirectory.branchesLoadFailed': 'Failed to load branches',
   'workingDirectory.branchesLoading': 'Loading branches…',
   'workingDirectory.branchesNoMatch': 'No matching branches',
-  'workingDirectory.branchesTruncated': '{{count}} more — type to filter',
   'workingDirectory.cancel': 'Cancel',
   'workingDirectory.checkoutAction': 'Checkout',
   'workingDirectory.checkoutFailed': 'Checkout failed',
@@ -88,6 +100,7 @@ export default {
   'workingDirectory.renameBranchAction': 'Rename branch',
   'workingDirectory.renameBranchTitle': 'Rename branch',
   'workingDirectory.renameFailed': 'Rename failed',
+  'workingDirectory.rollBranchName': 'Roll another branch name',
   'workingDirectory.searchPlaceholder': 'Search directories',
   'workingDirectory.selectFolder': 'Select folder',
   'workingDirectory.setDefault': 'Set as default',
@@ -97,6 +110,7 @@ export default {
   'workingDirectory.staleWorktreeSnapshot':
     'The worktree “{{name}}” recorded for this conversation no longer exists — showing the Git snapshot saved on the topic.',
   'workingDirectory.title': 'Working Directory',
+  'workingDirectory.unselected': 'Not selected',
   'workingDirectory.undo': 'Undo',
   'workingDirectory.topicDescription': 'Override Agent default for this conversation only',
   'workingDirectory.topicLevel': 'Conversation override',

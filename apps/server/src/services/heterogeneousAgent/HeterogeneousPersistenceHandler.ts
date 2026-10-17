@@ -18,10 +18,11 @@ import type {
 } from '@lobechat/heterogeneous-agents';
 import {
   createMainAgentRunState,
-  isHeteroStatusGuideErrorData,
   reduceMainAgent,
   rehydrateSubagentRunsState,
 } from '@lobechat/heterogeneous-agents';
+import { isEchoedErrorText } from '@lobechat/heterogeneous-agents/errors';
+import { isHeteroStatusGuideErrorData } from '@lobechat/heterogeneous-agents/processFailure';
 import { type ChatToolPayload, ThreadStatus, ThreadType } from '@lobechat/types';
 import { createNanoId } from '@lobechat/utils';
 import debug from 'debug';
@@ -41,6 +42,12 @@ import type { MessageModel } from '@/database/models/message';
 import type { ThreadModel } from '@/database/models/thread';
 import type { TopicModel } from '@/database/models/topic';
 import { formatErrorForState } from '@/server/modules/AgentRuntime/formatErrorForState';
+
+import {
+  heteroProvenance,
+  persistCodexTurnProvenance,
+  restoreHeteroProvenance,
+} from './heteroProvenance';
 
 const log = debug('lobe-server:hetero-agent:persistence');
 
@@ -126,6 +133,8 @@ interface AssistantMessageDbLike {
  */
 interface OperationState {
   agentId: string | null;
+  /** Native turn boundary shared by the user prompt and every assistant/tool step. */
+  codexTurnId?: string;
   /**
    * CC-native session id this run is producing, captured off the stream_start
    * event stream and stamped on every persisted message's
@@ -152,6 +161,8 @@ interface OperationState {
    * after the event's XADD succeeds.
    */
   publishedKeys: Set<string>;
+  /** User message answered by this operation, checked against its topic/thread before stamping. */
+  sourceUserMessageId?: string;
   /** Isolation thread that owns this heterogeneous run, when applicable. */
   threadId: string | undefined;
   /**
@@ -184,6 +195,14 @@ export class StaleHeteroOperationError extends Error {
 }
 
 export interface HeterogeneousPersistenceHandlerDeps {
+  /**
+   * Liveness probe against the operation row, used only when the topic has lost
+   * its `runningOperation` marker: it answers whether this operation is still
+   * `running` and still owns this topic, i.e. whether the producer behind the
+   * batch is alive. Optional so standalone/test callers keep the marker-only
+   * behaviour.
+   */
+  isOperationLiveOnTopic?: (operationId: string, topicId: string) => Promise<boolean>;
   messageModel: MessageModel;
   threadModel: ThreadModel;
   topicModel: TopicModel;
@@ -269,7 +288,16 @@ const buildHeterogeneousReviewDetail = (
       };
     }
     case 'question': {
-      return { questions, title: first.header, type: 'question' };
+      return {
+        // The shared AskUser form offers "write your own" on every question,
+        // plus whole-form freeform and a supplement note, and the producer's
+        // bridge formats all three. Declare them so the claim accepts typed
+        // answers instead of treating them as off-list selections.
+        answerPolicy: { allowFreeform: true, allowSupplement: true },
+        questions: questions.map((question) => ({ ...question, allowCustomAnswer: true })),
+        title: first.header,
+        type: 'question',
+      };
     }
     default: {
       throw new Error('Unsupported heterogeneous intervention kind');
@@ -297,6 +325,16 @@ const INTERVENTION_KINDS = new Set<AgentInterventionInteractionKind>([
   'plan',
   'question',
 ]);
+
+/** The raw text a CLI would have echoed into the answer for this failure. */
+const errorEchoText = (error: { body?: Record<string, unknown>; message?: string }): string => {
+  const body = error.body ?? {};
+  const candidate = [body.stderr, body.message, error.message].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+
+  return candidate ?? '';
+};
 
 const INTERVENTION_PROVIDERS = new Set<AgentInterventionProvider>([
   'claude-code',
@@ -533,16 +571,35 @@ export class HeterogeneousPersistenceHandler {
         ? marker
         : marker?.childOperations?.find((child) => child.operationId === operationId);
 
-    if (!running && !(allowMissingRunningOperation && seedAssistantMessageId)) {
-      throw new StaleHeteroOperationError(
-        `Stale hetero operation ${operationId} on topic ${topicId}; no active runningOperation`,
-      );
-    }
+    if (!running) {
+      // Two different fates were collapsed into one refusal here.
+      //
+      // A marker naming ANOTHER operation means a newer run owns the topic:
+      // this batch is genuinely late and has to be dropped, or it would keep
+      // mutating a turn the conversation has already moved past.
+      //
+      // NO marker at all is a different story. The marker is a best-effort
+      // rendering pointer that a client can settle on nothing more than a
+      // transport signal — a raw `session_complete`, or one multiplexed socket
+      // failing auth for every operation on the tab — while the producer is
+      // still running and streaming. Refusing there throws away the whole
+      // remaining output of a live CLI, which then burns minutes of work
+      // nobody stores. The operation row is the authority on liveness, so ask
+      // it: still `running`, still bound to THIS topic ⇒ keep persisting
+      // without a marker. The turn's own pointers (`heteroCurrentMsgId`, the
+      // seeded assistant message) carry the rest.
+      const producerStillOwnsTopic =
+        !marker && (await this.deps.isOperationLiveOnTopic?.(operationId, topicId));
 
-    if (!running && !(allowMissingRunningOperation && seedAssistantMessageId)) {
-      throw new StaleHeteroOperationError(
-        `Stale hetero operation ${operationId} on topic ${topicId}; current operation is ${marker?.operationId ?? 'unknown'}`,
-      );
+      if (producerStillOwnsTopic) {
+        log('marker missing but operation still running op=%s topic=%s', operationId, topicId);
+      } else if (!(allowMissingRunningOperation && seedAssistantMessageId)) {
+        throw new StaleHeteroOperationError(
+          marker
+            ? `Stale hetero operation ${operationId} on topic ${topicId}; current operation is ${marker.operationId}`
+            : `Stale hetero operation ${operationId} on topic ${topicId}; no active runningOperation`,
+        );
+      }
     }
 
     // Prefer the assistantMessageId forwarded in the ingest payload (sandbox path).
@@ -552,7 +609,15 @@ export class HeterogeneousPersistenceHandler {
     // runningOperation binding to match `operationId`, otherwise late/retried
     // batches after finish could keep mutating a completed turn.
     // Fall back to topic.metadata for desktop / old-CLI callers that lack the field.
-    const baseAssistantMessageId = seedAssistantMessageId ?? running?.assistantMessageId;
+    // `heteroCurrentMsgId` is the last resort and is scoped to this operation:
+    // it is the only pointer left once a marker has been cleared out from under
+    // a still-running producer (see the liveness check above).
+    const currentMsgIdForOperation =
+      topic?.metadata?.heteroCurrentMsgId?.operationId === operationId
+        ? topic?.metadata?.heteroCurrentMsgId?.msgId
+        : undefined;
+    const baseAssistantMessageId =
+      seedAssistantMessageId ?? running?.assistantMessageId ?? currentMsgIdForOperation;
 
     if (!baseAssistantMessageId) {
       throw new Error(`runningOperation on topic ${topicId} is missing assistantMessageId`);
@@ -598,6 +663,7 @@ export class HeterogeneousPersistenceHandler {
       // topic.metadata.heteroSessionId: that holds the id we ASKED CC to resume,
       // which differs from the actual id when a fork/new session occurred.
       heteroSessionId: undefined,
+      sourceUserMessageId: baseAssistantMessage?.parentId ?? undefined,
       lastStepIndex: 0,
       lastAppliedToolStateSeqByCallId: new Map(),
       main: createMainAgentRunState(currentAssistantMessageId),
@@ -785,9 +851,7 @@ export class HeterogeneousPersistenceHandler {
     // Recover the run's CC session id from a previously-stamped message so a
     // cold replica that never saw this run's stream_start still stamps the
     // right session id on the messages it persists.
-    if (!state.heteroSessionId && typeof snapshot.metadata.heteroSessionId === 'string') {
-      state.heteroSessionId = snapshot.metadata.heteroSessionId;
-    }
+    restoreHeteroProvenance(state, snapshot.metadata);
 
     if (snapshot.textSnapshotSeq > state.main.lastTextSnapshotSeq) {
       state.main.accContent = snapshot.content;
@@ -983,7 +1047,16 @@ export class HeterogeneousPersistenceHandler {
         ? marker
         : marker?.childOperations?.find((child) => child.operationId === state.operationId);
 
-    if (!running) {
+    // Same split as `loadOrCreateState`: another operation on the marker means
+    // this run has been superseded and must stop writing, while a marker that
+    // is simply gone can be a live producer whose topic was settled by a
+    // transport signal. In the latter case `heteroCurrentMsgId` — repointed by
+    // this operation's own ingest — is a complete substitute for the pointer
+    // this sync would have read off the marker.
+    if (
+      !running &&
+      (marker || !(await this.deps.isOperationLiveOnTopic?.(state.operationId, state.topicId)))
+    ) {
       throw new StaleHeteroOperationError(
         `Stale hetero operation ${state.operationId} on topic ${state.topicId}; current operation is ${marker?.operationId ?? 'unknown'}`,
       );
@@ -1065,6 +1138,11 @@ export class HeterogeneousPersistenceHandler {
       }
     }
 
+    if (event.type === 'stream_start' && typeof event.data?.codexTurnId === 'string') {
+      state.codexTurnId = event.data.codexTurnId;
+      await persistCodexTurnProvenance(this.deps.messageModel, state);
+    }
+
     const { intents, state: next } = reduceMainAgent(state.main, event, this.mainReduceCtx(state));
 
     for (const intent of intents) {
@@ -1078,30 +1156,11 @@ export class HeterogeneousPersistenceHandler {
     state.main = next;
   }
 
-  /**
-   * Per-message provenance stamped on every hetero-persisted row: the CC
-   * session id the turn ran under (`heteroSessionId`) and, when known, the CC
-   * `message.id` of the turn (`heteroMessageId`). A per-message copy lets a
-   * diff pinpoint the exact row where CC forked to a new session / lost
-   * `--resume` history — something the topic-level single `heteroSessionId`
-   * can never show. Returns `{}` when neither is known, so callers can spread
-   * it without minting empty metadata.
-   */
-  private heteroProvenance(
-    state: OperationState,
-    heteroMessageId?: string,
-  ): { heteroMessageId?: string; heteroSessionId?: string } {
-    const out: { heteroMessageId?: string; heteroSessionId?: string } = {};
-    if (state.heteroSessionId) out.heteroSessionId = state.heteroSessionId;
-    if (heteroMessageId) out.heteroMessageId = heteroMessageId;
-    return out;
-  }
-
   private async applyMainIntent(state: OperationState, intent: MainAgentIntent, stepIndex: number) {
     switch (intent.kind) {
       case 'createAssistant': {
         const createMetadata: Record<string, any> = {
-          ...this.heteroProvenance(state, intent.mainMessageId),
+          ...heteroProvenance(state, intent.mainMessageId),
         };
         if (intent.signal) createMetadata.signal = intent.signal;
         // Persist the turn's CC message.id so a cold replica can recover
@@ -1170,7 +1229,7 @@ export class HeterogeneousPersistenceHandler {
         // Phase 2: create new tool rows with reducer-preallocated ids.
         for (const tool of intent.tools) {
           if (!tool.isNew) continue;
-          const toolMetadata = this.heteroProvenance(state, state.main.currentMainMessageId);
+          const toolMetadata = heteroProvenance(state, state.main.currentMainMessageId);
           await this.deps.messageModel.create(
             {
               agentId: state.agentId ?? undefined,
@@ -1220,7 +1279,7 @@ export class HeterogeneousPersistenceHandler {
           // provenance the createAssistant write put there, or usage would wipe it.
           update.metadata = {
             ...state.main.turnMetadata,
-            ...this.heteroProvenance(state, state.main.currentMainMessageId),
+            ...heteroProvenance(state, state.main.currentMainMessageId),
             usage: intent.usage,
           };
         }
@@ -1484,7 +1543,20 @@ export class HeterogeneousPersistenceHandler {
     error: { body?: Record<string, unknown>; message: string; type: string },
   ) {
     const updateValue: Record<string, any> = {};
-    if (error.body?.clearEchoedContent === true) updateValue.content = '';
+    const clearsEcho = error.body?.clearEchoedContent === true;
+    // One read serves both decisions below.
+    const persisted =
+      clearsEcho || !isHeteroStatusGuideErrorData(error.body)
+        ? await this.deps.messageModel.findById(state.main.currentAssistantId)
+        : undefined;
+    // `clearEchoedContent` marks an error the CLI may ALSO have printed into
+    // the answer — it does not mean the answer is disposable. Quota rejections
+    // carry the flag too, and a run that worked for ten minutes before its
+    // weekly window closed must keep what it wrote, so only an exact echo is
+    // dropped (same rule as the client and the coordinator reducer).
+    if (clearsEcho && isEchoedErrorText(persisted?.content, errorEchoText(error))) {
+      updateValue.content = '';
+    }
     // Same canonical normalization as the in-stream `setError` path — the CLI's
     // free-form `{ message, type }` runs through formatErrorForState so the
     // finish-only write and the in-stream write produce one classified error shape.
@@ -1498,9 +1570,7 @@ export class HeterogeneousPersistenceHandler {
     // the generic error alert — keep the richer persisted error instead.
     const overwritesGuideError =
       !isHeteroStatusGuideErrorData(error.body) &&
-      isHeteroStatusGuideErrorData(
-        (await this.deps.messageModel.findById(state.main.currentAssistantId))?.error?.body,
-      );
+      isHeteroStatusGuideErrorData(persisted?.error?.body);
     if (!overwritesGuideError) updateValue.error = formatErrorForState(error);
 
     if (Object.keys(updateValue).length > 0) {
@@ -1548,7 +1618,7 @@ export class HeterogeneousPersistenceHandler {
 
       case 'createMessage': {
         const subMetadata: Record<string, any> = {
-          ...this.heteroProvenance(state, intent.subagentMessageId),
+          ...heteroProvenance(state, intent.subagentMessageId),
         };
         // Persist the turn's CC message.id so a cold replica can recover
         // `currentSubagentMessageId` (via buildSubagentSnapshot) and avoid
@@ -1611,7 +1681,7 @@ export class HeterogeneousPersistenceHandler {
         // register them in the global tool-message map for tool_result lookup.
         for (const t of intent.tools) {
           if (!t.isNew) continue;
-          const subToolMetadata = this.heteroProvenance(state, intent.subagentMessageId);
+          const subToolMetadata = heteroProvenance(state, intent.subagentMessageId);
           await this.deps.messageModel.create(
             {
               agentId: state.agentId ?? undefined,
@@ -1644,7 +1714,7 @@ export class HeterogeneousPersistenceHandler {
           // Wholesale metadata overwrite — re-stamp the session + message
           // provenance the createMessage write put there, or usage would wipe it.
           metadata: {
-            ...this.heteroProvenance(state, intent.subagentMessageId),
+            ...heteroProvenance(state, intent.subagentMessageId),
             usage: intent.usage as any,
           },
           ...(intent.model && { model: intent.model }),

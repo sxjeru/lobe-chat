@@ -21,6 +21,22 @@ const edges = [
 const graph = { nodes, edges };
 
 describe('experiment navigation', () => {
+  it('never folds a batch — not on a click, not on collapse all', () => {
+    const batchNodes = [
+      { id: 'batch', kind: 'batch' },
+      { id: 'exp', kind: 'experiment' },
+    ] as GoalGraphNode[];
+    const { result } = renderHook(() =>
+      useExplorationNavigation('g', { edges: [], nodes: batchNodes }),
+    );
+    expect([...result.current.collapsed]).toEqual(['exp']);
+    act(() => result.current.toggle('batch'));
+    expect([...result.current.collapsed]).toEqual(['exp']);
+    act(() => result.current.expandAll(true));
+    expect([...result.current.collapsed]).toEqual([]);
+    act(() => result.current.expandAll(false));
+    expect([...result.current.collapsed]).toEqual(['exp']);
+  });
   it('starts collapsed even after async data arrives, and new experiments do not reset manual expansion', () => {
     const { result, rerender } = renderHook(
       (nodes) => useExplorationNavigation('g', { nodes, edges }),
@@ -63,6 +79,28 @@ describe('experiment navigation', () => {
     rerender('other');
     expect(result.current.path).toEqual([]);
     expect(result.current.collapsed.size).toBe(3);
+  });
+  it('keeps the collapsed set identity across re-renders that do not change it', () => {
+    const { result, rerender } = renderHook((props) => useExplorationNavigation('g', props), {
+      initialProps: graph,
+    });
+    const initial = result.current.collapsed;
+    // A graph poll hands over a new snapshot with the same content.
+    rerender({ nodes: [...nodes], edges: [...edges] });
+    expect(result.current.collapsed).toBe(initial);
+
+    act(() => result.current.toggle('a'));
+    expect(result.current.collapsed).not.toBe(initial);
+  });
+  it('keeps an empty collapsed set stable for graphs without experiments', () => {
+    const plain = { nodes: [{ id: 't', kind: 'task' }] as GoalGraphNode[], edges: [] };
+    const { result, rerender } = renderHook((props) => useExplorationNavigation('g', props), {
+      initialProps: plain,
+    });
+    const initial = result.current.collapsed;
+    rerender({ ...plain, nodes: [...plain.nodes] });
+    expect(result.current.collapsed).toBe(initial);
+    expect(initial.size).toBe(0);
   });
   it('bulk controls act on the current scope without collapsing its ancestor', () => {
     const { result } = renderHook(() => useExplorationNavigation('g', graph));
