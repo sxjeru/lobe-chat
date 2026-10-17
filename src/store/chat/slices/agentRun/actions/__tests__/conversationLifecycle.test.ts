@@ -110,7 +110,7 @@ afterEach(() => {
   // Zustand state and the window-backed agent context survive `restoreAllMocks`,
   // so a cwd test that seeds a device (or a desktop path) would otherwise leak
   // a working directory into every later send in this file.
-  useDeviceStore.setState({ devices: [] });
+  useDeviceStore.setState({ deviceListMap: {} });
   delete window.__LOBE_GLOBAL_AGENT_CONTEXT__;
   vi.restoreAllMocks();
 });
@@ -2601,7 +2601,7 @@ describe('ConversationLifecycle actions', () => {
         });
         act(() => {
           useDeviceStore.setState({
-            devices: [{ defaultCwd: '/repo/default', deviceId, name: 'Mac' }] as any,
+            deviceListMap: { all: [{ defaultCwd: '/repo/default', deviceId, name: 'Mac' }] as any },
           });
         });
 
@@ -2865,9 +2865,11 @@ describe('ConversationLifecycle actions', () => {
           const sendMessageInServerSpy = setupHeteroRun();
           act(() => {
             useDeviceStore.setState({
-              devices: [
-                { defaultCwd: '/repo/device-default', deviceId: HETERO_DEVICE_ID, name: 'Mac' },
-              ] as any,
+              deviceListMap: {
+                all: [
+                  { defaultCwd: '/repo/device-default', deviceId: HETERO_DEVICE_ID, name: 'Mac' },
+                ] as any,
+              },
             });
           });
 
@@ -2957,9 +2959,11 @@ describe('ConversationLifecycle actions', () => {
           });
           act(() => {
             useDeviceStore.setState({
-              devices: [
-                { defaultCwd: '/repo/device-default', deviceId: HETERO_DEVICE_ID, name: 'Mac' },
-              ] as any,
+              deviceListMap: {
+                all: [
+                  { defaultCwd: '/repo/device-default', deviceId: HETERO_DEVICE_ID, name: 'Mac' },
+                ] as any,
+              },
             });
           });
 
