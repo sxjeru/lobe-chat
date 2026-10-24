@@ -2542,10 +2542,14 @@ export default {
   'goalProcess.gate.reason.verifyInternalError':
     'Verification could not run (internal error); this delivery was not evaluated',
   'goalProcess.gate.reason.verifyFailed': 'Task {{id}} did not pass verification',
+  'goalProcess.gate.reason.verifyStalled':
+    'Task {{id}} failed verification the same way {{count}} times in a row, so it was not retried again',
   'goalProcess.gate.reason.goalAcceptanceFailed': 'Goal-level acceptance did not pass',
   'goalProcess.gate.reason.attemptBudgetExhausted': 'The attempt budget for this work is used up',
   'goalProcess.gate.reason.costBudgetExhausted': 'The goal cost budget is used up',
   'goalProcess.gate.reason.recoveryFailed': 'Automatic recovery could not start the next attempt',
+  'goalProcess.gate.reason.recoveryFailedWithError':
+    'Automatic recovery could not start the next attempt: {{error}}',
   'goalProcess.gate.reason.batchReleaseProbes':
     'The v{{revision}} experiments finished; start batch execution with wave {{wave}} ({{count}} units)',
   'goalProcess.gate.reason.batchReleaseRevised':
@@ -2903,6 +2907,9 @@ export default {
   'goalProcess.node.artifactsTooltip':
     '{{count}} work versions registered. Opening them needs a server read that does not exist yet.',
   'goalProcess.node.humanTouched': 'You took part in this task',
+  'goalProcess.decisions.title': 'Decisions',
+  'goalProcess.decisions.empty': 'No decision has been asked on this goal yet.',
+  'goalProcess.decisions.pending': 'Awaiting decision',
   'goalProcess.findings.title': 'Findings',
   'goalProcess.findings.empty': 'No findings yet.',
   'goalProcess.findings.answers': 'Answers “{{title}}”',
@@ -3810,6 +3817,21 @@ export default {
   'workingPanel.files.showInReview': 'Show in Review',
   'workingPanel.files.showInSystem': 'Reveal in Folder',
   'workingPanel.files.title': 'Files',
+  'workingPanel.search.empty': 'No messages contain "{{keyword}}"',
+  'workingPanel.search.error': 'Search failed. Try again.',
+  'workingPanel.search.hint':
+    'Searches every message in this topic, including earlier history that is not loaded yet.',
+  'workingPanel.search.limitReached':
+    'Showing the first {{count}} messages. Use a more specific keyword to narrow it down.',
+  'workingPanel.search.next': 'Next match',
+  'workingPanel.search.placeholder': 'Find in this topic',
+  'workingPanel.search.prev': 'Previous match',
+  'workingPanel.search.resultCount_one': '{{count}} message',
+  'workingPanel.search.resultCount_other': '{{count}} messages',
+  'workingPanel.search.retry': 'Retry',
+  'workingPanel.search.role.assistant': 'Assistant',
+  'workingPanel.search.role.user': 'You',
+  'workingPanel.search.title': 'Search',
   'workingPanel.files.truncatedNotice':
     'Some expanded folders are too large to list fully — only the first entries are shown',
   'workingPanel.files.views.changes': 'Git Changes',
