@@ -7,6 +7,7 @@ import {
   type ToolManifestSettings,
 } from '@lobechat/types';
 import { safeParseJSON } from '@lobechat/utils';
+import { getMcpServerDescription } from '@lobechat/utils/mcpServerDescription';
 import { type DeploymentOption } from '@lobehub/market-sdk';
 import { ProtocolError, SdkError, SdkErrorCode } from '@modelcontextprotocol/client';
 import { TRPCError } from '@trpc/server';
@@ -376,7 +377,7 @@ export class MCPService {
         avatar: metadata?.avatar || 'MCP_AVATAR',
         description:
           metadata?.description ||
-          `${identifier} MCP server has ${tools.length} tools, like "${tools[0]?.name}"`,
+          getMcpServerDescription(identifier, { tools }, { includeToolExample: true }),
         title: identifier,
       },
       // TODO: temporary
@@ -407,13 +408,7 @@ export class MCPService {
       identifier,
       meta: {
         avatar: metadata?.avatar || 'MCP_AVATAR',
-        description:
-          metadata?.description ||
-          `${identifier} MCP server has ` +
-            Object.entries(manifest)
-              .filter(([key]) => ['tools', 'prompts', 'resources'].includes(key))
-              .map(([key, item]) => `${(item as Array<any>)?.length} ${key}`)
-              .join(','),
+        description: metadata?.description || getMcpServerDescription(identifier, manifest),
         title: metadata?.name || identifier,
       },
       ...manifest,
