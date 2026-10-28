@@ -1,3 +1,4 @@
+import type { BotPlatformContext } from '@lobechat/context-engine';
 import type { BotNoReplyResult, BotWakeKind, ChatTopicBotContext } from '@lobechat/types';
 import type { Message, SentMessage, Thread } from 'chat';
 
@@ -25,6 +26,11 @@ export interface ThreadState {
 export interface BridgeHandlerOpts {
   agentId: string;
   botContext?: ChatTopicBotContext;
+  /**
+   * The bot's settings. Local mode completes in-process, so it records the bot-wake outcome
+   * (follow-up window, silent-wake budget, stand-down) itself; queue mode reads them in the callback.
+   */
+  botSettings?: Record<string, unknown>;
   charLimit?: number;
   client?: PlatformClient;
   displayToolCalls?: boolean;
@@ -34,6 +40,11 @@ export interface BridgeHandlerOpts {
    * `formatBotPlatformContext`.
    */
   duty?: { matched?: string };
+  /**
+   * The bot woke in its follow-up window (a `followup` wake): how sure the classifier was and who
+   * else is in the thread. The agent is told why. See `formatBotPlatformContext`.
+   */
+  followup?: BotPlatformContext['followup'];
   /**
    * The bot woke only because its name is in the text (a `followup` wake): people often talk about
    * it rather than to it, and the agent is told so. See `formatBotPlatformContext`.
@@ -59,6 +70,12 @@ export interface BridgeHandlerOpts {
   replyLocale?: BotReplyLocale;
   /** How the bot talks in this conversation, as the owner wrote it. See `formatBotPlatformContext`. */
   replyStyle?: string;
+  /**
+   * The agent may step back from this conversation (`STAND_DOWN`) when people say it is
+   * interfering: a group conversation of a bot whose wake rules enforce. See
+   * `formatBotPlatformContext`.
+   */
+  standDown?: boolean;
   /**
    * How the bot was woken. `followup` lets the agent end in silence and holds back every visible
    * side effect (reaction, typing, progress message) until it decides to speak; `mention`

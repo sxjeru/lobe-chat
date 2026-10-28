@@ -14,6 +14,8 @@ export interface BotPlatformContext {
   currentChannel?: BotPlatformInfo['currentChannel'];
   /** The bot woke on its own because a message falls within its duties (see `formatBotPlatformContext`). */
   duty?: BotPlatformInfo['duty'];
+  /** The bot woke in its follow-up window (see `formatBotPlatformContext`). */
+  followup?: BotPlatformInfo['followup'];
   /** The bot woke only because its name is in the text (see `formatBotPlatformContext`). */
   named?: boolean;
   /** Acknowledgement already posted before the run (see `formatBotPlatformContext`). */
@@ -25,6 +27,8 @@ export interface BotPlatformContext {
   replyEmojis?: BotPlatformInfo['replyEmojis'];
   /** How the bot talks in this conversation (see `formatBotPlatformContext`). */
   replyStyle?: BotPlatformInfo['replyStyle'];
+  /** The agent may step back from the conversation (see `formatBotPlatformContext`). */
+  standDown?: boolean;
   supportsMarkdown: boolean;
   /** `followup` tells the agent it may stay silent (see `formatBotPlatformContext`). */
   wakeKind?: BotPlatformInfo['wakeKind'];

@@ -22,8 +22,10 @@ export const registerCatchAllHandler = (bot: Chat<any>, ctx: BotHandlerContext):
   const {
     agentId,
     applicationId,
+    botSettings,
     botWakeEnabled,
     bridge,
+    canStandDown,
     charLimit,
     client,
     commands,
@@ -285,6 +287,7 @@ export const registerCatchAllHandler = (bot: Chat<any>, ctx: BotHandlerContext):
             platform,
             platformThreadId: thread.id,
           }),
+          botSettings,
           charLimit,
           client,
           displayToolCalls,
@@ -292,8 +295,10 @@ export const registerCatchAllHandler = (bot: Chat<any>, ctx: BotHandlerContext):
           reactionMode,
           replyLocale,
           duty: initiation?.reason === 'in-duty' ? { matched: initiation.duty } : undefined,
+          followup: initiation?.reason === 'followup-window' ? initiation.followup : undefined,
           named: wakeReason === 'named-in-text',
           ...replyVoiceFor(thread.id),
+          standDown: await canStandDown(thread),
           wakeKind,
         });
       } catch (error) {
