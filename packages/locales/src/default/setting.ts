@@ -1401,7 +1401,7 @@ export default {
   'settingImage.defaultCount.desc':
     'Set the default number of images generated when creating a new task in the image generation panel.',
   'settingImage.defaultCount.label': 'Default Image Count',
-  'settingImage.defaultCount.title': 'Generation',
+  'settingImage.defaultCount.title': 'Image Generation',
   'settingModel.enableContextCompression.desc':
     'Automatically compress historical messages into summaries when conversation exceeds 64,000 tokens, saving 60-80% token usage',
   'settingModel.enableContextCompression.title': 'Enable Auto Context Compression',
@@ -1532,7 +1532,7 @@ export default {
   'serviceModel.advanced.restoreAll': 'Restore all',
   'serviceModel.advanced.summary.custom': '{{count}} customized',
   'serviceModel.advanced.summary.off': '{{count}} off',
-  'serviceModel.advanced.summary.rest': 'the rest follow the settings above',
+  'serviceModel.advanced.summary.followTier': 'the rest follow {{tier}}',
   'serviceModel.advanced.summary.separator': ', ',
   'serviceModel.advanced.summary.total': '{{count}} tasks',
   'serviceModel.advanced.title': 'Advanced',
@@ -1540,14 +1540,9 @@ export default {
   'serviceModel.customModel': 'Choose a model',
   'serviceModel.desc':
     'Models LobeHub uses for background tasks. They follow the system recommendation by default and upgrade automatically when new models arrive.',
-  'serviceModel.group.agent': 'Agents & Goals',
-  'serviceModel.group.content': 'Content Processing',
-  'serviceModel.group.memory': 'Memory',
-  'serviceModel.group.suggestion': 'Suggestions',
-  'serviceModel.group.topic': 'Topic Naming & Summaries',
-  'serviceModel.group.voice': 'Voice',
   'serviceModel.off': 'Off',
   'serviceModel.systemRecommended': 'System recommended',
+  'serviceModel.tierPicker': 'Model',
   'serviceModel.title': 'Service Model',
   'serviceModel.tier.embedding.desc': 'Memory retrieval',
   'serviceModel.tier.embedding.title': 'Embedding Model',
@@ -1556,6 +1551,12 @@ export default {
   'serviceModel.tier.flash.title': 'Flash Model',
   'serviceModel.tier.main.desc': 'Quality-sensitive tasks such as writing and reasoning',
   'serviceModel.tier.main.title': 'Main Model',
+  'serviceModel.tier.verify.desc':
+    'Task and goal acceptance. It reads screenshot evidence, so only vision models are listed',
+  'serviceModel.tier.verify.title': 'Acceptance Model',
+  'serviceModel.voice.desc':
+    'Turns voice messages into text for external agents that only accept text',
+  'serviceModel.voice.title': 'Voice',
   'serviceModel.topicAutoSummary.desc':
     'Summarizes topics created in the rolling 24-hour window after one hour without message activity.',
   'settingSystemTools.appEnvironment.chromium.desc': 'Chromium browser engine version',
@@ -1864,6 +1865,7 @@ When I am ___, I need ___
   'systemAgent.translation.label': 'Model',
   'systemAgent.translation.modelDesc': 'Model used to translate messages',
   'systemAgent.translation.title': 'Message Translation',
+  'systemAgent.verify.title': 'Task Acceptance',
   'tab.about': 'About',
   'tab.advanced': 'Advanced',
   'tab.advanced.appUpdates.title': 'App updates',
