@@ -7,6 +7,7 @@ import {
   ActionIcon,
   Block,
   Button,
+  confirmModal,
   cssVar,
   Flexbox,
   Text,
@@ -42,12 +43,14 @@ import { UnassignedAssigneeIcon } from '../features/UnassignedAssigneeIcon';
 import { useAgentDisplayMeta } from '../shared/useAgentDisplayMeta';
 import { useAgentVisibility } from '../shared/useAgentVisibility';
 import { useUserDisplayMeta } from '../shared/useUserDisplayMeta';
+import { hasUnsavedTaskDraft } from './hasUnsavedTaskDraft';
 import ScheduleChip from './ScheduleChip';
 import {
   createDefaultScheduleDraft,
   type ScheduleDraft,
   toScheduledCreateParams,
 } from './scheduleDraft';
+import { useEscapeDiscardGuard } from './useEscapeDiscardGuard';
 import { useTitleEnterToInstruction } from './useTitleEnterToInstruction';
 
 export interface CreateTaskContentProps {
@@ -240,12 +243,33 @@ const CreateTaskContent = memo<CreateTaskContentProps>(
 
     const handleTitleKeyDown = useTitleEnterToInstruction(editor);
 
+    // Escape is easy to hit by accident, so it asks before throwing away a
+    // filled-in task; an empty modal still closes straight away.
+    const rootRef = useRef<HTMLDivElement>(null);
+    useEscapeDiscardGuard(rootRef, {
+      hasUnsavedInput: () =>
+        hasUnsavedTaskDraft({
+          editorJson: editor?.getDocument?.('json'),
+          instruction: instructionRef.current,
+          title,
+        }),
+      onEscape: () =>
+        confirmModal({
+          cancelText: t('createTask.discardConfirm.cancel'),
+          content: t('createTask.discardConfirm.content'),
+          okButtonProps: { danger: true },
+          okText: t('createTask.discardConfirm.ok'),
+          onOk: close,
+          title: t('createTask.discardConfirm.title'),
+        }),
+    });
+
     // An image pasted into the instruction finishes uploading later; without
     // this, that update would move the caret back from the title mid-typing.
     const handleTitleFocus = useCallback(() => releaseEditorSelection(editor), [editor]);
 
     return (
-      <Flexbox flex={1} style={{ minHeight: 0 }} onKeyDown={handleKeyDown}>
+      <Flexbox flex={1} ref={rootRef} style={{ minHeight: 0 }} onKeyDown={handleKeyDown}>
         <Flexbox
           horizontal
           align={'center'}
