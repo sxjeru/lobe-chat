@@ -13,6 +13,13 @@ import { RUN_STATUS_VISUALS } from './statusVisuals';
 import { useOpenRunDrawer } from './useOpenRunDrawer';
 
 const styles = stylex.create({
+  action: {
+    color: cssVar.colorPrimary,
+    flexShrink: 0,
+    fontSize: 12,
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+  },
   card: {
     backgroundColor: cssVar.colorBgContainer,
     borderColor: cssVar.colorBorderSecondary,
@@ -30,7 +37,6 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  empty: { color: cssVar.colorTextTertiary, fontSize: 13 },
   heading: { color: cssVar.colorTextTertiary, fontSize: 12, fontWeight: 500 },
   item: {
     backgroundColor: { 'default': 'transparent', ':hover': cssVar.colorFillQuaternary },
@@ -53,6 +59,7 @@ const Item = ({ item, now }: { item: AgentRunBoardAttentionItem; now: Date }) =>
   const { t } = useTranslation('home');
   const openDrawer = useOpenRunDrawer();
   const failed = item.kind === 'failed';
+  const canAct = item.isMine && !failed;
   const elapsed = formatDuration(now.getTime() - item.since.getTime());
   const title = item.title || t('team.run.untitled');
 
@@ -92,7 +99,15 @@ const Item = ({ item, now }: { item: AgentRunBoardAttentionItem; now: Date }) =>
             {t(failed ? 'team.attention.failedAgo' : 'team.attention.waiting', { time: elapsed })}
           </span>
         </Flexbox>
-        {item.detail && <span {...stylex.props(styles.detail)}>{item.detail}</span>}
+        <Flexbox horizontal align={'center'} gap={8} justify={'space-between'}>
+          <span {...stylex.props(styles.detail)}>
+            {failed ? item.detail : t('team.attention.approvalNeeded')}
+          </span>
+          {/* A span: the whole row is the button, and the drawer holds the approval card. */}
+          <span {...stylex.props(styles.action)} data-testid={'team-board-attention-action'}>
+            {t(canAct ? 'team.attention.handle' : 'team.attention.view')}
+          </span>
+        </Flexbox>
       </Flexbox>
     </button>
   );
@@ -143,9 +158,6 @@ const AttentionList = ({ items, now }: { items: AgentRunBoardAttentionItem[]; no
         now={now}
         title={t('team.attention.failed')}
       />
-      {items.length === 0 && (
-        <span {...stylex.props(styles.empty)}>{t('team.attention.empty')}</span>
-      )}
     </Flexbox>
   );
 };
