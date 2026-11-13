@@ -17,14 +17,8 @@
  *
  * Each factory also exposes `.root` (the namespace string) for `mutate`
  * matchers that compare `key[0]`.
- *
- * Document / page / agent-document keys are defined in
- * `@/services/document/swrKeys` (already a factory, widely imported) and
- * re-exported here so the whole set is reachable from one place.
  */
 import { type ConversationContext } from '@lobechat/types';
-
-import { agentDocumentSWRKeys } from '@/services/document/swrKeys';
 
 type KeyFactory<A extends unknown[]> = ((...args: A) => readonly unknown[]) & { root: string };
 
@@ -319,34 +313,6 @@ export const serverConfigKeys = {
   get: 'serverConfig:get' as const,
 };
 
-// ---- discover (marketplace) ---------------------------------------------
-// NOTE: discover/eval/ragEval/knowledgeBase/device/userMemory/file prefixes
-// are deliberately kept OUT of `CACHE_TIERS`
-// (see localStorageProvider.ts) so this key-convergence introduces no new
-// persistence — they stay memory-only exactly as before.
-export const discoverKeys = {
-  // -- marketplace detail "related agents" lists (UI) --
-  mcpAgents: def('discover:mcpAgents', (identifier: string, page: number) => [
-    'discover:mcpAgents',
-    identifier,
-    page,
-  ]),
-  skillAgents: def('discover:skillAgents', (identifier: string, page: number) => [
-    'discover:skillAgents',
-    identifier,
-    page,
-  ]),
-  skillStoreMarketSkills: def(
-    'discover:skillStoreMarketSkills',
-    (locale: string, keywords: string, page: number) => [
-      'discover:skillStoreMarketSkills',
-      locale,
-      keywords,
-      page,
-    ],
-  ),
-};
-
 // ---- agent eval ---------------------------------------------------------
 export const evalKeys = {
   benchmarkDetail: def('eval:benchmarkDetail', (id: string) => ['eval:benchmarkDetail', id]),
@@ -511,7 +477,7 @@ export const fileKeys = {
 // =========================================================================
 // UI-layer keys (features / routes / components). Prefixes below stay
 // memory-only unless explicitly listed in `CACHE_TIERS`. Names avoid colliding
-// with cached prefixes — e.g. share/topicInfo is `share:` not `topic:`, portal
+// with cached prefixes — e.g. share/topic is `share:` not `topic:`, portal
 // header is `portal:` not `document:`.
 // =========================================================================
 
@@ -623,15 +589,8 @@ export const shareKeys = {
     documentId,
   ]),
   topic: def('share:topic', (id: string) => ['share:topic', id]),
-  topicInfo: def('share:topicInfo', (topicId: string) => ['share:topicInfo', topicId]),
   /** The visitor's own topics under an agent share (server-scoped by senderId). */
   visitorTopics: def('share:visitorTopics', (shareId: string) => ['share:visitorTopics', shareId]),
-};
-
-// ---- fork source (community detail) -------------------------------------
-export const forkKeys = {
-  groupSource: def('fork:groupSource', (identifier: string) => ['fork:groupSource', identifier]),
-  source: def('fork:source', (identifier: string) => ['fork:source', identifier]),
 };
 
 // ---- local file ---------------------------------------------------------
@@ -686,15 +645,6 @@ export const localFileKeys = {
   ]),
 };
 
-// ---- favorite status (marketplace detail headers) -----------------------
-export const favoriteKeys = {
-  status: def('favorite:status', (targetType: string, identifier: string) => [
-    'favorite:status',
-    targetType,
-    identifier,
-  ]),
-};
-
 // ---- changelog ----------------------------------------------------------
 export const canvasKeys = {
   storage: def('canvas:storage', () => ['canvas:storage']),
@@ -726,16 +676,9 @@ export const onboardingKeys = {
   understandingTopic: def('onboarding:understandingTopic', () => ['onboarding:understandingTopic']),
 };
 
-// ---- agent home / profile / signal (kept off the `agent:` idb tier) -----
+// ---- agent home / profile (kept off the `agent:` idb tier) -----
 export const agentHomeKeys = {
   topics: def('agentHome:topics', (agentId: string) => ['agentHome:topics', agentId]),
-};
-export const agentSignalKeys = {
-  receipts: def('agentSignal:receipts', (agentId: string, topicId: string) => [
-    'agentSignal:receipts',
-    agentId,
-    topicId,
-  ]),
 };
 
 // ---- bot wake records (one bot's judged messages; never persisted) ----
@@ -844,20 +787,15 @@ export const taskLabelKeys = {
 
 export const swrKeys = {
   agent: agentConfigKeys,
-  agentDocument: agentDocumentSWRKeys,
   agentHome: agentHomeKeys,
-  agentSignal: agentSignalKeys,
   auth: authKeys,
   canvas: canvasKeys,
   changelog: changelogKeys,
   cron: cronKeys,
   device: deviceKeys,
-  discover: discoverKeys,
   electron: electronKeys,
   eval: evalKeys,
-  favorite: favoriteKeys,
   file: fileKeys,
-  fork: forkKeys,
   gateway: gatewayKeys,
   goal: goalKeys,
   global: globalKeys,

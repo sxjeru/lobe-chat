@@ -9,6 +9,22 @@ export const styles = stylex.create({
     display: 'inline-flex',
     flex: 'none',
   },
+  /** Marks a project avatar as one of that project's Channels. */
+  channelMark: {
+    position: 'absolute',
+    insetBlockEnd: '-3px',
+    insetInlineEnd: '-3px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '14px',
+    height: '14px',
+    borderWidth: '1.5px',
+    borderStyle: 'solid',
+    borderColor: cssVar.colorBgContainer,
+    borderRadius: '4px',
+    backgroundColor: cssVar.colorBgElevated,
+  },
   empty: {
     paddingBlock: '8px',
     paddingInline: '10px',
@@ -58,6 +74,12 @@ export const styles = stylex.create({
   rowTextSingleLine: {
     minHeight: 0,
   },
+  tag: {
+    marginInlineStart: '6px',
+    fontSize: '11px',
+    fontWeight: 400,
+    color: cssVar.colorTextQuaternary,
+  },
   time: {
     flex: 'none',
     fontSize: '11px',
@@ -74,28 +96,11 @@ export const styles = stylex.create({
     fontWeight: 500,
     lineHeight: '18px',
   },
-  /** The name gives up the spare width to the typing label beside it. */
-  titleBesideTyping: {
-    flexGrow: '0',
-    flexShrink: '1',
-    flexBasis: 'auto',
-  },
-  /**
-   * Beside the name like the conversation header's typing line, in the quiet preview colour. It
-   * keeps its own width and takes the spare room up to the time; a long name ellipsizes instead,
-   * so the dots never run into the time.
-   */
+  /** Same quiet colour as the preview it replaces, so a reply in progress does not shout. */
   typing: {
     display: 'flex',
-    flexGrow: '1',
-    flexShrink: '0',
-    flexBasis: 'auto',
     gap: '6px',
     alignItems: 'center',
-    fontSize: '12px',
-    lineHeight: '18px',
-    color: cssVar.colorTextTertiary,
-    whiteSpace: 'nowrap',
   },
   unread: {
     pointerEvents: 'none',
