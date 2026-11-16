@@ -15,6 +15,7 @@ import { TrashService } from '@/server/services/trash';
 import { TransferErrorCode } from '@/types/transferError';
 
 import { isWorkspaceNonOwner } from '../_helpers/assertWorkspaceRowManageable';
+import { assertCanWriteTeamPin } from '../_helpers/sidebarPin';
 import { agentProcedure } from './procedures';
 
 export const lifecycleRouter = router({
@@ -62,21 +63,17 @@ export const lifecycleRouter = router({
       z.object({
         config: CreateAgentSchema.optional(),
         groupId: z.string().optional(),
-        /** The caller's own desktop, where a direct Channel to a local Agent runs. */
-        localDeviceId: z.string().min(1).optional(),
         visibility: z.enum(['private', 'public']).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const { localDeviceId, ...params } = input;
-      const result = await ctx.agentService.createAgent(params);
+      const result = await ctx.agentService.createAgent(input);
       // A hidden (virtual) copy, such as a Market agent run from an @ mention, is
       // never a conversation of its own, so it gets no direct Channel.
-      if (params.config?.virtual) return result;
+      if (input.config?.virtual) return result;
       await createAgentDirectChannel({
         agentId: result.agentId,
         db: ctx.serverDB,
-        localDeviceId,
         userId: ctx.userId,
         workspaceId: ctx.workspaceId ?? undefined,
       });
@@ -292,6 +289,14 @@ export const lifecycleRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // A public workspace row's pin is the team pin every member sees, so it
+      // is owner/admin-only. A private row is visible to its creator alone, so
+      // its pin stays personal and any role that can update it may write it.
+      if (ctx.workspaceId) {
+        const meta = await ctx.agentModel.getAgentVisibilityMeta(input.id);
+        if (!meta) throw new TRPCError({ code: 'NOT_FOUND', message: 'Agent not found' });
+        if (meta.visibility !== 'private') await assertCanWriteTeamPin(ctx);
+      }
       return ctx.agentModel.update(input.id, { pinned: input.pinned });
     }),
 });

@@ -15,6 +15,7 @@ const ICON_NAMES = [
   'Slack',
   'Telegram',
   'WeChat',
+  'WeCom',
   'WhatsApp',
 ] as const;
 
