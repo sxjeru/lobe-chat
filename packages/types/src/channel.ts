@@ -221,9 +221,23 @@ export const channelMessageVia = (
 };
 
 /** Effective Agent settings and Channel environment, frozen once when a job is claimed. */
+/**
+ * Another person's Agent reached through the requester's contact entry and its link share. The
+ * run executes as the Agent's owner under the share's limits; the topic is the owner's, tagged
+ * with the requester as its sender.
+ */
+export interface ChannelSharedAgentAccess {
+  ownerId: string;
+  shareId: string;
+  /** The Agent's scope, which the run and its topic use; not the Channel's. */
+  workspaceId: string | null;
+}
+
 export interface ChannelExecutionConfig extends LobeAgentConfig, ChannelMemberConfig {
   provider: string;
   runtime: ChannelRuntime;
+  /** Set when the Agent belongs to someone else and is used through its share. */
+  share?: ChannelSharedAgentAccess;
   /** Set when the run works in its branch's worktree; `workingDirectory` is then that worktree. */
   worktreeBranch?: string;
 }
@@ -439,6 +453,11 @@ export interface ChannelAvatarMember {
 export interface ChannelListItem {
   /** The bound Agent of a direct conversation; null for a group. */
   agentId: string | null;
+  /**
+   * Every active Agent member, oldest first, so a page about one Agent can list the Channels it
+   * takes part in; set by the Channel list.
+   */
+  agentIds?: string[];
   /** Server-computed for the current member. */
   canDelete: boolean;
   createdAt: Date;
@@ -452,6 +471,11 @@ export interface ChannelListItem {
   memberAvatars?: ChannelAvatarMember[];
   /** Unread messages, Threads included, that @mention the caller; set by the Channel list. */
   mentionCount?: number;
+  /**
+   * On a conversation between two people, the other person (relative to the viewer), who is also
+   * the only entry of `memberAvatars`; null otherwise.
+   */
+  peerUserId?: string | null;
   /** The project the channel is grouped under; null for a standalone channel. */
   projectId: string | null;
   /**
@@ -460,6 +484,11 @@ export interface ChannelListItem {
    */
   replyJobs?: ChannelReplyJob[];
   sequence: number;
+  /**
+   * A direct conversation with another person's Agent, reached through the caller's contact entry
+   * and its share; pictured by `memberAvatars`, since the caller has no sidebar row for it.
+   */
+  sharedAgent?: boolean;
   status: ChannelStatus;
   title: string;
   /** Main-channel messages the caller has not read; set by the Channel list. */
@@ -574,6 +603,10 @@ export interface ChannelDetail {
   attachments: Array<{ fileType: string; id: string; name: string; size: number; url: string }>;
   channel: ChannelListItem;
   hasMore: boolean;
+  /**
+   * The view's jobs. A main-timeline view also carries its threads' jobs still at work (queued,
+   * running, or holding the writer); filter by `threadId` for one conversation's own.
+   */
   jobs: ChannelPublicJob[];
   members: ChannelPublicMember[];
   messages: ChannelPublicMessage[];
