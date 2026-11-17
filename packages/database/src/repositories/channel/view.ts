@@ -1,4 +1,4 @@
-import { channelMessageReceipt, channelMessageVia } from '@lobechat/types';
+import { channelMessageEditedAt, channelMessageReceipt, channelMessageVia } from '@lobechat/types';
 import {
   and,
   asc,
@@ -72,6 +72,7 @@ const publicMessage = (row: MessageRow, fileIds: string[]) => {
       name: isAgent ? senderAgentName || senderAgentTitle : senderUserName || senderUsername,
       type: isAgent ? ('agent' as const) : ('user' as const),
     },
+    editedAt: channelMessageEditedAt(message.metadata),
     receipt: isAgent ? null : (channelMessageReceipt(message.metadata) ?? null),
     via: isAgent
       ? null
@@ -186,7 +187,11 @@ const threadSummaries = async (tx: Transaction, channelId: string, threadIds: st
   );
 };
 
-/** A job as the public view shows it; `requesterMemberId` is dropped by the repository. */
+/**
+ * A job as the public view shows it. The repository drops `requesterMemberId`, and keeps
+ * `topicId` only for the viewer who owns that topic (`topicOwnerId`), as replies keep
+ * `sourceTopicId`: the topic belongs to the requester, so other members never learn its id.
+ */
 const publicJobColumns = {
   id: channelJobs.id,
   memberId: channelJobs.memberId,
@@ -209,6 +214,10 @@ const publicJobColumns = {
       ${channelJobs.executionConfig}->'agencyConfig'->>'boundDeviceId'
     )`,
   writerHeld: channelJobs.writerHeld,
+  topicId: channelJobs.topicId,
+  // A trashed topic has no owner here, so its link goes with it.
+  topicOwnerId: sql<string | null>`CASE WHEN ${notTrashed(topics.isDeleted)}
+      THEN ${topics.userId} ELSE NULL END`,
   worktreeBranch: sql<string | null>`${channelJobs.executionConfig}->>'worktreeBranch'`,
   operationStatus: agentOperations.status,
   createdAt: channelJobs.createdAt,
@@ -223,6 +232,7 @@ const readJobs = (tx: Transaction, where: SQL | undefined, limit: number) =>
     .select(publicJobColumns)
     .from(channelJobs)
     .leftJoin(agentOperations, eq(agentOperations.id, channelJobs.operationId))
+    .leftJoin(topics, eq(topics.id, channelJobs.topicId))
     .where(where)
     .orderBy(desc(channelJobs.createdAt))
     .limit(limit);
@@ -245,6 +255,7 @@ export const readChannelView = async (
           string | null
         >`coalesce(nullif(${channelMembers.description}, ''), ${agents.description})`,
         id: channelMembers.id,
+        muted: sql<boolean>`coalesce((${channelMembers.config}->>'muted')::boolean, false)`,
         name: channelMembers.name,
         role: channelMembers.role,
         status: channelMembers.status,
