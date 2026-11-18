@@ -1,7 +1,7 @@
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
 import { getConnectorCatalog, RECOMMENDED_SKILLS, RecommendedSkillType } from '@lobechat/const';
-import { type AgentPluginMode, getDisabledPluginIds } from '@lobechat/types';
+import { type AgentPluginMode } from '@lobechat/types';
 import type { ItemType } from '@lobehub/ui';
 import {
   Avatar,
@@ -27,7 +27,6 @@ import {
   Package,
   Pin,
   Settings,
-  Store,
   Trash2,
   Wrench,
   Zap,
@@ -36,10 +35,9 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import MarketSkillIcon from '@/components/MarketSkillIcon';
+import { buildAgentProfileTabPath } from '@/features/AgentProfileTabs/tabOptions';
 import { useConnectorConfigure } from '@/features/Connectors/CustomConnectorModal/useConnectorConfigure';
 import { openPluginEditDrawer } from '@/features/PluginDevModal/imperative';
-import { createSkillStoreModal } from '@/features/SkillStore';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useFetchInstalledPlugins } from '@/hooks/useFetchInstalledPlugins';
 import { usePermission } from '@/hooks/usePermission';
@@ -74,9 +72,9 @@ import {
 import ComposioServerItem from './ComposioServerItem';
 import ComposioSkillIcon from './ComposioSkillIcon';
 import { SKILL_ICON_SIZE } from './constants';
+import { resolveDisabledIds, resolveImplicitMode } from './librarySkillPolicy';
 import LobehubSkillIcon from './LobehubSkillIcon';
 import LobehubSkillServerItem from './LobehubSkillServerItem';
-import MarketAgentSkillPopoverContent from './MarketAgentSkillPopoverContent';
 import SkillRow from './SkillRow';
 import ToolItem from './ToolItem';
 import ToolItemDetailPopover from './ToolItemDetailPopover';
@@ -159,13 +157,11 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
   const { allowed: canEdit } = usePermission('edit_own_content');
   const list = useToolStore(pluginSelectors.installedPluginMetaList, isEqual);
   const uninstallPluginRow = usePluginRowUninstall();
-  const [removeComposioConnection, deleteAgentSkill, uninstallBuiltinTool, deleteConnector] =
-    useToolStore((s) => [
-      s.removeComposioConnection,
-      s.deleteAgentSkill,
-      s.uninstallBuiltinTool,
-      s.deleteConnector,
-    ]);
+  const [removeComposioConnection, uninstallBuiltinTool, deleteConnector] = useToolStore((s) => [
+    s.removeComposioConnection,
+    s.uninstallBuiltinTool,
+    s.deleteConnector,
+  ]);
   const [checked, togglePlugin, setPluginMode] = useAgentStore((s) => [
     // Pinned identifiers only (getAgentPluginsById already excludes disabled).
     agentByIdSelectors.getAgentPluginsById(agentId)(s),
@@ -178,8 +174,17 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
   const rawPlugins = useAgentStore(
     (s) => agentByIdSelectors.getAgentConfigById(agentId)(s)?.plugins,
   );
-  const disabledIds = useMemo(() => getDisabledPluginIds(rawPlugins), [rawPlugins]);
-  const disabledIdSet = useMemo(() => new Set(disabledIds), [disabledIds]);
+  const marketAgentSkills = useToolStore(agentSkillsSelectors.getMarketAgentSkills, isEqual);
+  const userAgentSkills = useToolStore(agentSkillsSelectors.getUserAgentSkills, isEqual);
+  // Library skills are opt-in per agent: one this agent never turned on is Disabled.
+  const librarySkillIds = useMemo(
+    () => new Set([...marketAgentSkills, ...userAgentSkills].map((skill) => skill.identifier)),
+    [marketAgentSkills, userAgentSkills],
+  );
+  const disabledIdSet = useMemo(
+    () => new Set(resolveDisabledIds(rawPlugins, librarySkillIds)),
+    [rawPlugins, librarySkillIds],
+  );
   // In manual skill-activate mode, surface hidden builtin tools (web-browsing,
   // cloud-sandbox, knowledge-base, etc.) so users can explicitly enable/disable them.
   // In auto mode the activator handles those tools transparently, so they remain hidden.
@@ -233,24 +238,6 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     async (id: string, mode: SkillPolicyMode) => {
       if (!canEdit) return;
 
-      // A capability has two homes. chatConfig carries the on/off state the engine
-      // reads (`resolveToolRules`), so the row, the injection and the wiring can never
-      // disagree; `agents.plugins` carries the explicit Pinned/Disabled choice, which
-      // is what puts the row in the Pinned or Disabled group.
-      if (isCapabilityTool(id)) {
-        const currentMode: SkillPolicyMode = checkedSet.has(id)
-          ? 'pinned'
-          : disabledIdSet.has(id)
-            ? 'disabled'
-            : 'auto';
-        if (currentMode === mode) return;
-
-        const patch = resolveCapabilityConfigPatch(id, mode);
-        if (patch) await updateAgentChatConfig(patch);
-        await setPluginMode(id, mode);
-        return;
-      }
-
       const currentMode: SkillPolicyMode = checkedSet.has(id)
         ? 'pinned'
         : disabledIdSet.has(id)
@@ -258,9 +245,15 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
           : 'auto';
       if (currentMode === mode) return;
 
-      await setPluginMode(id, mode);
+      // A capability has two homes. chatConfig carries the on/off state the engine
+      // reads (`resolveToolRules`), so the row, the injection and the wiring can never
+      // disagree; `agents.plugins` carries the explicit Pinned/Disabled choice, which
+      // is what puts the row in the Pinned or Disabled group.
+      const patch = isCapabilityTool(id) ? resolveCapabilityConfigPatch(id, mode) : undefined;
+      if (patch) await updateAgentChatConfig(patch);
+      await setPluginMode(id, mode, resolveImplicitMode(id, librarySkillIds));
     },
-    [canEdit, checkedSet, disabledIdSet, setPluginMode, updateAgentChatConfig],
+    [canEdit, checkedSet, disabledIdSet, librarySkillIds, setPluginMode, updateAgentChatConfig],
   );
 
   const openSkillPolicyMenu = useCallback((id: string) => {
@@ -562,8 +555,6 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
 
   // Agent Skills related state
   const installedBuiltinSkills = useToolStore(builtinToolSelectors.installedBuiltinSkills, isEqual);
-  const marketAgentSkills = useToolStore(agentSkillsSelectors.getMarketAgentSkills, isEqual);
-  const userAgentSkills = useToolStore(agentSkillsSelectors.getUserAgentSkills, isEqual);
 
   // MCP connectors the user added: custom ones and marketplace installs
   const customConnectors = useToolStore(connectorSelectors.userMcpConnectors, isEqual);
@@ -630,7 +621,8 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     return ids;
   }, [installedBuiltinSkills, marketAgentSkills, userAgentSkills]);
 
-  // Filter out connectors and skills from builtinList (they are displayed separately)
+  // The metadata inventory includes both tools and skill manifests. Exclude
+  // every skill here; connectors still have their own dedicated rows.
   const filteredBuiltinList = useMemo(() => {
     const list = builtinList.filter((item) => !connectorIdentifiers.has(item.identifier));
     return list.filter((item) => !allSkillIdentifiers.has(item.identifier));
@@ -1052,117 +1044,6 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     [createManagedSkillItem, fixedDisplayList, t],
   );
 
-  // Builtin Agent Skills list items (grouped under LobeHub)
-  const builtinAgentSkillItems = useMemo(
-    () =>
-      installedBuiltinSkills.map((skill) => {
-        const title = t(`tools.builtins.${skill.identifier}.title` as any, {
-          defaultValue: skill.name,
-        });
-        const icon = skill.avatar ? (
-          <Avatar avatar={skill.avatar} shape={'square'} size={SKILL_ICON_SIZE} />
-        ) : (
-          <Icon icon={SkillsIcon} size={SKILL_ICON_SIZE} />
-        );
-        const popoverContent = (
-          <ToolItemDetailPopover
-            identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
-            title={title}
-            description={t(`tools.builtins.${skill.identifier}.description` as any, {
-              defaultValue: skill.description,
-            })}
-            icon={
-              skill.avatar ? (
-                <Avatar
-                  avatar={skill.avatar}
-                  shape={'square'}
-                  size={36}
-                  style={{ flex: 'none', marginInlineEnd: 0 }}
-                />
-              ) : (
-                <Icon icon={SkillsIcon} size={36} />
-              )
-            }
-          />
-        );
-
-        return createManagedSkillItem({
-          badge: <Icon icon={SkillsIcon} size={12} />,
-          extraTag: officialTag,
-          icon,
-          id: skill.identifier,
-          popoverContent,
-          searchText: `${title} ${skill.identifier}`,
-          title,
-        });
-      }),
-    [installedBuiltinSkills, t, createManagedSkillItem],
-  );
-
-  // Market Agent Skills list items (grouped under Community)
-  const marketAgentSkillItems = useMemo(
-    () =>
-      marketAgentSkills.map((skill) => {
-        const icon = (
-          <MarketSkillIcon identifier={skill.identifier} name={skill.name} size={SKILL_ICON_SIZE} />
-        );
-        const popoverContent = (
-          <MarketAgentSkillPopoverContent
-            description={skill.description}
-            identifier={skill.identifier}
-            name={skill.name}
-            sourceLabel={t('skillStore.tabs.community')}
-          />
-        );
-
-        return createManagedSkillItem({
-          badge: <Icon icon={SkillsIcon} size={12} />,
-          deleteConfig: {
-            displayName: skill.name,
-            onDelete: () => deleteAgentSkill(skill.id),
-          },
-          icon,
-          id: skill.identifier,
-          popoverContent,
-          searchText: `${skill.name} ${skill.identifier}`,
-          title: skill.name,
-        });
-      }),
-    [marketAgentSkills, t, createManagedSkillItem, deleteAgentSkill],
-  );
-
-  // User Agent Skills list items (grouped under Custom)
-  const userAgentSkillItems = useMemo(
-    () =>
-      userAgentSkills.map((skill) => {
-        const icon = <Icon icon={SkillsIcon} size={SKILL_ICON_SIZE} />;
-        const popoverContent = (
-          <ToolItemDetailPopover
-            description={skill.description}
-            icon={<Icon icon={SkillsIcon} size={36} />}
-            identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.custom')}
-            title={skill.name}
-          />
-        );
-
-        return createManagedSkillItem({
-          badge: <Icon icon={SkillsIcon} size={12} />,
-          deleteConfig: {
-            displayName: skill.name,
-            onDelete: () => deleteAgentSkill(skill.id),
-          },
-          icon,
-          id: skill.identifier,
-          popoverContent,
-          searchText: `${skill.name} ${skill.identifier}`,
-          title: skill.name,
-        });
-      }),
-    [userAgentSkills, t, createManagedSkillItem, deleteAgentSkill],
-  );
-
   // Connector MCP list items (custom ones and marketplace installs).
   // Toggling adds the connector identifier to agents.plugins[] — the same field
   // the runtime resolves connectors from, so they become callable immediately.
@@ -1309,25 +1190,14 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     });
   };
 
-  // Build LobeHub group children (including Builtin Agent Skills, builtin tools, and LobeHub Skill/Composio)
-  const lobehubGroupChildren: ItemType[] = [
-    // 1. Builtin Agent Skills
-    ...builtinAgentSkillItems,
-    // 2. Builtin tools
-    ...builtinItems,
-    // 3. LobeHub Skill and Composio (as builtin skills)
-    ...skillItems,
-  ];
+  // Only builtin tools and service integrations belong in this activation picker.
+  const lobehubGroupChildren: ItemType[] = [...builtinItems, ...skillItems];
 
-  // Build Community group children (Market Agent Skills + community plugins)
-  const communityGroupChildren: ItemType[] = [
-    ...marketAgentSkillItems,
-    ...communityPlugins.map(mapPluginToItem),
-  ];
+  // User-installed skills are selected in the Skills panel, not enabled here.
+  const communityGroupChildren: ItemType[] = communityPlugins.map(mapPluginToItem);
 
-  // Build Custom group children (User Agent Skills + custom plugins + custom connectors)
+  // Custom MCP plugins and connectors remain configurable from this picker.
   const customGroupChildren: ItemType[] = [
-    ...userAgentSkillItems,
     ...customPlugins.map(mapPluginToItem),
     ...customConnectorItems,
   ];
@@ -1369,22 +1239,10 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
   const capabilityDisabledItems = capabilityItems.filter(
     (item) => !checkedSet.has(String(item.key)) && disabledCapabilityIds.has(String(item.key)),
   );
-  // LobeHub's own Agent Skills (Artifacts, …) — the rows the capability rows follow.
-  const builtinAgentSkillIds = useMemo(
-    () => new Set(installedBuiltinSkills.map((skill) => skill.identifier)),
-    [installedBuiltinSkills],
-  );
   const activeSkillItems = allSkillItems.filter(
     (item) => !checkedSet.has(String(item.key)) && !disabledIdSet.has(String(item.key)),
   );
-  const isAgentSkillItem = (item: SkillMenuItem) => builtinAgentSkillIds.has(String(item.key));
-  // Capability rows sit after LobeHub's Agent Skills and before the remaining
-  // integrations, so the group still opens with the skills the user installed.
-  const allAutoItems = [
-    ...activeSkillItems.filter((item) => isAgentSkillItem(item)),
-    ...capabilityAutoItems,
-    ...activeSkillItems.filter((item) => !isAgentSkillItem(item)),
-  ];
+  const allAutoItems = [...capabilityAutoItems, ...activeSkillItems];
   const allDisabledItems = [
     ...capabilityDisabledItems,
     ...allSkillItems.filter((item) => disabledIdSet.has(String(item.key))),
@@ -1474,7 +1332,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     <SearchBar
       allowClear
       className="lobe-skill-submenu-search"
-      placeholder={t('tools.search')}
+      placeholder={t('tools.picker.search')}
       size="small"
       style={{ width: '100%' }}
       value={searchKeyword}
@@ -1487,34 +1345,21 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
 
   const marketFooter =
     allSkillItems.length > 0 || fixedItems.length > 0 ? (
-      <>
-        <button
-          aria-label={t('plus.addSkills', { ns: 'chat' })}
-          {...stylex.props(styles.addSkillRow)}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            closeDropdown?.();
-            createSkillStoreModal();
-          }}
-        >
-          <Icon icon={Store} size={SKILL_ICON_SIZE} />
-          <span {...stylex.props(styles.addSkillLabel)}>{t('plus.addSkills', { ns: 'chat' })}</span>
-        </button>
-        <button
-          aria-label={t('tools.plugins.management')}
-          {...stylex.props(styles.addSkillRow)}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            closeDropdown?.();
-            navigate('/settings/connector');
-          }}
-        >
-          <Icon icon={Settings} size={SKILL_ICON_SIZE} />
-          <span {...stylex.props(styles.addSkillLabel)}>{t('tools.plugins.management')}</span>
-        </button>
-      </>
+      <button
+        aria-label={t('tools.picker.management')}
+        {...stylex.props(styles.addSkillRow)}
+        disabled={!agentId}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (!agentId) return;
+          closeDropdown?.();
+          navigate(buildAgentProfileTabPath(agentId, 'tools'));
+        }}
+      >
+        <Icon icon={Settings} size={SKILL_ICON_SIZE} />
+        <span {...stylex.props(styles.addSkillLabel)}>{t('tools.picker.management')}</span>
+      </button>
     ) : undefined;
 
   const marketItems: ItemType[] = [
@@ -1650,65 +1495,12 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     // Merge enabled LobeHub Skill and Composio (as builtin skills)
     const enabledSkillItems = [...connectedLobehubSkillItems, ...connectedComposioItems];
 
-    // Enabled Builtin Agent Skills
-    const enabledBuiltinAgentSkillItems = installedBuiltinSkills
-      .filter((skill) => checked.includes(skill.identifier))
-      .map((skill) => ({
-        icon: skill.avatar ? (
-          <Avatar avatar={skill.avatar} shape={'square'} size={SKILL_ICON_SIZE} />
-        ) : (
-          <Icon icon={SkillsIcon} size={SKILL_ICON_SIZE} />
-        ),
-        key: skill.identifier,
-        label: (
-          <ToolItem
-            checked={true}
-            disabled={!canEdit}
-            id={skill.identifier}
-            label={skill.name}
-            onUpdate={async () => {
-              if (!canEdit) return;
-              await togglePlugin(skill.identifier);
-            }}
-          />
-        ),
-        popoverContent: (
-          <ToolItemDetailPopover
-            identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
-            description={t(`tools.builtins.${skill.identifier}.description` as any, {
-              defaultValue: skill.description,
-            })}
-            icon={
-              skill.avatar ? (
-                <Avatar
-                  avatar={skill.avatar}
-                  shape={'square'}
-                  size={36}
-                  style={{ flex: 'none', marginInlineEnd: 0 }}
-                />
-              ) : (
-                <Icon icon={SkillsIcon} size={36} />
-              )
-            }
-            title={t(`tools.builtins.${skill.identifier}.title` as any, {
-              defaultValue: skill.name,
-            })}
-          />
-        ),
-      }));
-
-    // Build builtin tools group children (including Builtin Agent Skills, builtin tools, and LobeHub Skill/Composio)
+    // Installed builtin tools and service integrations, without Skill instruction bundles.
     const allBuiltinItems: ItemType[] = [
-      // 1. Builtin Agent Skills
-      ...enabledBuiltinAgentSkillItems,
-      // 2. Builtin tools
       ...enabledBuiltinItems,
-      // 3. divider (if there are builtin tools and skill items)
       ...(enabledBuiltinItems.length > 0 && enabledSkillItems.length > 0
         ? [{ key: 'installed-divider-builtin-skill', type: 'divider' as const }]
         : []),
-      // 4. LobeHub Skill and Composio
       ...enabledSkillItems,
     ];
 
@@ -1815,38 +1607,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         };
       });
 
-    // Enabled Market Agent Skills
-    const enabledMarketAgentSkillItems = marketAgentSkills
-      .filter((skill) => checked.includes(skill.identifier))
-      .map((skill) => ({
-        icon: (
-          <MarketSkillIcon identifier={skill.identifier} name={skill.name} size={SKILL_ICON_SIZE} />
-        ),
-        key: skill.identifier,
-        label: (
-          <ToolItem
-            checked={true}
-            disabled={!canEdit}
-            id={skill.identifier}
-            label={skill.name}
-            onUpdate={async () => {
-              if (!canEdit) return;
-              await togglePlugin(skill.identifier);
-            }}
-          />
-        ),
-        popoverContent: (
-          <MarketAgentSkillPopoverContent
-            description={skill.description}
-            identifier={skill.identifier}
-            name={skill.name}
-            sourceLabel={t('skillStore.tabs.community')}
-          />
-        ),
-      }));
-
-    // Community group (Market Agent Skills + community plugins)
-    const allCommunityItems = [...enabledMarketAgentSkillItems, ...enabledCommunityPlugins];
+    const allCommunityItems = enabledCommunityPlugins;
     if (allCommunityItems.length > 0) {
       installedItems.push({
         children: allCommunityItems,
@@ -1856,37 +1617,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
       });
     }
 
-    // Enabled User Agent Skills
-    const enabledUserAgentSkillItems = userAgentSkills
-      .filter((skill) => checked.includes(skill.identifier))
-      .map((skill) => ({
-        icon: <Icon icon={SkillsIcon} size={SKILL_ICON_SIZE} />,
-        key: skill.identifier,
-        label: (
-          <ToolItem
-            checked={true}
-            disabled={!canEdit}
-            id={skill.identifier}
-            label={skill.name}
-            onUpdate={async () => {
-              if (!canEdit) return;
-              await togglePlugin(skill.identifier);
-            }}
-          />
-        ),
-        popoverContent: (
-          <ToolItemDetailPopover
-            description={skill.description}
-            icon={<Icon icon={SkillsIcon} size={36} />}
-            identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.custom')}
-            title={skill.name}
-          />
-        ),
-      }));
-
-    // Custom group (User Agent Skills + custom plugins)
-    const allCustomItems = [...enabledUserAgentSkillItems, ...enabledCustomPlugins];
+    const allCustomItems = enabledCustomPlugins;
     if (allCustomItems.length > 0) {
       installedItems.push({
         children: allCustomItems,
@@ -1899,9 +1630,6 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     return installedItems;
   }, [
     filteredBuiltinList,
-    installedBuiltinSkills,
-    marketAgentSkills,
-    userAgentSkills,
     communityPlugins,
     customPlugins,
     composioServerItems,
