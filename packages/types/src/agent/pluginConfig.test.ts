@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   getActivePluginIds,
   getAutoPluginIds,
+  getConnectorMode,
   getDisabledPluginIds,
   getLibrarySkillMode,
+  getOptedInPluginIds,
   getPinnedPluginIds,
   getPluginMode,
   parsePluginEntry,
+  upsertConnectorEnabled,
   upsertPluginMode,
 } from './pluginConfig';
 
@@ -158,7 +161,7 @@ describe('library skills', () => {
   });
 
   it('resolves the explicit mode of a library skill the agent has an entry for', () => {
-    expect(getLibrarySkillMode(['excalidraw'], 'excalidraw')).toBe('pinned');
+    expect(getLibrarySkillMode(['excalidraw'], 'excalidraw')).toBe('auto');
     expect(getLibrarySkillMode([{ identifier: 'excalidraw', mode: 'auto' }], 'excalidraw')).toBe(
       'auto',
     );
@@ -183,5 +186,50 @@ describe('library skills', () => {
         'disabled',
       ),
     ).toEqual(['a']);
+  });
+});
+
+describe('connectors', () => {
+  it('resolves a connector the agent has no entry for as off', () => {
+    expect(getConnectorMode(undefined, 'gmail')).toBe('disabled');
+    expect(getConnectorMode(['other'], 'gmail')).toBe('disabled');
+  });
+
+  it('reads an explicit auto entry as on and a disabled entry as off', () => {
+    expect(getConnectorMode([{ identifier: 'gmail', mode: 'auto' }], 'gmail')).toBe('auto');
+    expect(getConnectorMode([{ identifier: 'gmail', mode: 'disabled' }], 'gmail')).toBe('disabled');
+  });
+
+  it('reads an entry pinned before connectors became two-state as on', () => {
+    expect(getConnectorMode(['gmail'], 'gmail')).toBe('auto');
+    expect(getConnectorMode([{ identifier: 'gmail', mode: 'pinned' }], 'gmail')).toBe('auto');
+  });
+
+  it('collects every identifier that is not disabled as opted in', () => {
+    expect(
+      getOptedInPluginIds([
+        'a',
+        { identifier: 'b', mode: 'auto' },
+        { identifier: 'c', mode: 'disabled' },
+        { identifier: 'd', mode: 'pinned' },
+      ]),
+    ).toEqual(['a', 'b', 'd']);
+    expect(getOptedInPluginIds(undefined)).toEqual([]);
+  });
+
+  it('turns a connector on with an explicit auto entry and off with a disabled one', () => {
+    expect(upsertConnectorEnabled(['a'], 'gmail', true)).toEqual([
+      'a',
+      { identifier: 'gmail', mode: 'auto' },
+    ]);
+    expect(upsertConnectorEnabled([{ identifier: 'gmail', mode: 'auto' }], 'gmail', false)).toEqual(
+      [{ identifier: 'gmail', mode: 'disabled' }],
+    );
+  });
+
+  it('rewrites a connector pinned before the two-state switch as auto when turned on again', () => {
+    expect(upsertConnectorEnabled(['gmail'], 'gmail', true)).toEqual([
+      { identifier: 'gmail', mode: 'auto' },
+    ]);
   });
 });

@@ -1,10 +1,12 @@
 import { stripAssistantReasoningForReplay } from '@lobechat/agent-runtime';
+import { getUnselectedBuiltinToolIds, getUserDisabledToolIds } from '@lobechat/builtin-tools';
 import {
   REQUEST_AGENT_ID_HEADER,
   REQUEST_OPERATION_ID_HEADER,
   REQUEST_TOPIC_ID_HEADER,
   REQUEST_TRIGGER_HEADER,
 } from '@lobechat/const';
+import type { LobeToolManifest } from '@lobechat/context-engine';
 import { type FetchSSEOptions } from '@lobechat/fetch-sse';
 import { fetchSSE, standardizeAnimationStyle } from '@lobechat/fetch-sse';
 import type { ChatCompletionErrorPayload } from '@lobechat/model-runtime';
@@ -14,7 +16,7 @@ import {
   ChatErrorType,
   type ChatMessageError,
   getAutoPluginIds,
-  getDisabledPluginIds,
+  getOptedInPluginIds,
   type RequestTrigger,
   type RuntimeAdditionalContextFragment,
   type RuntimeInitialContext,
@@ -28,6 +30,7 @@ import { ModelProvider } from 'model-bank/modelProvider';
 
 import { DEFAULT_AGENT_CONFIG } from '@/const/settings';
 import { getSearchConfig } from '@/helpers/getSearchConfig';
+import { resolveAgentConnectorActivation } from '@/helpers/toolEngineering/connectorActivation';
 import { oneShotRelay } from '@/services/llmRelay';
 import { getAgentStoreState } from '@/store/agent';
 import { agentChatConfigSelectors, agentSelectors } from '@/store/agent/selectors';
@@ -71,6 +74,7 @@ export interface GetChatCompletionPayload extends Partial<Omit<ChatStreamPayload
    * budget is spent (planned by `shouldCompress`).
    */
   attachmentPreviewFileIds?: string[];
+  discoveryManifests?: Record<string, LobeToolManifest>;
   groupId?: string;
   messages: UIChatMessage[];
   /**
@@ -152,6 +156,7 @@ class ChatService {
       groupId,
       additionalContexts,
       attachmentPreviewFileIds,
+      discoveryManifests,
       topicId,
       resolvedAgentConfig,
       ...params
@@ -231,7 +236,19 @@ class ChatService {
       // `agentConfig.plugins` is the raw (pre-filter) field — `plugins` below
       // is already pinned-only (resolved upstream in agentConfigResolver).
       autoSkillIds: getAutoPluginIds(agentConfig.plugins),
-      disabledPluginIds: getDisabledPluginIds(agentConfig.plugins),
+      // A connector the agent has not turned on is off for it, so it leaves the
+      // discovery list too; one this turn already enabled (an @-mention) stays.
+      disabledPluginIds: [
+        ...getUserDisabledToolIds(agentConfig.plugins, chatConfig),
+        ...getUnselectedBuiltinToolIds([
+          ...getOptedInPluginIds(agentConfig.plugins),
+          ...(enabledToolIds ?? []),
+        ]),
+        ...resolveAgentConnectorActivation(
+          { chatConfig, plugins: agentConfig.plugins },
+          enabledToolIds,
+        ).offIds,
+      ],
       // The stored mode passes through: a model without function calling is
       // not demoted to chat mode here, matching the server runtime.
       enableAgentMode: modelParams.enableAgentMode,
@@ -246,6 +263,7 @@ class ChatService {
       // Page editor context from agent runtime
       initialContext: options?.initialContext,
       inputTemplate: chatConfig.inputTemplate,
+      discoveryManifests,
       manifests: enabledManifests,
       messages: messagesForContext,
       model: payload.model,
