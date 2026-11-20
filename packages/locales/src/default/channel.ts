@@ -6,6 +6,13 @@ export default {
   'people.noOthers': 'No one else is in this workspace yet',
   'people.searchMore': 'Showing the first 50 members. Search to find more.',
   'receipt.errorReason': 'Failure reason',
+  'receipt.errorShareHeteroDevice': "The creator's device is offline. Try again later.",
+  'receipt.errorShareHeteroUnsupported':
+    "This Agent can run for you only with its creator's permission. Ask its creator for access.",
+  'receipt.errorShareMessageLimit':
+    'You have sent all the messages its creator allows to this shared Agent.',
+  'receipt.errorShareSpendLimit':
+    'This shared Agent reached the monthly usage limit its creator set. It will be available again next month.',
   'receipt.errorUnavailable':
     'No detailed reason was recorded. Check the Agent’s model and device settings before sending again.',
   'sort.by': 'Sort by',
@@ -111,6 +118,8 @@ export default {
   'actionFailed': 'Something went wrong. Try again.',
   'send': 'Send',
   'sendFailed': 'Message was not sent. Your draft is preserved; try again.',
+  'shareVisitorReadOnlyNotice':
+    "A visitor's conversation through your share link. You can read it but can't reply.",
   'outgoing.discard': 'Delete',
   'outgoing.failed': 'Not sent',
   'outgoing.retry': 'Retry',
@@ -204,7 +213,6 @@ export default {
   'events.joined': '{{names}} joined the channel',
   'events.youInvited': 'You invited {{names}} to the channel',
   'failure.locate': 'Show message',
-  'failure.messageLabel': 'Reply failed: {{names}}',
   'failure.title': 'Failed replies · {{count}}',
   'nameOptional': 'Channel name (optional)',
   'rename': 'Rename channel',
