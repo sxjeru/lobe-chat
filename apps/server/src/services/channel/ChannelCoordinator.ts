@@ -33,10 +33,12 @@ import { SystemAgentService } from '@/server/services/systemAgent';
 import { reportAgentExchange } from './agentExchange';
 import { resolveChannelAttachments } from './attachments';
 import { ChannelRoutingService } from './ChannelRoutingService';
+import { announceDeviceGrants } from './deviceGrantCard';
 import { notifyChannelMentions } from './mention';
 import { notifyChannel } from './notify';
 import { registerLocalChannelAdvance, wakeChannel } from './queue';
 import { deliverRelayReceipt } from './relayReceipt';
+import { reportChannelReplyFailure } from './replyError';
 import { openChannelReply } from './replyOpening';
 import { createRoutedDevicePresence, resolveChannelRoutedDevice } from './routedDevice';
 import { createChannelWorktree } from './worktree';
@@ -265,12 +267,15 @@ export class ChannelCoordinator {
     } finally {
       if (pending.length) await notifyChannel(this.db, channelId);
     }
+    // A claim that found the device made private since it was picked files a request; ask now.
+    if (pending.length) await announceDeviceGrants(this.db, channelId);
   };
 
   /**
    * A job held back only because another run uses its member's directory moves its branch into
-   * a worktree of that directory instead of waiting. Returns whether the branch got one; a
-   * directory that cannot host one (not a git repo, device too old) keeps the job waiting.
+   * a worktree of that directory instead of waiting. A directory that cannot host one (not a
+   * git repo, device too old) is shared instead: the job runs in it alongside the other run.
+   * Returns whether the claim is worth retrying.
    */
   private async moveToWorktree(
     channelId: string,
@@ -284,7 +289,7 @@ export class ChannelCoordinator {
     const created = await createChannelWorktree(candidate, workspaceId);
     if (created.path === undefined) {
       await this.executions.worktreeUnavailable(channelId, candidate, created.error);
-      return false;
+      return true;
     }
     return this.executions.assignWorktree(channelId, candidate, created.path);
   }
@@ -371,12 +376,15 @@ export class ChannelCoordinator {
               'Device cannot track Native operation lifetime; update its client',
           );
       }
-      const [input, context, primaryReply, opening, coAddressed] = await Promise.all([
+      const resumed = !!job.manifest.resumed;
+      const [input, context, primaryReply, opening, coAddressed, failure] = await Promise.all([
         this.executions.input(job.channelId, job.id),
         this.executions.recentContext(job.channelId, job.id),
         this.executions.primaryReply(job.channelId, job.id),
         this.executions.openingReply(job.channelId, job.id),
         this.executions.coAddressed(job.channelId, job.id),
+        // A resumed reply tells the run why its previous turn stopped, from the card it left.
+        resumed ? this.executions.replyError(job.channelId, job.id) : undefined,
       ]);
       const shareGate =
         share && topic.senderId
@@ -413,6 +421,7 @@ export class ChannelCoordinator {
           opening,
           peers: coAddressed.map(describePeer).filter((peer): peer is string => !!peer),
           primaryReply,
+          ...(resumed && { resume: { reason: failure?.summary } }),
           wake: job.wake,
         }),
         reservedOperationId: job.operationId,
@@ -444,6 +453,7 @@ export class ChannelCoordinator {
           job.id,
           failure ?? { message: error instanceof Error ? error.message : 'Agent could not start' },
         );
+      await this.reportFailure(job.channelId, job.id);
     } finally {
       clearInterval(renew);
       await this.executions.finishDispatch(job.channelId, job.id, lease.leaseOwner);
@@ -470,7 +480,8 @@ export class ChannelCoordinator {
     ) {
       // A reservation that was never started can be retired. Its old dispatcher cannot
       // initialise this now-terminal operation, even if it resumes after a process stall.
-      await this.executions.retireReservation(channelId, jobId);
+      if (await this.executions.retireReservation(channelId, jobId))
+        await this.reportFailure(channelId, jobId);
       return;
     }
     if (job.publicationRevoked && operation.status !== 'done') {
@@ -560,10 +571,21 @@ export class ChannelCoordinator {
       await this.executions.fail(channelId, jobId, {
         message: 'Agent execution ended without a reply',
       });
+      await this.reportFailure(channelId, jobId);
       if (job.writerHeld) await this.stopWriters([job]);
       // Device cancellation/unknown outcomes keep the physical writer until confirmed by stop.
     }
   };
+
+  /**
+   * A reply that failed for a system reason shows a card in the Agent's reply slot. Best-effort
+   * and idempotent per run: the card is posted before this returns, its model-written explanation
+   * follows in the background.
+   */
+  private async reportFailure(channelId: string, jobId: string) {
+    const reported = await reportChannelReplyFailure(this.db, channelId, jobId);
+    reported?.refinement?.catch(() => undefined);
+  }
 
   /**
    * Names a responder's topic after its first published reply, as the bot callback does. The
@@ -671,6 +693,8 @@ export class ChannelCoordinator {
             continue;
         }
         await this.executions.releaseWriter(job.channelId, job.id);
+        // A run that ended without a reply fails only on release.
+        await this.reportFailure(job.channelId, job.id);
       } else {
         // Use the frozen identity even if runtime cleanup already removed the topic marker.
         const result = await deviceGateway.executeToolCall(
@@ -691,8 +715,10 @@ export class ChannelCoordinator {
         // start late, and the device keeps no record that would refuse it. Only a run the
         // device itself reported done shows that the one submission already arrived.
         const unseen = isRecord(result.state) && result.state.reason === 'not_found';
-        if (exited && (dispatch !== 'revoked' || !unseen || row.operation.status === 'done'))
+        if (exited && (dispatch !== 'revoked' || !unseen || row.operation.status === 'done')) {
           await this.executions.releaseWriter(job.channelId, job.id);
+          await this.reportFailure(job.channelId, job.id);
+        }
       }
     }
   };

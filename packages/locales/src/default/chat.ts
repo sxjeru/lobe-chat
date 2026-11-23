@@ -317,7 +317,7 @@ export default {
   'agentDocument.portal.titlePlaceholder': 'Untitled document',
   'agentDocument.portal.export': 'Export',
   'agentNotFound.desc':
-    'This agent does not exist or is no longer accessible — it may have been deleted or set to private by its owner.',
+    "It may have been deleted, or it's another member's private agent. Ask its creator to publish it to the workspace.",
   'permission.configAccess.agentChatOnly':
     'You can only use this Agent, not configure it. You were returned to chat.',
   'permission.configAccess.agentManageRestricted':
@@ -328,7 +328,9 @@ export default {
     'You can only use this Agent Group, not configure it. You were returned to chat.',
   'permission.configAccess.groupRoleRestricted':
     'Your workspace role cannot configure Agent Groups. You were returned to chat.',
-  'agentNotFound.title': 'Agent Unavailable',
+  'agentNotFound.descPersonal': 'It may have been deleted, or the link is wrong.',
+  'agentNotFound.title': "This agent doesn't exist or you don't have access",
+  'agentNotFound.viewAgents': 'View all agents',
   'agentSkillModal.frontmatterInvalid':
     "This skill's SKILL.md has malformed frontmatter, so its name and description come from the last saved version. Open the document to fix it.",
   'agentSkillModal.loadFailed': "Couldn't load this skill",
@@ -707,6 +709,17 @@ export default {
   'heteroAgent.permissionMode.switchUnsupported':
     'lh on this device can’t switch a running session. The new mode applies from the next message; update lh to switch mid-run.',
   'heteroAgent.permissionMode.saveFailed': 'Couldn’t save the permission mode. Try again.',
+  'heteroAgent.planMode.label': 'Plan',
+  'heteroAgent.planMode.tooltipOff':
+    'Plan first: Codex explores and proposes a plan instead of making changes. Codex still has full access. A new topic in this directory starts with your last choice.',
+  'heteroAgent.planMode.tooltipOn':
+    'Plan is on: Codex proposes a plan instead of making changes. Turn it off, or choose Execute plan, to let it carry the plan out.',
+  'heteroAgent.planMode.nextTurn': 'Applies from the next turn',
+  'heteroAgent.planMode.saveFailed': 'Couldn’t save the Plan setting. Try again.',
+  'heteroAgent.planMode.unavailable.appServerLab':
+    'Plan needs the Codex App Server Runtime. Turn it on in Settings → Labs.',
+  'heteroAgent.planMode.unavailable.unsupported':
+    'Plan isn’t available where this agent runs: it needs Codex app-server on this computer, or a device whose Codex and lh support it. Update lh on the device to use it.',
   'heteroAgent.fullAccess.label': 'Full access',
   'heteroAgent.fullAccess.tooltip':
     'The local coding agent runs with full read/write access to the working directory. Switching permission modes is not available yet.',
@@ -1340,6 +1353,17 @@ export default {
   'minimap.senderAssistant': 'Agent',
   'minimap.senderUser': 'You',
   'modelSelector.model': 'Model',
+  'privateAgentLink.desc':
+    "This is your private agent, so other members can't open the link. Publish it to the workspace to share it.",
+  'privateAgentLink.title': 'Link copied, but only you can open it',
+  'createVisibility.inheritedPrivate': 'Follows its folder: only you can see it.',
+  'createVisibility.inheritedPublic': 'Follows its folder: everyone in the workspace can see it.',
+  'createVisibility.label': 'Visibility',
+  'createVisibility.private': 'Private',
+  'createVisibility.privateHint':
+    "Only you can see it. Other members can't open its link until you publish it to the workspace.",
+  'createVisibility.public': 'Workspace',
+  'createVisibility.publicHint': 'Everyone in the workspace can see and use it.',
   'createModal.createBlank': 'Start Blank',
   'createModal.groupPlaceholder': 'Describe what this Group should do...',
   'createModal.groupTitle': 'What should this Group do?',
@@ -1623,6 +1647,12 @@ export default {
   'agent.publishToWorkspaceErrorFixedPrivateDevice':
     'Publish the fixed device to the workspace, or let members choose a device, before publishing this Agent.',
   'agent.publishToWorkspaceSuccess': 'Published to workspace',
+  'agent.visibility': 'Visibility',
+  'agent.visibility.change': 'Change visibility',
+  'agent.visibility.private': 'Private',
+  'agent.visibility.privateDesc': 'Only you can see it',
+  'agent.visibility.workspace': 'Workspace',
+  'agent.visibility.workspaceDesc': 'Workspace members can access it',
   'resources.publishToWorkspace.menu': 'Publish to Workspace',
   'resources.publishToWorkspace.confirm':
     'Other workspace members will be able to see this file. You will not be able to make it private again.',
@@ -2156,6 +2186,7 @@ export default {
   'tab.skills': 'Skills',
   'tab.search': 'Search',
   'tab.goalsAndTasks': 'Tasks and goals',
+  'tab.scheduled': 'Scheduled',
   'tab.tasks': 'Tasks',
   'task.activity.calling': 'Calling Skill...',
   'task.activity.clientExecuting': 'Executing locally...',
@@ -3525,7 +3556,36 @@ export default {
   'taskList.mine.emptyAssigned': 'No tasks assigned to you yet',
   'taskList.mine.emptyCreated': "You haven't created any tasks yet",
   'taskList.mine.title': 'My tasks',
+  'taskList.scheduled.columns.assignee': 'Assignee',
+  'taskList.scheduled.columns.cadence': 'Frequency',
+  'taskList.scheduled.columns.nextRun': 'Next run',
+  'taskList.scheduled.columns.recentRuns': 'Recent runs',
+  'taskList.scheduled.columns.task': 'Task',
   'taskList.scheduled.empty': 'No scheduled tasks yet',
+  'taskList.scheduled.group.attention': 'Needs attention',
+  'taskList.scheduled.group.running': 'Running',
+  'taskList.scheduled.group.scheduled': 'Scheduled',
+  'taskList.scheduled.runs.none': 'No runs yet',
+  'taskList.scheduled.runs.outcome.canceled': 'Canceled',
+  'taskList.scheduled.runs.outcome.failed': 'Failed',
+  'taskList.scheduled.runs.outcome.interrupted': 'Interrupted',
+  'taskList.scheduled.runs.outcome.running': 'Running',
+  'taskList.scheduled.runs.outcome.succeeded': 'Succeeded',
+  'taskList.scheduled.runs.tooltip': 'Run #{{seq}} · {{outcome}} · {{time}}',
+  'taskList.scheduled.state.awaitingHuman': 'Waiting for your reply',
+  'taskList.scheduled.state.awaitingHuman.hint':
+    'Runs are skipped until you answer the question on this task',
+  'taskList.scheduled.state.awaitingReview': 'Pending review',
+  'taskList.scheduled.state.awaitingReview.hint': 'Open the task to review its latest result',
+  'taskList.scheduled.state.nextRunUnknown': 'Schedule can’t be read',
+  'taskList.scheduled.state.overrun': 'Running for {{duration}}, not finished',
+  'taskList.scheduled.state.overrun.hint': 'Later runs are skipped until this run ends',
+  'taskList.scheduled.state.running': 'Running · {{duration}}',
+  'taskList.scheduled.state.runningNoDuration': 'Running',
+  'taskList.scheduled.state.stopped_one': 'Stopped after {{count}} failed run',
+  'taskList.scheduled.state.stopped_other': 'Stopped after {{count}} failed runs',
+  'taskList.scheduled.state.stopped.hint':
+    'It won’t run again until a run succeeds. Open the task to see the error, then run it now',
   'taskList.scheduled.title': 'Scheduled tasks',
   'taskList.subtaskProgress.loadFailed':
     "Couldn't load sub-tasks. Click the progress badge to retry.",
