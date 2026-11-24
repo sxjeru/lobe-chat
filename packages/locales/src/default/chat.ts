@@ -815,6 +815,9 @@ export default {
   'heteroAgent.claudeSdkRuntime.state.starting': 'SDK starting',
   'heteroAgent.claudeSdkRuntime.tooltip': '{{state}}. Active background tasks: {{count}}.',
   'heteroAgent.codexQuota.calendar.title': 'Codex usage calendar',
+  'heteroAgent.codexQuota.creditsBalance': 'Credits balance',
+  'heteroAgent.codexQuota.creditsUnlimited': 'Unlimited',
+  'heteroAgent.codexQuota.creditsUsdEstimate': '≈ {{amount}}',
   'heteroAgent.codexQuota.doesNotExpire': 'Does not expire',
   'heteroAgent.codexQuota.errorConnection':
     "Couldn't reach the Codex quota endpoint. Check your network or LobeHub proxy settings.",
@@ -1024,15 +1027,8 @@ export default {
   'heteroAgent.executionTarget.personalGroup': 'Private Devices',
   'heteroAgent.executionTarget.sandbox': 'Cloud Sandbox',
   'heteroAgent.executionTarget.sandboxDesc': 'Runs in the cloud, no machine needed',
-  'heteroAgent.executionTarget.persistentSandbox': 'Persistent Sandbox',
-  'heteroAgent.executionTarget.persistentSandboxDesc':
-    'Keeps results and work on your drive, for everyday tasks',
-  'heteroAgent.executionTarget.temporarySandbox': 'Temporary Sandbox',
-  'heteroAgent.executionTarget.temporarySandboxDesc':
-    'Discarded after use, for coding and one-off data processing',
   'heteroAgent.executionTarget.workspaceGroup': 'Workspace Devices',
   'heteroAgent.executionTarget.myDevicesGroup': 'My devices',
-  'heteroAgent.executionTarget.sandboxGroup': 'Sandboxes',
   'heteroAgent.executionTarget.downloadDesktop': 'Get Desktop App',
   'heteroAgent.executionTarget.downloadDesktopDesc': 'Run agents with access to your computer',
   'heteroAgent.executionTarget.downloadDesktopTitle': 'Get the desktop app',
@@ -1058,14 +1054,21 @@ export default {
   'inbox.title': 'Lobe AI',
   'input.agentModeUnsupportedModel':
     'The current model doesn’t support agentic tool calling. Switch to a model with agent capability for the best experience.',
-  'input.agentRunFeeUnfunded.desc':
-    'Each agent run carries a fee, even on your own API key. Top up or upgrade your plan, then send again.',
+  'input.agentRunFeeUnfunded.desc': 'Top up or upgrade your plan, then send again.',
   'input.agentRunFeeUnfunded.descOverflow':
-    'Each agent run carries a fee, even on your own API key. Your balance covers it: use your balance, then send again.',
-  'input.agentRunFeeUnfunded.descSubscribe':
-    'Each agent run carries a fee, even on your own API key. Subscribe to a plan, then send again.',
-  'input.agentRunFeeUnfunded.descTopUp':
-    'Each agent run carries a fee, even on your own API key. Top up, then send again.',
+    'Your balance covers this run. Use your balance, then send again.',
+  'input.agentRunFeeUnfunded.descSubscribe': 'Subscribe to a plan, then send again.',
+  'input.agentRunFeeUnfunded.descTopUp': 'Top up, then send again.',
+  'input.agentRunFeeUnfunded.free.desc':
+    'Resets on {{date}}. Upgrade to {{plan}} for model usage and more agent runs.',
+  'input.agentRunFeeUnfunded.free.descNoReset':
+    'Upgrade to {{plan}} for model usage and more agent runs.',
+  'input.agentRunFeeUnfunded.free.descOwnKey':
+    'Resets on {{date}}. Upgrade to {{plan}} for model usage and more agent runs, or choose {{basic}} ({{price}}/month) if you only use your own API key.',
+  'input.agentRunFeeUnfunded.free.descOwnKeyNoReset':
+    'Upgrade to {{plan}} for model usage and more agent runs, or choose {{basic}} ({{price}}/month) if you only use your own API key.',
+  'input.agentRunFeeUnfunded.free.title': 'You’ve used this month’s free credits',
+  'input.agentRunFeeUnfunded.free.upgrade': 'Upgrade plan',
   'input.agentRunFeeUnfunded.title': 'Not enough credits to pay the agent run fee',
   'input.agentSlugMoved':
     'This link now opens a different agent. Switching to it — try again once it opens. Your draft is kept.',
@@ -1128,9 +1131,7 @@ export default {
   'inputQueue.edit': 'Edit',
   'inputQueue.enqueueRejected': 'Queue is full. Try again after the current run finishes.',
   'inputQueue.queuedHint': 'Sends when the current step finishes',
-  'inputQueue.queuedMergeHint': 'Merged and sent when the current step finishes',
   'inputQueue.queuedRunEndHint': 'Sends when the current run finishes',
-  'inputQueue.queuedRunEndMergeHint': 'Merged and sent when the current run finishes',
   'inputQueue.queuedOneByOneHint': 'Sent one at a time after the current run finishes',
   'inputQueue.steerDeliveryUnknownHint':
     'Couldn’t confirm the agent got this. Send it again or delete it',
@@ -1684,6 +1685,9 @@ export default {
   'connectAgent.create.stepDevice':
     'Step 1 of 3 · Pick the machine your agents run on — it will be scanned automatically.',
   'connectAgent.create.stepAgents': 'Step 2 of 3 · {{device}}',
+  'connectAgent.create.stepAgentsInline': 'Step 1 of 2 · {{device}}',
+  'connectAgent.create.stepConfirmInline': 'Step 2 of 2 · Name it for your agent list',
+  'connectAgent.create.switchDevice': 'Run on',
   'connectAgent.create.stepConfirm': 'Step 3 of 3 · Name it for your agent list',
   'connectAgent.create.thisDevice': 'This device',
   'connectAgent.create.connectedDevices': 'Connected devices',
@@ -1793,9 +1797,12 @@ export default {
   'textSelection.quote': 'Quote',
   'pin': 'Pin',
   'pinOff': 'Unpin',
-  'pinForTeam': 'Pin for team',
-  'pinForTeamForbidden': 'Only workspace owners and admins can change team pins',
-  'unpinForTeam': 'Unpin for team',
+  'recommendAgent': 'Add to recommended agents',
+  'recommendAgentSuccess':
+    'Added to recommended agents. New members will start with it in their sidebar',
+  'recommendAgentForbidden': 'Only workspace owners and admins can change recommended agents',
+  'unrecommendAgent': 'Remove from recommended agents',
+  'unrecommendAgentSuccess': 'Removed from recommended agents',
   'rag.referenceChunks': 'Reference Source',
   'rag.userQuery.actions.delete': 'Delete Query Rewrite',
   'rag.userQuery.actions.regenerate': 'Regenerate Query',
@@ -1826,7 +1833,6 @@ export default {
   'gatewayMode.cardTitle': 'Agent Gateway Mode',
   'gatewayMode.desc':
     "Run agents in the cloud through LobeHub's Agent Gateway. Tasks keep running even after you close the page.",
-  'sandboxStorage.ephemeral': 'Temporary working directory',
   'sandboxStorage.persistentUpsell': 'Persistent working directory',
   'sandboxStorage.setUpEnvironmentDesc': 'A persistent directory lives in an environment',
   'sandboxStorage.setUpEnvironment': 'Set up an environment',
@@ -2168,9 +2174,11 @@ export default {
   'supervisor.todoList.title': 'Tasks Completed',
   'tab.groupProfile': 'Group Profile',
   'tab.backToChat': 'Back to chat',
+  'tab.group.advanced': 'Advanced',
+  'tab.group.growth': 'Growth',
   'tab.group.identity': 'Identity',
   'tab.group.shape': 'Shape',
-  'tab.group.setup': 'Configure',
+  'tab.group.setup': 'Capabilities',
   'tab.context': 'Context',
   'tab.engine': 'Engine',
   'tab.environment': 'Environment',
@@ -2525,7 +2533,6 @@ export default {
     'Stops once total spend reaches this amount; leave blank for no cap.',
   'createGoal.costBudgetLabel': 'Cost budget',
   'createGoal.costBudgetPlaceholder': 'No cap',
-  'createGoal.createFailed': 'Failed to create goal',
   'createGoal.back': 'Back',
   'createGoal.agentsHint':
     'The main agent plans and supervises the goal; tasks go to the executor, or to the main agent when none is chosen.',
@@ -2533,6 +2540,8 @@ export default {
   'createGoal.budgetTitle': 'Budget',
   'createGoal.contextLabel': 'Context for the Agent',
   'createGoal.contextHint': 'Add constraints, source material, or anything the Agent should know',
+  'createGoal.createFailedRetry':
+    "Couldn't create the goal. Your plan is kept, check your connection and try again.",
   'createGoal.criterionPlaceholder': 'Describe a result that can be clearly checked',
   'createGoal.criteriaHint': 'Review and edit these before the goal starts',
   'createGoal.criteriaTitle': 'Acceptance criteria',
@@ -2575,7 +2584,8 @@ export default {
   'createTask.assignee': 'Agent',
   'createTask.member': 'Assignee',
   'createTask.collapse': 'Hide input',
-  'createTask.createFailed': 'Failed to create task',
+  'createTask.createFailedRetry':
+    "Couldn't create the task. Your draft is kept, check your connection and try again.",
   'createTask.discardConfirm.cancel': 'Keep editing',
   'createTask.discardConfirm.content':
     'The title, instruction and attachments you added will be lost.',
@@ -2834,11 +2844,9 @@ export default {
   'goalProcess.northStar.declare.opLabel': 'Condition',
   'goalProcess.northStar.declare.targetLabel': 'Target value',
   'goalProcess.northStar.declare.submit': 'Declare',
-  'goalProcess.northStar.declare.failed': 'Failed to declare the metric',
   'goalProcess.northStar.record.title': 'Record observation',
   'goalProcess.northStar.record.valueLabel': 'Current value of {{key}}',
   'goalProcess.northStar.record.submit': 'Record',
-  'goalProcess.northStar.record.failed': 'Failed to record the observation',
   'goalProcess.northStar.detail.history': 'Observations ({{count}})',
   'goalProcess.northStar.detail.removed': 'This metric is no longer declared on the goal',
   'goalProcess.northStar.detail.source.agent': 'Recorded by agent',
@@ -3388,6 +3396,10 @@ export default {
   'goalPage.title': 'Overview',
   'goalPage.view.card': 'Cards',
   'goalPage.view.list': 'List',
+  'goalProcess.northStar.declare.failedRetry':
+    "Couldn't declare the metric. Check the key and target, then try again.",
+  'goalProcess.northStar.record.failedRetry':
+    "Couldn't record the observation. Check the value and try again.",
   'goalTurn.authorUser': 'User',
   'goalTurn.continuation': 'Why planning reopened',
   'goalTurn.earlierFeedback': 'Earlier feedback ({{count}})',
@@ -3406,6 +3418,10 @@ export default {
   'goalTurn.trigger.first': 'First turn',
   'goalTurn.trigger.settled': 'Work settled',
   'goalTurn.trigger.takeover': 'Takeover',
+  'heteroAgent.claudeQuota.manage.loginFailedRetry':
+    "Sign-in didn't finish. Click Add account to try again.",
+  'heteroAgent.claudeQuota.manage.switchFailedRetry':
+    "Couldn't switch the account. Check your network and try again.",
   'taskList.activeTasks': 'Active Tasks',
   'taskList.all': 'All tasks',
   'taskList.completedTasks.all': 'All',
@@ -4071,17 +4087,19 @@ export default {
   'workingPanel.browser.tool.scroll': 'Scrolled page',
   'workingPanel.browser.tool.setViewport': 'Set viewport',
   'workingPanel.browser.tool.snapshot': 'Read page elements',
+  'workingPanel.claudeMemory.copyPath': 'Copy path',
+  'workingPanel.claudeMemory.copyPathSuccess': 'Path copied',
   'workingPanel.claudeMemory.empty.description':
     'Claude Code saves what is worth remembering here as it works in this project.',
   'workingPanel.claudeMemory.empty.title': "Claude hasn't saved anything for this project yet",
-  'workingPanel.claudeMemory.group.feedback': 'Feedback',
-  'workingPanel.claudeMemory.group.index': 'Index',
+  'workingPanel.claudeMemory.group.feedback': 'Your guidance',
   'workingPanel.claudeMemory.group.other': 'Other',
   'workingPanel.claudeMemory.group.project': 'Project',
-  'workingPanel.claudeMemory.group.reference': 'References',
+  'workingPanel.claudeMemory.group.reference': 'External resources',
   'workingPanel.claudeMemory.group.user': 'About you',
-  'workingPanel.claudeMemory.indexHint': 'Loaded at the start of every session',
   'workingPanel.claudeMemory.location': 'Saved in {{path}}',
+  'workingPanel.claudeMemory.more': 'More',
+  'workingPanel.claudeMemory.openIndex': 'Open the MEMORY.md index, loaded into every session',
   'workingPanel.claudeMemory.refresh': 'Refresh',
   'workingPanel.claudeMemory.title': 'Claude Memory',
   'workingPanel.openMenu.configuration': 'Configuration',
@@ -4729,22 +4747,22 @@ export default {
   'worktreeRestore.waiting': 'Waiting for the worktree cleanup to finish before restoring it…',
   'you': 'You',
   'sandboxDrive.manageEnvironments': 'Settings',
-  'sandboxDrive.openStorage': 'Sandbox Storage',
   'sandboxEnvironment.none': 'No environment',
   'sandboxEnvironment.missing': 'Environment unavailable',
   'sandboxEnvironment.loading': 'Loading environment…',
-  'sandboxDrive.pickerTitle': 'Work location',
-  'sandboxDrive.pickerInfoTooltip':
-    'A temporary directory is cleaned up with the sandbox. A folder on your cloud drive is kept across conversations. An environment is set up before the first command.',
   'sandboxEnvironment.title': 'Environment',
-  'sandboxEnvironment.hint':
-    'Its repositories are cloned, setup runs and its variables are set before the first command.',
   'sandboxEnvironment.empty': 'No environments yet. Create one to get started.',
   'sandboxEnvironment.add': 'New environment',
   'sandboxEnvironment.loadFailed': "Couldn't load environments",
   'sandboxEnvironment.retry': 'Retry',
   'sandboxEnvironment.saveFailed': 'Could not change the environment. Try again.',
   'sandboxDrive.root': 'Root',
+  'sandboxOptions.storage': 'Storage',
+  'sandboxOptions.temporary': 'Temporary',
+  'sandboxOptions.folder': 'Folder',
+  'sandboxOptions.environment': 'Environment',
+  'sandboxDrive.setupSkipped':
+    "This folder already has files, so the environment won't be set up in it.",
   'sandboxDrive.building': '{{name}} · building',
   'sandboxDrive.title': 'Cloud drive',
   'sandboxDrive.browseOther': 'Choose another folder…',
@@ -4764,6 +4782,8 @@ export default {
   'sandboxDrive.fallbackChip.instanceRebuildRequired': 'Rebuild on personal drive',
   'input.costEstimate.hintUsd': 'Estimated cost: about {{amount}}',
   'input.costEstimate.usdPerMillionTokens': '{{amount}} / 1M tokens',
+  'resource.artifacts.history.restoreFailedRetry':
+    "Couldn't restore this revision. Check your network and try again.",
   'taskLabel.add': 'Add labels',
   'taskLabel.anyInGroup': 'Any {{name}}',
   'taskLabel.createFailed': 'Failed to create label',
@@ -4801,4 +4821,11 @@ export default {
   'taskList.find.placeholder': 'Find in view…',
   'taskList.groupBy.labelGroup': 'Label: {{name}}',
   'sandboxEnvironment.noRepository': 'No repository',
+  'sessionGroup.createFailedRetry':
+    "Couldn't create the category. Check your network and try again.",
+  'shareModal.downloadFailedRetry': "Couldn't download the PDF. Check your network and try again.",
+  'shareModal.generation.updateFailedRetry':
+    "Couldn't update the share link. Check your network and try again.",
+  'taskDetail.statusCascade.applyFailedRetry':
+    "Couldn't update the task status. Check your network and try again.",
 };

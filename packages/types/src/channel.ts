@@ -3,6 +3,7 @@ import {
   LocalExecutionHeterogeneousAgentTypeSchema,
   REMOTE_HETEROGENEOUS_AGENT_CONFIGS,
 } from './agent/heterogeneousAgent';
+import type { ChannelConnectorRequest, ChannelDeviceGrantCard } from './channelMessageCard';
 import type { ContactCard, ContactCardType, ContactUserProfile } from './contact';
 import { getWorkingDirEffectivePath } from './device';
 import type { BotWakeKind } from './signal';
@@ -159,7 +160,13 @@ export type ChannelMemberMetadata = Record<string, unknown> & {
 };
 
 /** Free-form channel state that does not need its own column. */
-export type ChannelMetadata = Record<string, unknown>;
+export type ChannelMetadata = Record<string, unknown> & {
+  /**
+   * The Channel a project starts with. Clients show it under the project's name (see
+   * `ChannelListItem.displayTitle`) while its own `title` stays as stored; renaming keeps the mark.
+   */
+  projectDefault?: boolean;
+};
 
 /** Free-form grant state that does not need its own column. */
 export type ChannelMemberGrantMetadata = Record<string, unknown>;
@@ -441,6 +448,17 @@ export type ChannelJobBlockCode =
 export type ChannelMemberGrantStatus = 'approved' | 'pending' | 'rejected' | 'revoked';
 
 export type ChannelMemberGrantRevokeReason = 'device_owner_left' | 'revoked_by_owner';
+
+/**
+ * An Agent owner's consent for other people in a Channel to run their Agent, billed to the owner.
+ * Its scope narrows from the whole Channel to one person, one Thread, or one person in one Thread.
+ */
+export type ChannelAgentGrantStatus = 'approved' | 'pending' | 'rejected' | 'revoked';
+
+export type ChannelAgentGrantRevokeReason =
+  'agent_removed' | 'grantee_left' | 'owner_left' | 'revoked_by_owner';
+
+export type ChannelAgentGrantMetadata = Record<string, unknown>;
 
 export interface ChannelContextMessage {
   /** `id` is the actual user/Agent id, or NULL after author deletion. */
@@ -744,6 +762,8 @@ export type ChannelAuditDetails = Record<string, boolean | number | string | str
 /** A public group Channel the caller has not joined yet, as the browse list shows it. */
 export interface ChannelJoinableItem {
   createdAt: Date;
+  /** What clients show as its name; see `ChannelListItem.displayTitle`. */
+  displayTitle: string;
   id: string;
   /** Active people in it, Agents not counted. */
   memberCount: number;
@@ -775,6 +795,11 @@ export interface ChannelLastMessage {
   content: string;
   createdAt: Date;
   /**
+   * An Agent's acknowledgement posted before its run ("got it, checking the logs first"): it says
+   * the work started, not what came of it, so it raises no desktop notification.
+   */
+  opening?: boolean;
+  /**
    * The Thread it was posted in, named by its title or else the first line of its root message;
    * null for the main conversation.
    */
@@ -799,6 +824,12 @@ export interface ChannelListItem {
   /** Server-computed for the current member. */
   canDelete: boolean;
   createdAt: Date;
+  /**
+   * What clients show as the Channel's name, computed by the server on every read: the project's
+   * name for a project's default Channel (`metadata.projectDefault`) while that project is live
+   * and named, otherwise `title`. Clients only read it; renaming still edits `title`.
+   */
+  displayTitle: string;
   /**
    * The caller hid the conversation from their list; new activity brings it back. Set by the
    * Channel list. Personal: other members never see it.
@@ -919,63 +950,6 @@ export interface ChannelDeviceGrantItem {
   workingDirectory: string;
 }
 
-/**
- * `metadata.deviceGrant` of the message an Agent posts in its direct conversation with a device
- * owner when someone asks to run it on their private device in a Channel. Only `grantId` is
- * authoritative; the rest is the server's snapshot at request time, so the card reads without
- * the Channel.
- */
-export interface ChannelDeviceGrantRequest {
-  agentName: string | null;
-  channelId: string;
-  channelTitle: string;
-  deviceId: string;
-  deviceName: string | null;
-  grantId: string;
-  requesterName: string | null;
-  requesterUserId: string | null;
-  workingDirectory: string;
-}
-
-/** A request card as its reader sees it: `expired` once the grant was replaced or removed. */
-export type ChannelDeviceGrantCard = ChannelDeviceGrantRequest & {
-  status: ChannelMemberGrantStatus | 'expired';
-};
-
-/** `metadata.deviceGrant` of a device request card, or undefined for anything else. */
-export const channelMessageDeviceGrant = (
-  metadata: ChannelMessageMetadata | null | undefined,
-): ChannelDeviceGrantRequest | undefined => {
-  const request = metadata?.deviceGrant as Partial<ChannelDeviceGrantRequest> | undefined;
-  return typeof request?.grantId === 'string' &&
-    typeof request.channelId === 'string' &&
-    typeof request.deviceId === 'string' &&
-    typeof request.workingDirectory === 'string'
-    ? {
-        agentName: request.agentName ?? null,
-        channelId: request.channelId,
-        channelTitle: request.channelTitle ?? '',
-        deviceId: request.deviceId,
-        deviceName: request.deviceName ?? null,
-        grantId: request.grantId,
-        requesterName: request.requesterName ?? null,
-        requesterUserId: request.requesterUserId ?? null,
-        workingDirectory: request.workingDirectory,
-      }
-    : undefined;
-};
-
-/**
- * The stored text of a request card, for every reader that does not render the card: list
- * previews, notifications and the Agent itself. Clients that render cards localize their own.
- */
-export const deviceGrantRequestText = (request: ChannelDeviceGrantRequest) =>
-  `[Device request] ${request.requesterName || 'A member'} asks to run ${
-    request.agentName || 'this Agent'
-  } in "${request.channelTitle}" on ${request.deviceName || request.deviceId} (${
-    request.workingDirectory
-  }).`;
-
 export interface ChannelPublicMember {
   actorType: ChannelMemberActorType;
   agentId: string | null;
@@ -1008,6 +982,8 @@ export interface ChannelPublicMessage {
   };
   /** A person or an Agent shared as a contact card; the content holds its text fallback. */
   card?: ContactCard | null;
+  /** An Agent asking the reader to connect a connector it needs; see {@link ChannelConnectorRequest}. */
+  connector?: ChannelConnectorRequest | null;
   content: string;
   createdAt: Date;
   /**
