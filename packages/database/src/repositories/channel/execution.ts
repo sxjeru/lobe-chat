@@ -3,9 +3,14 @@ import type {
   ChannelAsk,
   ChannelContextMessage,
   ChannelJobStatus,
+  ChannelMessageSurface,
   ChannelReplyError,
 } from '@lobechat/types';
-import { channelAskFallbackText, channelMessageReplyError } from '@lobechat/types';
+import {
+  channelAskFallbackText,
+  channelMessageReplyError,
+  channelSurfacesText,
+} from '@lobechat/types';
 import { and, asc, desc, eq, gt, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 
 import type { ChannelJobItem } from '../../schemas';
@@ -34,6 +39,7 @@ import {
   findOpeningCandidate,
   findOpeningReply,
 } from './opening';
+import { markJobRequest } from './reactions';
 import type { ChannelReplyErrorDraft } from './replyError';
 import {
   findReplyError,
@@ -523,6 +529,8 @@ export class ChannelExecutionRepository {
       await audit(tx, channelId, 'input_accepted', job.id, {
         cutoff: job.manifest?.cutoffSequence ?? null,
       });
+      // The Agent took the request on, and shows so on it.
+      await markJobRequest(tx, job, 'working');
     });
 
   /** Stores the final answer. Immutable once saved, so a retry cannot change it. */
@@ -541,7 +549,12 @@ export class ChannelExecutionRepository {
    * Publishes the saved draft as the member's reply and completes the job. Idempotent: a
    * second call returns the same message id.
    */
-  publish = async (channelId: string, jobId: string): Promise<string> =>
+  publish = async (
+    channelId: string,
+    jobId: string,
+    /** Cards the run drew; they go out with its reply and keep their text in its content. */
+    surfaces: ChannelMessageSurface[] = [],
+  ): Promise<string> =>
     withChannelLock(this.db, channelId, async (tx) => {
       const job = await claimed(tx, channelId, jobId);
       if (job.publishedMessageId) return job.publishedMessageId;
@@ -572,9 +585,26 @@ export class ChannelExecutionRepository {
             status: 'pending',
           }
         : undefined;
+      const carded = !!ask || surfaces.length > 0;
       const published = {
-        content: ask ? [body, channelAskFallbackText(ask)].filter(Boolean).join('\n\n') : job.draft,
-        ...(ask && { kind: 'ask' as const, metadata: { ask } }),
+        // Cards keep a text form after the reply's own words, read by everything that can't
+        // draw them (previews, notifications, an Agent reading history); views show only the body.
+        content: carded
+          ? [
+              body,
+              surfaces.length > 0 ? channelSurfacesText(surfaces) : '',
+              ask ? channelAskFallbackText(ask) : '',
+            ]
+              .filter(Boolean)
+              .join('\n\n')
+          : job.draft,
+        ...(ask && { kind: 'ask' as const }),
+        ...(carded && {
+          metadata: {
+            ...(ask && { ask }),
+            ...(surfaces.length > 0 && { surfaces, surfacesBodyLength: body.length }),
+          },
+        }),
       };
       // A card from an earlier failure of this job is replaced by the reply, in the same slot.
       const reply =
@@ -593,6 +623,7 @@ export class ChannelExecutionRepository {
         .set({ publishedMessageId: reply.id, status: 'completed' })
         .where(eq(channelJobs.id, job.id));
       await audit(tx, channelId, 'draft_published', job.id, { messageId: reply.id });
+      await markJobRequest(tx, job, 'answered');
 
       return reply.id;
     });
@@ -827,6 +858,9 @@ export class ChannelExecutionRepository {
         })
         .where(eq(channelJobs.id, job.id));
       await advanceOperation(tx, job, outcome.operation, outcome.error);
+      // Every run ends here. One that ended without a reply takes back the 👀 it showed; one
+      // still finishing an accepted draft keeps it until it publishes.
+      if (!job.publishedMessageId && status !== 'running') await markJobRequest(tx, job, 'cleared');
       await audit(tx, channelId, 'writer_released', job.id, { status });
     });
 

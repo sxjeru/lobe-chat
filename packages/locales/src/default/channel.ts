@@ -127,6 +127,7 @@ export default {
   'copyThreadLink': 'Copy link',
   'copyThreadLinkSuccess': 'Thread link copied',
   'ask.answeredBy': 'Answered by {{name}}',
+  'ask.closed': 'Closed: answered in the conversation, or the time to answer ran out',
   'ask.failed': "Couldn't send your answer. Try again.",
   'ask.multiSelect': 'Choose all that apply',
   'ask.other': 'Other',
@@ -157,6 +158,8 @@ export default {
   'threadCard.messages_other': '{{count}} messages',
   'closeThread': 'Close thread',
   'thread': 'Thread',
+  'collapseThreads': 'Collapse threads',
+  'expandThreads': 'Expand threads',
   /** Heads the Channel's own actions in a menu that also holds a thread's. */
   'channel': 'Channel',
   'threadDivider': 'Replies in this thread',
