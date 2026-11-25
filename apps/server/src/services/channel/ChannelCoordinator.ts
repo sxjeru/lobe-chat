@@ -23,7 +23,6 @@ import { extractTextFromMessage } from '@/server/services/agentRuntime/Completio
 import type { AgentHook } from '@/server/services/agentRuntime/hooks/types';
 import { AiAgentService } from '@/server/services/aiAgent';
 import type { AgentShareGate } from '@/server/services/aiAgent/shareGate';
-import { resolveShareVisitorDeviceAccess } from '@/server/services/aiAgent/shareGate/deviceAccess';
 import { recordShareRunResult } from '@/server/services/aiAgent/shareGate/runMetrics';
 import { detectNoReply } from '@/server/services/conversationWake/noReply';
 import { deviceGateway } from '@/server/services/deviceGateway';
@@ -31,6 +30,8 @@ import { getScopedOnlineDevices } from '@/server/services/deviceGateway/scopedDe
 import { isQueueAgentRuntimeEnabled } from '@/server/services/queue/impls';
 import { SystemAgentService } from '@/server/services/systemAgent';
 
+import { announceAgentAccessRequests } from './agentAccess/card';
+import { evaluateShareAccess } from './agentAccess/resolve';
 import { reportAgentExchange } from './agentExchange';
 import { resolveChannelAttachments } from './attachments';
 import { ChannelRoutingService } from './ChannelRoutingService';
@@ -149,13 +150,14 @@ export class ChannelCoordinator {
     request: string,
   ): Promise<AgentShareGate> {
     const share = await AgentShareModel.findByShareId(this.db, access.shareId);
-    if (
-      !share ||
-      share.agentId !== agentId ||
-      share.ownerId !== access.ownerId ||
-      !(await AgentShareModel.admitsVisitor(this.db, share, requesterId))
-    )
+    if (!share || share.agentId !== agentId || share.ownerId !== access.ownerId)
       throw new Error('This Agent is no longer shared');
+    const granted = await evaluateShareAccess(this.db, share, requesterId);
+    if (!granted.admits) throw new Error('This Agent is no longer shared');
+    // A local CLI Agent runs for a visitor only on its owner's device. Without that grant the
+    // request is refused here, before an opening acknowledges it: its card asks the owner.
+    if (granted.local && !granted.canUseDevice)
+      throw shareRefusal(ChatErrorType.ShareHeterogeneousAgentUnsupported);
     if (request.length > SHARE_VISITOR_PROMPT_MAX_LENGTH)
       throw shareRefusal(ChatErrorType.SharePromptTooLong);
     const sent = await new TopicModel(
@@ -178,7 +180,7 @@ export class ChannelCoordinator {
     if (!spend.allowed) throw shareRefusal(ChatErrorType.ShareSpendLimitExceeded);
     return {
       agentId,
-      canUseDevice: await resolveShareVisitorDeviceAccess(this.db, share, requesterId),
+      canUseDevice: granted.canUseDevice,
       shareConfig: share.shareConfig,
       shareId: share.shareId,
       visitorUserId: requesterId,
@@ -264,10 +266,15 @@ export class ChannelCoordinator {
                   (error) => !dispatchFailure(error),
                 ),
             });
+            let accessDenied = false;
             const claimNow = () =>
               this.executions.claim(channelId, job.id, {
                 leaseMs: LEASE_MS,
                 leaseOwner: crypto.randomUUID(),
+                // Its owner declined the requester: the job settled failed, and its card says so.
+                onAccessDenied: () => {
+                  accessDenied = true;
+                },
                 onlineDeviceIds,
                 routedDevice: (run) => resolveChannelRoutedDevice(this.db, run, routedPresence),
                 serverDefaultAgentConfig: getServerDefaultAgentConfig(),
@@ -278,6 +285,7 @@ export class ChannelCoordinator {
               (await this.moveToWorktree(channelId, job.id, channel.workspaceId, onlineDeviceIds))
             )
               claim = await claimNow();
+            if (accessDenied) await this.reportFailure(channelId, job.id);
             await Promise.all([
               notifyChannel(this.db, channelId),
               claim ? this.dispatch(claim, channel.workspaceId, channel.projectId) : undefined,
@@ -289,8 +297,12 @@ export class ChannelCoordinator {
     } finally {
       if (pending.length) await notifyChannel(this.db, channelId);
     }
-    // A claim that found the device made private since it was picked files a request; ask now.
-    if (pending.length) await announceDeviceGrants(this.db, channelId);
+    // A claim that found the device made private since it was picked files a request, and so does
+    // one whose requester may not use the Agent; ask their owners now.
+    if (pending.length) {
+      await announceDeviceGrants(this.db, channelId);
+      await announceAgentAccessRequests(this.db, channelId);
+    }
   };
 
   /**
@@ -535,22 +547,26 @@ export class ChannelCoordinator {
         const content = final?.tools?.length ? undefined : extractTextFromMessage(final);
         // A wake nobody asked for may end in silence. Settled like a reply, not a failure.
         // A run that stopped on a tool call (out of steps) did not choose silence: it failed.
-        const silence = final?.tools?.length
-          ? undefined
-          : detectNoReply({ content, wakeKind: job.wake?.kind });
+        // A run that asked its requester something always posts the questions, whatever it
+        // wrote around them: a card nobody sees cannot be answered.
+        const silence =
+          final?.tools?.length || job.ask
+            ? undefined
+            : detectNoReply({ content, wakeKind: job.wake?.kind });
         if (silence && (await this.executions.silence(channelId, jobId, silence.reason))) {
           await this.stopWriters([job]);
           await notifyChannel(this.db, channelId);
           return;
         }
-        if (!content?.trim()) {
+        const text = job.ask && detectNoReply({ content, wakeKind: 'followup' }) ? '' : content;
+        if (!text?.trim() && !job.ask) {
           await this.stopWriters([job]);
           await notifyChannel(this.db, channelId);
           return;
         }
         await this.executions.accepted(channelId, jobId);
-        await this.executions.saveDraft(channelId, jobId, content);
-        reply = content;
+        await this.executions.saveDraft(channelId, jobId, text ?? '');
+        reply = text ?? '';
       }
       const replyMessageId = await this.executions.publish(channelId, jobId);
       await this.stopWriters([job]);

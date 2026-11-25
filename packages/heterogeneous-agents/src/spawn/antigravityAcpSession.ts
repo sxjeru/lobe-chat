@@ -1,5 +1,6 @@
 import { isRecord } from '@lobechat/utils/object';
 
+import type { AskUserBridge } from '../askUser/AskUserBridge';
 import type { AgentPromptInput } from '../protocol';
 import type { AcpAgentSessionOptions } from './acpAgentSession';
 import {
@@ -10,6 +11,10 @@ import {
 import type { AcpRpcMessage } from './acpStdioClient';
 import { AcpRpcResponseError, AcpServerRequestError } from './acpStdioClient';
 import { buildAntigravityAcpLaunch } from './antigravity';
+import {
+  buildAntigravityElicitationResponse,
+  parseAntigravityQuestions,
+} from './antigravityAcpElicitation';
 import type { BuildAgentInputOptions } from './input';
 import type { TraeAcpPromptBlock } from './traeAcpSession';
 import { buildTraeAcpPrompt } from './traeAcpSession';
@@ -107,6 +112,7 @@ const resolveModelValue = (
 };
 
 export interface AntigravityAcpSessionOptions extends AcpAgentSessionOptions {
+  askUserBridge?: AskUserBridge;
   onModel?: (model: string) => void;
   prompt: AntigravityAcpPromptBlock[];
 }
@@ -122,6 +128,11 @@ const isPromptResponse = (message: AcpRpcMessage): boolean => {
   if (message.error) return message.requestMethod === 'session/prompt';
   return isRecord(message.result) && 'stopReason' in message.result;
 };
+
+// agy can send its quota rejection as a complete ACP text chunk and return
+// end_turn. Match the standalone notice so ordinary prose stays in the chat.
+const QUOTA_NOTICE =
+  /^(?:⚠️?\s*)?Individual quota reached\.\s+Please upgrade your subscription to increase your limits\.(?:\s+Resets in (?:\d+[dhms]\s*)+\.?)?$/i;
 
 /** `session/resume` and `session/load` both failed to find the saved conversation. */
 export const isAntigravityAcpSessionNotFoundError = (
@@ -143,9 +154,8 @@ export class AntigravityAcpSession extends AcpAgentSession<
 > {
   /** Session updates before the prompt (a `session/load` replay) are history, not output. */
   private acceptUpdates = false;
-  /** Read confirmations, chained so each lands before any update that follows it. */
-  private confirmations: Promise<void> = Promise.resolve();
   private readonly launch: ReturnType<typeof buildAntigravityAcpLaunch>;
+  private writingAnswer = false;
   /** Prompt responses handled so far, in stdout order. */
   private promptResponses = 0;
   /** Steered prompts written to agy, in order, that the run has not settled yet. */
@@ -177,14 +187,21 @@ export class AntigravityAcpSession extends AcpAgentSession<
 
   /**
    * Write a user message into the running turn. `false` when the run takes no
-   * input now (not prompting yet, interrupted, or settling): nothing was
-   * written, so the message can wait for the next run. agy confirms it read
+   * input now (not prompting yet, writing an answer, interrupted, or settling):
+   * nothing was written, so the message can wait for the next run. agy confirms it read
    * the message when the prompt it interrupts returns, reported as
    * `step_complete { phase: 'user_message', uuid }`.
    */
   steer(prompt: AntigravityAcpPromptBlock[], uuid: string): boolean {
     const sessionId = this.acpSessionId;
-    if (!this.steerable || !sessionId || this.closedByHost) return false;
+    if (
+      !this.steerable ||
+      !sessionId ||
+      this.closedByHost ||
+      this.writingAnswer ||
+      this.promptResponses > this.steerCount
+    )
+      return false;
 
     const result = this.client.request<AntigravityAcpPromptResult>(
       'session/prompt',
@@ -196,10 +213,7 @@ export class AntigravityAcpSession extends AcpAgentSession<
     result.catch(() => {});
     this.steers.push(result);
 
-    const index = ++this.steerCount;
-    // The prompt before it already returned: agy starts on this one now.
-    if (this.promptResponses >= index) this.confirmSteer(uuid);
-    else this.unconfirmedSteers.push({ index, uuid });
+    this.unconfirmedSteers.push({ index: ++this.steerCount, uuid });
     return true;
   }
 
@@ -210,7 +224,11 @@ export class AntigravityAcpSession extends AcpAgentSession<
 
   protected buildInitializeParams(): unknown {
     return {
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientCapabilities: {
+        ...(this.options.askUserBridge && { elicitation: { form: {} } }),
+        fs: { readTextFile: false, writeTextFile: false },
+        terminal: false,
+      },
       clientInfo: { name: 'lobehub', title: 'LobeHub', version: this.options.clientVersion },
       protocolVersion: ACP_PROTOCOL_VERSION,
     };
@@ -274,7 +292,6 @@ export class AntigravityAcpSession extends AcpAgentSession<
       this.addUsage(last.usage);
     }
     this.steerable = false;
-    await this.confirmations;
 
     const used = Object.values(this.usage).some((value) => value > 0);
     await this.pushToPipeline({
@@ -300,16 +317,16 @@ export class AntigravityAcpSession extends AcpAgentSession<
   }
 
   protected async handleAgentMessage(message: AcpRpcMessage): Promise<void> {
-    await this.confirmations;
     if (isPromptResponse(message)) {
       // Each steer ends the prompt before it, so this is when agy read the
       // next one. Confirm it here, in stdout order, so the answer to it that
       // follows in the same output opens a step of its own.
       this.promptResponses += 1;
+      this.writingAnswer = false;
       const next = this.unconfirmedSteers[0];
-      if (next && next.index <= this.promptResponses) {
+      if (!message.error && next && next.index <= this.promptResponses) {
         this.unconfirmedSteers.shift();
-        await this.confirmSteer(next.uuid);
+        await this.pushToPipeline({ type: 'antigravity_user_message', uuid: next.uuid });
       }
       return;
     }
@@ -318,6 +335,26 @@ export class AntigravityAcpSession extends AcpAgentSession<
     if (!isRecord(params?.update)) return;
     // Subagent conversations must never leak into the parent's assistant bubble.
     if (typeof params.sessionId === 'string' && params.sessionId !== this.acpSessionId) return;
+    // agy starts the raw tool before the form request, whose schema supplies
+    // the arguments for the same card. A terminal update still closes it or
+    // shows the original tool when agy fell back to asking in chat.
+    const { content, name, sessionUpdate, status } = params.update;
+    if (sessionUpdate === 'agent_message_chunk' && isRecord(content) && content.type === 'text') {
+      const text = typeof content.text === 'string' ? content.text.trim() : '';
+      if (QUOTA_NOTICE.test(text)) throw new Error(text);
+      // The updates only identify the session. Leave the next prompt queued
+      // while agy is writing an answer so its remaining text stays on this turn.
+      if (text) this.writingAnswer = true;
+    } else if (sessionUpdate === 'tool_call') {
+      this.writingAnswer = false;
+    }
+    if (
+      this.options.askUserBridge &&
+      name === 'ask_question' &&
+      (sessionUpdate === 'tool_call' || sessionUpdate === 'tool_call_update') &&
+      (status === 'in_progress' || status === 'pending' || status === undefined)
+    )
+      return;
     await this.pushToPipeline(params.update);
   }
 
@@ -326,6 +363,7 @@ export class AntigravityAcpSession extends AcpAgentSession<
    * still ask, approve as the print-mode runs did.
    */
   protected handleServerRequest(message: AcpRpcMessage): unknown {
+    if (message.method === 'elicitation/create') return this.handleElicitation(message.params);
     if (message.method !== 'session/request_permission') {
       throw new AcpServerRequestError(-32_601, `Unsupported ACP client request: ${message.method}`);
     }
@@ -336,6 +374,37 @@ export class AntigravityAcpSession extends AcpAgentSession<
     return optionId
       ? { outcome: { optionId, outcome: 'selected' } }
       : { outcome: { outcome: 'cancelled' } };
+  }
+
+  private async handleElicitation(params: unknown): Promise<unknown> {
+    const bridge = this.options.askUserBridge;
+    if (!bridge || !isRecord(params) || params.mode !== 'form') {
+      throw new AcpServerRequestError(-32_602, 'Unsupported Antigravity elicitation mode');
+    }
+    if (!this.steerable || params.sessionId !== this.acpSessionId) return { action: 'cancel' };
+    const { toolCallId } = params;
+    const questions = parseAntigravityQuestions(params.requestedSchema);
+    if (typeof toolCallId !== 'string' || !toolCallId || !questions) return { action: 'decline' };
+
+    const args = { questions: questions.map(({ question }) => question) };
+    await this.pushToPipeline({
+      name: 'askUserQuestion',
+      rawInput: args,
+      sessionUpdate: 'tool_call',
+      toolCallId,
+    });
+    if (!this.steerable) return { action: 'cancel' };
+    const answer = await bridge.pending(
+      { arguments: args, toolCallId },
+      {
+        // Queue the request and ACK alongside the tool events. An independent
+        // bridge pump can persist the question before the new assistant step.
+        onEvent: (event) => {
+          void this.emitEvents([event]).catch(() => this.interrupt());
+        },
+      },
+    );
+    return buildAntigravityElicitationResponse(questions, answer);
   }
 
   /**
@@ -394,9 +463,8 @@ export class AntigravityAcpSession extends AcpAgentSession<
         ? resolveModelValue(this.launch.model, effort, sessionResult)
         : undefined;
     if (model) await set('model', model);
-    // Models with a fixed thinking tier (GPT-OSS, Orchestrator) offer no
-    // thought_level, and agy rejects setting one.
-    if (effort && findConfigOption(configOptions, 'thought_level')) {
+    // Changing models can replace or remove the thinking-level choices.
+    if (effort && configOptionValues(configOptions, 'thought_level').includes(effort)) {
       await set('thought_level', effort);
     }
     if (mode) await set('mode', mode);
@@ -406,16 +474,6 @@ export class AntigravityAcpSession extends AcpAgentSession<
     const level = configValue(configOptions, 'thought_level');
     const variant = level ? `${family}-${level}` : undefined;
     return variant && availableModelIds(sessionResult).has(variant) ? variant : family;
-  }
-
-  private confirmSteer(uuid: string): Promise<void> {
-    const confirmed = this.confirmations.then(() =>
-      this.pushToPipeline({ type: 'antigravity_user_message', uuid }),
-    );
-    // Awaited by the next message and by `settlePrompt`.
-    confirmed.catch(() => {});
-    this.confirmations = confirmed;
-    return confirmed;
   }
 
   private addUsage(usage: unknown): void {
