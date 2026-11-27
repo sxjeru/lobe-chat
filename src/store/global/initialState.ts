@@ -336,6 +336,14 @@ export interface SystemStatus {
    * affordance is only a scroll trick.
    */
   homeGoalsCollapsed?: boolean;
+  /**
+   * Whether the home rail last settled with no card, keyed by cache scope
+   * (`${userId}:${workspaceId}`). Restored before the first render so a rail
+   * that is usually empty starts in one column, instead of showing loading
+   * skeletons beside a narrowed page and sliding back once its feeds answer
+   * empty on every reload.
+   */
+  homeRailEmptyByScope?: Record<string, boolean>;
   homeRecentsCount?: number;
   /**
    * Agent picked from the home AgentSelect dropdown, keyed by cache scope
@@ -517,6 +525,13 @@ export interface SystemStatus {
    * Whether the right-side "Hidden columns" panel on the Kanban board is collapsed.
    */
   taskKanbanHiddenPanelCollapsed?: boolean;
+  /**
+   * Folded group / sub-group headers of the task list view, one entry per view
+   * (`taskListCollapseScopeKey`), so a folded group stays folded across
+   * navigation and reloads, as Linear keeps them per view. An array for the
+   * same reason as `taskListFilters`; see `useTaskListGroupCollapse`.
+   */
+  taskListCollapsedGroups?: { keys: string[]; scope: string }[];
   /**
    * Tasks page filters, one entry per list scope (workspace + global / agent /
    * project page). An array, not a map: status is deep-merged on write, which
@@ -766,8 +781,8 @@ export const INITIAL_STATUS = {
 
 const statusStorage = new AsyncLocalStorage<SystemStatus>('LOBE_SYSTEM_STATUS');
 
-/** Keeps only `ownerId → boolean` entries of a persisted value of unknown shape. */
-const restoreTopicOnlyMineByAgent = (value: unknown): Record<string, boolean> | undefined => {
+/** Keeps only `key → boolean` entries of a persisted value of unknown shape. */
+const restoreBooleanRecord = (value: unknown): Record<string, boolean> | undefined => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return Object.fromEntries(
     Object.entries(value).filter(
@@ -793,6 +808,7 @@ export const createInitialSystemStatus = (): SystemStatus => {
 
   return {
     ...INITIAL_STATUS,
+    homeRailEmptyByScope: restoreBooleanRecord(persistedStatus.homeRailEmptyByScope),
     hiddenHomeWidgets: Array.isArray(persistedStatus.hiddenHomeWidgets)
       ? persistedStatus.hiddenHomeWidgets
       : INITIAL_STATUS.hiddenHomeWidgets,
@@ -816,7 +832,7 @@ export const createInitialSystemStatus = (): SystemStatus => {
       typeof persistedStatus.showRightPanel === 'boolean'
         ? persistedStatus.showRightPanel
         : INITIAL_STATUS.showRightPanel,
-    topicOnlyMineByAgent: restoreTopicOnlyMineByAgent(persistedStatus.topicOnlyMineByAgent),
+    topicOnlyMineByAgent: restoreBooleanRecord(persistedStatus.topicOnlyMineByAgent),
     showWorkingOverview:
       typeof persistedStatus.showWorkingOverview === 'boolean'
         ? persistedStatus.showWorkingOverview
